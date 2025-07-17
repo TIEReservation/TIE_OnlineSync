@@ -1,10 +1,25 @@
 import streamlit as st
+import pandas as pd
+import psycopg2
+from datetime import datetime, date, timedelta
+import plotly.express as px
+import plotly.graph_objects as go
+from sqlalchemy import create_engine
+import requests
+import uuid
+
+# Page config
+st.set_page_config(
+    page_title="TIE Reservation System",
+    page_icon="🏢",
+    layout="wide"
+)
 
 def check_authentication():
     # Initialize authentication state
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
-    
+        
     # If not authenticated, show login page
     if not st.session_state.authenticated:
         st.title("🔐 TIE Reservation System - Organization Login")
@@ -29,20 +44,284 @@ def check_authentication():
 # Call the authentication check
 check_authentication()
 
-# ADD YOUR EXISTING APP CODE BELOW THIS LINE
-# (All your current Streamlit code goes here)
-import streamlit as st 
-import pandas as pd 
-import psycopg2 
-from datetime import datetime, date 
-import plotly.express as px 
-import plotly.graph_objects as go 
-from sqlalchemy import create_engine 
-import requests 
+# Initialize session state for reservations
+if 'reservations' not in st.session_state:
+    st.session_state.reservations = []
 
-# Page config 
-st.set_page_config(
-    page_title="TIE Reservation System",
-    page_icon="🏢",
-    layout="wide"
-)
+# Helper function to generate booking ID
+def generate_booking_id():
+    return f"TIE{datetime.now().strftime('%Y%m%d')}{len(st.session_state.reservations) + 1:03d}"
+
+# Helper function to calculate days between dates
+def calculate_days(check_in, check_out):
+    if check_in and check_out:
+        return (check_out - check_in).days
+    return 0
+
+# Main App
+def main():
+    st.title("🏢 TIE Reservation System")
+    st.markdown("---")
+    
+    # Sidebar for navigation
+    st.sidebar.title("Navigation")
+    page = st.sidebar.selectbox("Choose a page", ["New Reservation", "View Reservations", "Analytics"])
+    
+    if page == "New Reservation":
+        show_new_reservation_form()
+    elif page == "View Reservations":
+        show_reservations()
+    elif page == "Analytics":
+        show_analytics()
+
+def show_new_reservation_form():
+    st.header("📝 New Reservation")
+    
+    with st.form("reservation_form"):
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            property_name = st.text_input("Property Name", placeholder="Enter property name")
+            room_no = st.text_input("Room No", placeholder="e.g., 101, 202")
+            guest_name = st.text_input("Guest Name", placeholder="Enter guest name")
+            mobile_no = st.text_input("Mobile No", placeholder="Enter mobile number")
+            
+        with col2:
+            adults = st.number_input("No of Adults", min_value=0, value=1)
+            children = st.number_input("No of Children", min_value=0, value=0)
+            infants = st.number_input("No of Infants", min_value=0, value=0)
+            total_pax = adults + children + infants
+            st.text_input("Total Pax", value=str(total_pax), disabled=True)
+            
+        with col3:
+            check_in = st.date_input("Check In", value=date.today())
+            check_out = st.date_input("Check Out", value=date.today() + timedelta(days=1))
+            no_of_days = calculate_days(check_in, check_out)
+            st.text_input("No of Days", value=str(no_of_days), disabled=True)
+            room_type = st.selectbox("Room Type", ["Standard", "Deluxe", "Suite", "Presidential"])
+        
+        col4, col5 = st.columns(2)
+        
+        with col4:
+            tariff = st.number_input("Tariff (per day)", min_value=0.0, value=0.0, step=100.0)
+            total_tariff = tariff * no_of_days
+            st.text_input("Total Tariff", value=f"₹{total_tariff:.2f}", disabled=True)
+            advance_mop = st.selectbox("Advance MOP", ["Cash", "Card", "UPI", "Bank Transfer", "Online"])
+            balance_mop = st.selectbox("Balance MOP", ["Cash", "Card", "UPI", "Bank Transfer", "Online", "Pending"])
+            
+        with col5:
+            advance_amount = st.number_input("Advance Amount", min_value=0.0, value=0.0, step=100.0)
+            balance_amount = total_tariff - advance_amount
+            st.text_input("Balance Amount", value=f"₹{balance_amount:.2f}", disabled=True)
+            mob = st.text_input("MOB (Mode of Booking)", placeholder="e.g., Phone, Walk-in, Online")
+            invoice_no = st.text_input("Invoice No", placeholder="Enter invoice number")
+        
+        col6, col7 = st.columns(2)
+        
+        with col6:
+            enquiry_date = st.date_input("Enquiry Date", value=date.today())
+            booking_date = st.date_input("Booking Date", value=date.today())
+            booking_source = st.selectbox("Booking Source", ["Direct", "Online", "Agent", "Walk-in", "Phone"])
+            
+        with col7:
+            breakfast = st.selectbox("Breakfast", ["Included", "Not Included", "Paid"])
+            plan_status = st.selectbox("Plan Status", ["Confirmed", "Pending", "Cancelled", "Completed"])
+        
+        submitted = st.form_submit_button("💾 Save Reservation")
+        
+        if submitted:
+            if not all([property_name, room_no, guest_name, mobile_no]):
+                st.error("Please fill in all required fields (Property Name, Room No, Guest Name, Mobile No)")
+            elif check_out <= check_in:
+                st.error("Check-out date must be after check-in date")
+            else:
+                # Generate booking ID
+                booking_id = generate_booking_id()
+                
+                # Create reservation record
+                reservation = {
+                    "Property Name": property_name,
+                    "Room No": room_no,
+                    "Guest Name": guest_name,
+                    "Mobile No": mobile_no,
+                    "No of Adults": adults,
+                    "No of Children": children,
+                    "No of Infants": infants,
+                    "Total Pax": total_pax,
+                    "Check In": check_in,
+                    "Check Out": check_out,
+                    "No of Days": no_of_days,
+                    "Tariff": tariff,
+                    "Total Tariff": total_tariff,
+                    "Advance Amount": advance_amount,
+                    "Balance Amount": balance_amount,
+                    "Advance MOP": advance_mop,
+                    "Balance MOP": balance_mop,
+                    "MOB": mob,
+                    "Invoice No": invoice_no,
+                    "Enquiry Date": enquiry_date,
+                    "Booking Date": booking_date,
+                    "Booking ID": booking_id,
+                    "Booking Source": booking_source,
+                    "Room Type": room_type,
+                    "Breakfast": breakfast,
+                    "Plan Status": plan_status
+                }
+                
+                # Add to session state
+                st.session_state.reservations.append(reservation)
+                
+                st.success(f"✅ Reservation saved successfully! Booking ID: {booking_id}")
+                st.balloons()
+
+def show_reservations():
+    st.header("📋 View Reservations")
+    
+    if not st.session_state.reservations:
+        st.info("No reservations found. Please add a new reservation.")
+        return
+    
+    # Convert to DataFrame for better display
+    df = pd.DataFrame(st.session_state.reservations)
+    
+    # Search and filter options
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        search_guest = st.text_input("🔍 Search by Guest Name", placeholder="Enter guest name")
+    with col2:
+        filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Completed"])
+    with col3:
+        filter_property = st.selectbox("Filter by Property", ["All"] + list(df["Property Name"].unique()))
+    
+    # Apply filters
+    filtered_df = df.copy()
+    
+    if search_guest:
+        filtered_df = filtered_df[filtered_df["Guest Name"].str.contains(search_guest, case=False, na=False)]
+    
+    if filter_status != "All":
+        filtered_df = filtered_df[filtered_df["Plan Status"] == filter_status]
+    
+    if filter_property != "All":
+        filtered_df = filtered_df[filtered_df["Property Name"] == filter_property]
+    
+    # Display statistics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Reservations", len(filtered_df))
+    with col2:
+        st.metric("Total Revenue", f"₹{filtered_df['Total Tariff'].sum():,.2f}")
+    with col3:
+        st.metric("Advance Collected", f"₹{filtered_df['Advance Amount'].sum():,.2f}")
+    with col4:
+        st.metric("Balance Pending", f"₹{filtered_df['Balance Amount'].sum():,.2f}")
+    
+    st.markdown("---")
+    
+    # Display reservations
+    if not filtered_df.empty:
+        st.dataframe(
+            filtered_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Check In": st.column_config.DateColumn("Check In"),
+                "Check Out": st.column_config.DateColumn("Check Out"),
+                "Total Tariff": st.column_config.NumberColumn("Total Tariff", format="₹%.2f"),
+                "Advance Amount": st.column_config.NumberColumn("Advance Amount", format="₹%.2f"),
+                "Balance Amount": st.column_config.NumberColumn("Balance Amount", format="₹%.2f"),
+            }
+        )
+        
+        # Download CSV
+        csv = filtered_df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download as CSV",
+            data=csv,
+            file_name=f"reservations_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
+    else:
+        st.info("No reservations match your search criteria.")
+
+def show_analytics():
+    st.header("📊 Analytics Dashboard")
+    
+    if not st.session_state.reservations:
+        st.info("No data available for analytics. Please add some reservations.")
+        return
+    
+    df = pd.DataFrame(st.session_state.reservations)
+    
+    # Key metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Bookings", len(df))
+    with col2:
+        st.metric("Total Revenue", f"₹{df['Total Tariff'].sum():,.2f}")
+    with col3:
+        st.metric("Average Tariff", f"₹{df['Tariff'].mean():,.2f}")
+    with col4:
+        st.metric("Average Stay", f"{df['No of Days'].mean():.1f} days")
+    
+    st.markdown("---")
+    
+    # Charts
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Booking Status Distribution
+        status_counts = df['Plan Status'].value_counts()
+        fig_status = px.pie(
+            values=status_counts.values,
+            names=status_counts.index,
+            title="Booking Status Distribution"
+        )
+        st.plotly_chart(fig_status, use_container_width=True)
+        
+        # Room Type Distribution
+        room_counts = df['Room Type'].value_counts()
+        fig_room = px.bar(
+            x=room_counts.index,
+            y=room_counts.values,
+            title="Room Type Distribution"
+        )
+        st.plotly_chart(fig_room, use_container_width=True)
+    
+    with col2:
+        # Booking Source Distribution
+        source_counts = df['Booking Source'].value_counts()
+        fig_source = px.pie(
+            values=source_counts.values,
+            names=source_counts.index,
+            title="Booking Source Distribution"
+        )
+        st.plotly_chart(fig_source, use_container_width=True)
+        
+        # Revenue by Property
+        property_revenue = df.groupby('Property Name')['Total Tariff'].sum()
+        fig_revenue = px.bar(
+            x=property_revenue.index,
+            y=property_revenue.values,
+            title="Revenue by Property"
+        )
+        st.plotly_chart(fig_revenue, use_container_width=True)
+    
+    # Monthly booking trends (if date range is available)
+    if len(df) > 0:
+        df['Booking Month'] = pd.to_datetime(df['Booking Date']).dt.to_period('M')
+        monthly_bookings = df.groupby('Booking Month').size()
+        
+        if len(monthly_bookings) > 1:
+            fig_trend = px.line(
+                x=monthly_bookings.index.astype(str),
+                y=monthly_bookings.values,
+                title="Monthly Booking Trends"
+            )
+            st.plotly_chart(fig_trend, use_container_width=True)
+
+if __name__ == "__main__":
+    main()
