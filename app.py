@@ -15,181 +15,28 @@ st.set_page_config(
     layout="wide"
 )
 
-# Define user roles and permissions
-USER_CREDENTIALS = {
-    # Property-specific logins
-    "eden_beach": {
-        "password": "eden2024",
-        "role": "property",
-        "property_access": ["Eden Beach Resort"],
-        "name": "Eden Beach Resort"
-    },
-    "la_paradise_luxury": {
-        "password": "paradise2024",
-        "role": "property",
-        "property_access": ["La Paradise Luxury"],
-        "name": "La Paradise Luxury"
-    },
-    "la_villa": {
-        "password": "villa2024",
-        "role": "property",
-        "property_access": ["La Villa Heritage"],
-        "name": "La Villa Heritage"
-    },
-    "le_pondy": {
-        "password": "pondy2024",
-        "role": "property",
-        "property_access": ["Le Pondy Beach Side"],
-        "name": "Le Pondy Beach Side"
-    },
-    "le_royce": {
-        "password": "royce2024",
-        "role": "property",
-        "property_access": ["Le Royce Villa"],
-        "name": "Le Royce Villa"
-    },
-    "le_poshe_luxury": {
-        "password": "poshelux2024",
-        "role": "property",
-        "property_access": ["Le Poshe Luxury"],
-        "name": "Le Poshe Luxury"
-    },
-    "le_poshe_suite": {
-        "password": "poshesuite2024",
-        "role": "property",
-        "property_access": ["Le Poshe Suite"],
-        "name": "Le Poshe Suite"
-    },
-    "la_paradise_residency": {
-        "password": "residency2024",
-        "role": "property",
-        "property_access": ["La Paradise Residency"],
-        "name": "La Paradise Residency"
-    },
-    "la_tamara_luxury": {
-        "password": "tamaralux2024",
-        "role": "property",
-        "property_access": ["La Tamara Luxury"],
-        "name": "La Tamara Luxury"
-    },
-    "le_poshe_beachview": {
-        "password": "poshebeach2024",
-        "role": "property",
-        "property_access": ["Le Poshe Beachview"],
-        "name": "Le Poshe Beachview"
-    },
-    "la_antilia": {
-        "password": "antilia2024",
-        "role": "property",
-        "property_access": ["La Antilia"],
-        "name": "La Antilia"
-    },
-    "la_tamara_suite": {
-        "password": "tamarasuite2024",
-        "role": "property",
-        "property_access": ["La Tamara Suite"],
-        "name": "La Tamara Suite"
-    },
-    "la_millionare": {
-        "password": "millionare2024",
-        "role": "property",
-        "property_access": ["La Millionare Resort"],
-        "name": "La Millionare Resort"
-    },
-    "le_park": {
-        "password": "park2024",
-        "role": "property",
-        "property_access": ["Le Park Resort"],
-        "name": "Le Park Resort"
-    },
-    
-    # Management logins with full access
-    "reservation_team": {
-        "password": "reservations2024",
-        "role": "reservation_team",
-        "property_access": "all",
-        "name": "Reservation Team"
-    },
-    "ceo": {
-        "password": "ceo2024",
-        "role": "ceo",
-        "property_access": "all",
-        "name": "CEO"
-    },
-    "md": {
-        "password": "md2024",
-        "role": "md",
-        "property_access": "all",
-        "name": "Managing Director"
-    },
-    "gm": {
-        "password": "gm2024",
-        "role": "gm",
-        "property_access": "all",
-        "name": "General Manager"
-    }
-}
-
-ALL_PROPERTIES = [
-    "Eden Beach Resort",
-    "La Paradise Luxury",
-    "La Villa Heritage",
-    "Le Pondy Beach Side",
-    "Le Royce Villa",
-    "Le Poshe Luxury",
-    "Le Poshe Suite",
-    "La Paradise Residency",
-    "La Tamara Luxury",
-    "Le Poshe Beachview",
-    "La Antilia",
-    "La Tamara Suite",
-    "La Millionare Resort",
-    "Le Park Resort"
-]
-
 def check_authentication():
     # Initialize authentication state
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
-        st.session_state.user_role = None
-        st.session_state.user_name = None
-        st.session_state.property_access = None
         
     # If not authenticated, show login page
     if not st.session_state.authenticated:
-        st.title("🔐 TIE Reservation System - Login")
-        st.write("Please enter your credentials to access the system.")
+        st.title("🔐 TIE Reservation System - Organization Login")
+        st.write("Please enter the organization password to access the system.")
         
-        # Create login form
-        with st.form("login_form"):
-            username = st.text_input("Username:", placeholder="Enter your username")
-            password = st.text_input("Password:", type="password", placeholder="Enter your password")
-            
-            login_button = st.form_submit_button("🔑 Login", use_container_width=True)
-            
-            if login_button:
-                if username in USER_CREDENTIALS and USER_CREDENTIALS[username]["password"] == password:
-                    user_info = USER_CREDENTIALS[username]
-                    st.session_state.authenticated = True
-                    st.session_state.user_role = user_info["role"]
-                    st.session_state.user_name = user_info["name"]
-                    st.session_state.property_access = user_info["property_access"]
-                    st.success(f"✅ Welcome {user_info['name']}! Redirecting...")
-                    st.rerun()
-                else:
-                    st.error("❌ Invalid username or password. Please try again.")
+        # Create password input
+        password = st.text_input("Enter organization password:", type="password")
         
-        # Show login instructions
-        with st.expander("📋 Login Instructions"):
-            st.write("**Property Logins:**")
-            st.write("- Each property has its own username and password")
-            st.write("- Property users can only access their own property data")
-            st.write("")
-            st.write("**Management Logins:**")
-            st.write("- **reservation_team**: Access to all properties")
-            st.write("- **ceo**: Full access to all properties")
-            st.write("- **md**: Full access to all properties")
-            st.write("- **gm**: Full access to all properties")
+        # Login button
+        if st.button("🔑 Login"):
+            # Change "TIE2024" to your desired password
+            if password == "TIE2024":
+                st.session_state.authenticated = True
+                st.success("✅ Login successful! Redirecting...")
+                st.rerun()
+            else:
+                st.error("❌ Invalid password. Please try again.")
         
         # Stop the app here if not authenticated
         st.stop()
@@ -206,31 +53,14 @@ if 'edit_mode' not in st.session_state:
     st.session_state.edit_mode = False
     st.session_state.edit_index = None
 
-# Helper function to get accessible properties
-def get_accessible_properties():
-    if st.session_state.property_access == "all":
-        return ALL_PROPERTIES
-    else:
-        return st.session_state.property_access
-
-# Helper function to filter reservations by access
-def filter_reservations_by_access(reservations):
-    if st.session_state.property_access == "all":
-        return reservations
-    else:
-        return [r for r in reservations if r["Property Name"] in st.session_state.property_access]
-
 # Helper function to generate booking ID
 def generate_booking_id():
     return f"TIE{datetime.now().strftime('%Y%m%d')}{len(st.session_state.reservations) + 1:03d}"
 
 # Helper function to check if guest already exists (excluding current edit)
 def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_index=None):
-    accessible_reservations = filter_reservations_by_access(st.session_state.reservations)
     for i, reservation in enumerate(st.session_state.reservations):
         if exclude_index is not None and i == exclude_index:
-            continue
-        if reservation not in accessible_reservations:
             continue
         if (reservation["Guest Name"].lower() == guest_name.lower() and 
             reservation["Mobile No"] == mobile_no and 
@@ -248,33 +78,7 @@ def calculate_days(check_in, check_out):
 
 # Main App
 def main():
-    # Display header with user info
-    col1, col2, col3 = st.columns([2, 1, 1])
-    
-    with col1:
-        st.title("🏢 TIE Reservation System")
-    
-    with col2:
-        st.write(f"**User:** {st.session_state.user_name}")
-        st.write(f"**Role:** {st.session_state.user_role.replace('_', ' ').title()}")
-    
-    with col3:
-        if st.button("🚪 Logout", use_container_width=True):
-            st.session_state.authenticated = False
-            st.session_state.user_role = None
-            st.session_state.user_name = None
-            st.session_state.property_access = None
-            st.rerun()
-    
-    st.markdown("---")
-    
-    # Show accessible properties
-    accessible_properties = get_accessible_properties()
-    if st.session_state.property_access != "all":
-        st.info(f"🏨 You have access to: {', '.join(accessible_properties)}")
-    else:
-        st.info("🏨 You have access to all properties")
-    
+    st.title("🏢 TIE Reservation System")
     st.markdown("---")
     
     # Sidebar for navigation
@@ -293,9 +97,6 @@ def main():
 def show_new_reservation_form():
     st.header("📝 Direct Reservations")
     
-    # Get accessible properties for dropdown
-    accessible_properties = get_accessible_properties()
-    
     # Initialize form submission state
     if 'form_submitted' not in st.session_state:
         st.session_state.form_submitted = False
@@ -304,12 +105,23 @@ def show_new_reservation_form():
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            # Property dropdown based on user access
-            if len(accessible_properties) == 1:
-                property_name = st.selectbox("Property Name", accessible_properties, disabled=True)
-            else:
-                property_name = st.selectbox("Property Name", accessible_properties, placeholder="Select property")
-            
+            property_options = [
+                "Eden Beach Resort",
+                "La Paradise Luxury",
+                "La Villa Heritage",
+                "Le Pondy Beach Side",
+                "Le Royce Villa",
+                "Le Poshe Luxury",
+                "Le Poshe Suite",
+                "La Paradise Residency",
+                "La Tamara Luxury",
+                "Le Poshe Beachview",
+                "La Antilia",
+                "La Tamara Suite",
+                "La Millionare Resort",
+                "Le Park Resort"
+            ]
+            property_name = st.selectbox("Property Name", property_options, placeholder="Select or type property name")
             room_no = st.text_input("Room No", placeholder="e.g., 101, 202")
             guest_name = st.text_input("Guest Name", placeholder="Enter guest name")
             mobile_no = st.text_input("Mobile No", placeholder="Enter mobile number")
@@ -369,9 +181,6 @@ def show_new_reservation_form():
             elif check_out <= check_in:
                 st.error("❌ Check-out date must be after check-in date")
                 st.session_state.form_submitted = False
-            elif property_name not in accessible_properties:
-                st.error("❌ You don't have access to this property")
-                st.session_state.form_submitted = False
             else:
                 # Check for duplicate guest
                 is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no)
@@ -415,9 +224,7 @@ def show_new_reservation_form():
                         "Booking Source": booking_source,
                         "Room Type": room_type,
                         "Breakfast": breakfast,
-                        "Plan Status": plan_status,
-                        "Created By": st.session_state.user_name,
-                        "Created At": datetime.now()
+                        "Plan Status": plan_status
                     }
                     
                     # Add to session state
@@ -429,14 +236,13 @@ def show_new_reservation_form():
                     # Reset form submission state after successful save
                     st.session_state.form_submitted = False
     
-    # Display recent reservations for reference (filtered by access)
-    accessible_reservations = filter_reservations_by_access(st.session_state.reservations)
-    if accessible_reservations:
+    # Display recent reservations for reference
+    if st.session_state.reservations:
         st.markdown("---")
         st.subheader("📋 Recent Reservations")
-        recent_df = pd.DataFrame(accessible_reservations[-5:])  # Show last 5 accessible reservations
+        recent_df = pd.DataFrame(st.session_state.reservations[-5:])  # Show last 5 reservations
         st.dataframe(
-            recent_df[["Booking ID", "Property Name", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status"]],
+            recent_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status"]],
             use_container_width=True,
             hide_index=True
         )
@@ -444,39 +250,38 @@ def show_new_reservation_form():
 def show_edit_reservations():
     st.header("✏️ Edit Reservations")
     
-    # Filter reservations by access
-    accessible_reservations = filter_reservations_by_access(st.session_state.reservations)
-    
-    if not accessible_reservations:
-        st.info("No reservations found for your accessible properties.")
+    if not st.session_state.reservations:
+        st.info("No reservations found. Please add a new reservation from Direct Reservations.")
         return
+    
+    # Convert to DataFrame for display
+    df = pd.DataFrame(st.session_state.reservations)
     
     # Search functionality
     search_term = st.text_input("🔍 Search by Booking ID, Guest Name, or Mobile No", placeholder="Enter search term")
     
     # Filter reservations based on search
     if search_term:
-        filtered_reservations = []
-        for reservation in accessible_reservations:
+        filtered_indices = []
+        for i, reservation in enumerate(st.session_state.reservations):
             if (search_term.lower() in reservation["Booking ID"].lower() or 
                 search_term.lower() in reservation["Guest Name"].lower() or 
                 search_term in reservation["Mobile No"]):
-                filtered_reservations.append(reservation)
+                filtered_indices.append(i)
     else:
-        filtered_reservations = accessible_reservations
+        filtered_indices = list(range(len(st.session_state.reservations)))
     
-    if not filtered_reservations:
+    if not filtered_indices:
         st.info("No reservations match your search criteria.")
         return
     
     # Display reservations with edit buttons
     st.subheader("📋 Select Reservation to Edit")
     
-    for reservation in filtered_reservations:
-        # Find the original index in the full reservations list
-        original_index = st.session_state.reservations.index(reservation)
+    for idx in filtered_indices:
+        reservation = st.session_state.reservations[idx]
         
-        with st.expander(f"🏷️ {reservation['Booking ID']} - {reservation['Guest Name']} ({reservation['Property Name']} - Room: {reservation['Room No']})"):
+        with st.expander(f"🏷️ {reservation['Booking ID']} - {reservation['Guest Name']} (Room: {reservation['Room No']})"):
             col1, col2, col3 = st.columns([2, 2, 1])
             
             with col1:
@@ -490,9 +295,9 @@ def show_edit_reservations():
                 st.write(f"**Status:** {reservation['Plan Status']}")
             
             with col3:
-                if st.button(f"✏️ Edit", key=f"edit_{original_index}"):
+                if st.button(f"✏️ Edit", key=f"edit_{idx}"):
                     st.session_state.edit_mode = True
-                    st.session_state.edit_index = original_index
+                    st.session_state.edit_index = idx
                     st.rerun()
     
     # Edit form
@@ -506,27 +311,31 @@ def show_edit_form(edit_index):
     # Get current reservation data
     current_reservation = st.session_state.reservations[edit_index]
     
-    # Check if user has access to this property
-    accessible_properties = get_accessible_properties()
-    if current_reservation["Property Name"] not in accessible_properties:
-        st.error("❌ You don't have access to edit this reservation.")
-        st.session_state.edit_mode = False
-        st.session_state.edit_index = None
-        return
-    
     with st.form("edit_reservation_form"):
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            # Property dropdown based on user access
-            if len(accessible_properties) == 1:
-                property_name = st.selectbox("Property Name", accessible_properties, 
-                                           index=accessible_properties.index(current_reservation["Property Name"]),
-                                           disabled=True)
-            else:
-                property_name = st.selectbox("Property Name", accessible_properties, 
-                                           index=accessible_properties.index(current_reservation["Property Name"]))
-            
+            property_options = [
+                "Eden Beach Resort",
+                "La Paradise Luxury",
+                "La Villa Heritage",
+                "Le Pondy Beach Side",
+                "Le Royce Villa",
+                "Le Poshe Luxury",
+                "Le Poshe Suite",
+                "La Paradise Residency",
+                "La Tamara Luxury",
+                "Le Poshe Beachview",
+                "La Antilia",
+                "La Tamara Suite",
+                "La Millionare Resort",
+                "Le Park Resort"
+            ]
+            current_property = current_reservation["Property Name"]
+            if current_property not in property_options:
+                property_options.append(current_property)
+            property_name = st.selectbox("Property Name", property_options, 
+                                       index=property_options.index(current_property))
             room_no = st.text_input("Room No", value=current_reservation["Room No"])
             guest_name = st.text_input("Guest Name", value=current_reservation["Guest Name"])
             mobile_no = st.text_input("Mobile No", value=current_reservation["Mobile No"])
@@ -603,8 +412,6 @@ def show_edit_form(edit_index):
                 st.error("❌ Please fill in all required fields (Property Name, Room No, Guest Name, Mobile No)")
             elif check_out <= check_in:
                 st.error("❌ Check-out date must be after check-in date")
-            elif property_name not in accessible_properties:
-                st.error("❌ You don't have access to this property")
             else:
                 # Check for duplicate guest (excluding current reservation)
                 is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no, exclude_index=edit_index)
@@ -644,11 +451,7 @@ def show_edit_form(edit_index):
                         "Booking Source": booking_source,
                         "Room Type": room_type,
                         "Breakfast": breakfast,
-                        "Plan Status": plan_status,
-                        "Created By": current_reservation.get("Created By", "Unknown"),
-                        "Created At": current_reservation.get("Created At", datetime.now()),
-                        "Updated By": st.session_state.user_name,
-                        "Updated At": datetime.now()
+                        "Plan Status": plan_status
                     }
                     
                     # Update the reservation in session state
@@ -665,15 +468,151 @@ def show_edit_form(edit_index):
 def show_reservations():
     st.header("📋 View Reservations")
     
-    # Filter reservations by access
-    accessible_reservations = filter_reservations_by_access(st.session_state.reservations)
-    
-    if not accessible_reservations:
-        st.info("No reservations found for your accessible properties.")
+    if not st.session_state.reservations:
+        st.info("No reservations found. Please add a new reservation from Direct Reservations.")
         return
     
     # Convert to DataFrame for better display
-    df = pd.DataFrame(accessible_reservations)
+    df = pd.DataFrame(st.session_state.reservations)
     
     # Search and filter options
-    col1, col2, col3 = st
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        search_guest = st.text_input("🔍 Search by Guest Name", placeholder="Enter guest name")
+    with col2:
+        filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Completed"])
+    with col3:
+        filter_property = st.selectbox("Filter by Property", ["All"] + list(df["Property Name"].unique()))
+    
+    # Apply filters
+    filtered_df = df.copy()
+    
+    if search_guest:
+        filtered_df = filtered_df[filtered_df["Guest Name"].str.contains(search_guest, case=False, na=False)]
+    
+    if filter_status != "All":
+        filtered_df = filtered_df[filtered_df["Plan Status"] == filter_status]
+    
+    if filter_property != "All":
+        filtered_df = filtered_df[filtered_df["Property Name"] == filter_property]
+    
+    # Display statistics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Reservations", len(filtered_df))
+    with col2:
+        st.metric("Total Revenue", f"₹{filtered_df['Total Tariff'].sum():,.2f}")
+    with col3:
+        st.metric("Advance Collected", f"₹{filtered_df['Advance Amount'].sum():,.2f}")
+    with col4:
+        st.metric("Balance Pending", f"₹{filtered_df['Balance Amount'].sum():,.2f}")
+    
+    st.markdown("---")
+    
+    # Display reservations
+    if not filtered_df.empty:
+        st.dataframe(
+            filtered_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Check In": st.column_config.DateColumn("Check In"),
+                "Check Out": st.column_config.DateColumn("Check Out"),
+                "Total Tariff": st.column_config.NumberColumn("Total Tariff", format="₹%.2f"),
+                "Advance Amount": st.column_config.NumberColumn("Advance Amount", format="₹%.2f"),
+                "Balance Amount": st.column_config.NumberColumn("Balance Amount", format="₹%.2f"),
+            }
+        )
+        
+        # Download CSV
+        csv = filtered_df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download as CSV",
+            data=csv,
+            file_name=f"reservations_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
+    else:
+        st.info("No reservations match your search criteria.")
+
+def show_analytics():
+    st.header("📊 Analytics Dashboard")
+    
+    if not st.session_state.reservations:
+        st.info("No data available for analytics. Please add some reservations.")
+        return
+    
+    df = pd.DataFrame(st.session_state.reservations)
+    
+    # Key metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Bookings", len(df))
+    with col2:
+        st.metric("Total Revenue", f"₹{df['Total Tariff'].sum():,.2f}")
+    with col3:
+        st.metric("Average Tariff", f"₹{df['Tariff'].mean():,.2f}")
+    with col4:
+        st.metric("Average Stay", f"{df['No of Days'].mean():.1f} days")
+    
+    st.markdown("---")
+    
+    # Charts
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Booking Status Distribution
+        status_counts = df['Plan Status'].value_counts()
+        fig_status = px.pie(
+            values=status_counts.values,
+            names=status_counts.index,
+            title="Booking Status Distribution"
+        )
+        st.plotly_chart(fig_status, use_container_width=True)
+        
+        # Room Type Distribution
+        room_counts = df['Room Type'].value_counts()
+        fig_room = px.bar(
+            x=room_counts.index,
+            y=room_counts.values,
+            title="Room Type Distribution"
+        )
+        st.plotly_chart(fig_room, use_container_width=True)
+    
+    with col2:
+        # Booking Source Distribution
+        source_counts = df['Booking Source'].value_counts()
+        fig_source = px.pie(
+            values=source_counts.values,
+            names=source_counts.index,
+            title="Booking Source Distribution"
+        )
+        st.plotly_chart(fig_source, use_container_width=True)
+        
+        # Revenue by Property
+        property_revenue = df.groupby('Property Name')['Total Tariff'].sum()
+        fig_revenue = px.bar(
+            x=property_revenue.index,
+            y=property_revenue.values,
+            title="Revenue by Property"
+        )
+        st.plotly_chart(fig_revenue, use_container_width=True)
+    
+    # Monthly booking trends (if date range is available)
+    if len(df) > 0:
+        df['Booking Month'] = pd.to_datetime(df['Booking Date']).dt.to_period('M')
+        monthly_bookings = df.groupby('Booking Month').size()
+        
+        if len(monthly_bookings) > 1:
+            fig_trend = px.line(
+                x=monthly_bookings.index.astype(str),
+                y=monthly_bookings.values,
+                title="Monthly Booking Trends"
+            )
+            st.plotly_chart(fig_trend, use_container_width=True)
+
+if __name__ == "__main__":
+    main()
