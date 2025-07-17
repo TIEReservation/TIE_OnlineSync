@@ -1,4 +1,5 @@
 import streamlit as st
+
 def check_authentication():
     # Initialize authentication state
     if 'authenticated' not in st.session_state:
@@ -32,9 +33,16 @@ check_authentication()
 # (All your current Streamlit code goes here)
 import streamlit as st 
 import pandas as pd 
-import psycopg2 from datetime 
-import datetime, date 
+import psycopg2 
+from datetime import datetime, date 
 import plotly.express as px 
-import plotly.graph_objects as go from sqlalchemy 
-import create_engine 
-import requests # Page config st.set_page_config( p
+import plotly.graph_objects as go 
+from sqlalchemy import create_engine 
+import requests 
+
+# Page config 
+st.set_page_config(
+    page_title="TIE Reservation System",
+    page_icon="🏢",
+    layout="wide"
+)
