@@ -138,7 +138,7 @@ def show_new_reservation_form():
             check_out = st.date_input("Check Out", value=date.today() + timedelta(days=1))
             no_of_days = calculate_days(check_in, check_out)
             st.text_input("No of Days", value=str(max(0, no_of_days)), disabled=True)
-            room_type = st.selectbox("Room Type", ["Standard", "Deluxe", "Suite", "Presidential"])
+            room_type = st.selectbox("Room Type", ["Double Room", "Triple Room", "Family Room", "2BHK", "3BHK", "4BHK", "1BHK", "Superior Villa"])
         
         col4, col5 = st.columns(2)
         
