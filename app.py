@@ -105,7 +105,23 @@ def show_new_reservation_form():
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            property_name = st.text_input("Property Name", placeholder="Enter property name")
+            property_options = [
+                "Eden Beach Resort",
+                "La Paradise Luxury",
+                "La Villa Heritage",
+                "Le Pondy Beach Side",
+                "Le Royce Villa",
+                "Le Poshe Luxury",
+                "Le Poshe Suite",
+                "La Paradise Residency",
+                "La Tamara Luxury",
+                "Le Poshe Beachview",
+                "La Antilia",
+                "La Tamara Suite",
+                "La Millionare Resort",
+                "Le Park Resort"
+            ]
+            property_name = st.selectbox("Property Name", property_options, placeholder="Select or type property name")
             room_no = st.text_input("Room No", placeholder="e.g., 101, 202")
             guest_name = st.text_input("Guest Name", placeholder="Enter guest name")
             mobile_no = st.text_input("Mobile No", placeholder="Enter mobile number")
@@ -299,7 +315,28 @@ def show_edit_form(edit_index):
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            property_name = st.text_input("Property Name", value=current_reservation["Property Name"])
+            property_options = [
+                "Eden Beach Resort",
+                "La Paradise Luxury",
+                "La Villa Heritage",
+                "Le Pondy Beach Side",
+                "Le Royce Villa",
+                "Villa Shakti",
+                "Le Poshe Luxury",
+                "Le Poshe Suite",
+                "La Paradise Residency",
+                "La Tamara Luxury",
+                "Le Poshe Beachview",
+                "La Antilia",
+                "La Tamara Suite",
+                "La Millionare Resort",
+                "Le Park Resort"
+            ]
+            current_property = current_reservation["Property Name"]
+            if current_property not in property_options:
+                property_options.append(current_property)
+            property_name = st.selectbox("Property Name", property_options, 
+                                       index=property_options.index(current_property))
             room_no = st.text_input("Room No", value=current_reservation["Room No"])
             guest_name = st.text_input("Guest Name", value=current_reservation["Guest Name"])
             mobile_no = st.text_input("Mobile No", value=current_reservation["Mobile No"])
