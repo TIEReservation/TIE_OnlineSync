@@ -52,6 +52,15 @@ if 'reservations' not in st.session_state:
 def generate_booking_id():
     return f"TIE{datetime.now().strftime('%Y%m%d')}{len(st.session_state.reservations) + 1:03d}"
 
+# Helper function to check if guest already exists
+def check_duplicate_guest(guest_name, mobile_no, room_no):
+    for reservation in st.session_state.reservations:
+        if (reservation["Guest Name"].lower() == guest_name.lower() and 
+            reservation["Mobile No"] == mobile_no and 
+            reservation["Room No"] == room_no):
+            return True, reservation["Booking ID"]
+    return False, None
+
 # Helper function to calculate days between dates (calendar days)
 def calculate_days(check_in, check_out):
     if check_in and check_out:
@@ -79,7 +88,11 @@ def main():
 def show_new_reservation_form():
     st.header("📝 Direct Reservations")
     
-    with st.form("reservation_form"):
+    # Initialize form submission state
+    if 'form_submitted' not in st.session_state:
+        st.session_state.form_submitted = False
+    
+    with st.form("reservation_form", clear_on_submit=True):
         col1, col2, col3 = st.columns(3)
         
         with col1:
@@ -129,57 +142,85 @@ def show_new_reservation_form():
             breakfast = st.selectbox("Breakfast", ["Included", "Not Included", "Paid"])
             plan_status = st.selectbox("Plan Status", ["Confirmed", "Pending", "Cancelled", "Completed"])
         
-        submitted = st.form_submit_button("💾 Save Reservation")
+        # Form submission button
+        submitted = st.form_submit_button("💾 Save Reservation", use_container_width=True)
         
         if submitted:
+            # Reset form submission state
+            st.session_state.form_submitted = True
+            
+            # Validation checks
             if not all([property_name, room_no, guest_name, mobile_no]):
-                st.error("Please fill in all required fields (Property Name, Room No, Guest Name, Mobile No)")
+                st.error("❌ Please fill in all required fields (Property Name, Room No, Guest Name, Mobile No)")
+                st.session_state.form_submitted = False
             elif check_out <= check_in:
-                st.error("Check-out date must be after check-in date")
+                st.error("❌ Check-out date must be after check-in date")
+                st.session_state.form_submitted = False
             else:
-                # Generate booking ID
-                booking_id = generate_booking_id()
+                # Check for duplicate guest
+                is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no)
                 
-                # Calculate final values
-                no_of_days = calculate_days(check_in, check_out)
-                total_tariff = tariff * max(0, no_of_days)
-                balance_amount = max(0, total_tariff - advance_amount)
-                
-                # Create reservation record
-                reservation = {
-                    "Property Name": property_name,
-                    "Room No": room_no,
-                    "Guest Name": guest_name,
-                    "Mobile No": mobile_no,
-                    "No of Adults": adults,
-                    "No of Children": children,
-                    "No of Infants": infants,
-                    "Total Pax": total_pax,
-                    "Check In": check_in,
-                    "Check Out": check_out,
-                    "No of Days": no_of_days,
-                    "Tariff": tariff,
-                    "Total Tariff": total_tariff,
-                    "Advance Amount": advance_amount,
-                    "Balance Amount": balance_amount,
-                    "Advance MOP": advance_mop,
-                    "Balance MOP": balance_mop,
-                    "MOB": mob,
-                    "Invoice No": invoice_no,
-                    "Enquiry Date": enquiry_date,
-                    "Booking Date": booking_date,
-                    "Booking ID": booking_id,
-                    "Booking Source": booking_source,
-                    "Room Type": room_type,
-                    "Breakfast": breakfast,
-                    "Plan Status": plan_status
-                }
-                
-                # Add to session state
-                st.session_state.reservations.append(reservation)
-                
-                st.success(f"✅ Reservation saved successfully! Booking ID: {booking_id}")
-                st.balloons()
+                if is_duplicate:
+                    st.error(f"❌ Guest '{guest_name}' with mobile '{mobile_no}' in room '{room_no}' already exists! Existing Booking ID: {existing_booking_id}")
+                    st.session_state.form_submitted = False
+                else:
+                    # Generate booking ID
+                    booking_id = generate_booking_id()
+                    
+                    # Calculate final values
+                    no_of_days = calculate_days(check_in, check_out)
+                    total_tariff = tariff * max(0, no_of_days)
+                    balance_amount = max(0, total_tariff - advance_amount)
+                    
+                    # Create reservation record
+                    reservation = {
+                        "Property Name": property_name,
+                        "Room No": room_no,
+                        "Guest Name": guest_name,
+                        "Mobile No": mobile_no,
+                        "No of Adults": adults,
+                        "No of Children": children,
+                        "No of Infants": infants,
+                        "Total Pax": total_pax,
+                        "Check In": check_in,
+                        "Check Out": check_out,
+                        "No of Days": no_of_days,
+                        "Tariff": tariff,
+                        "Total Tariff": total_tariff,
+                        "Advance Amount": advance_amount,
+                        "Balance Amount": balance_amount,
+                        "Advance MOP": advance_mop,
+                        "Balance MOP": balance_mop,
+                        "MOB": mob,
+                        "Invoice No": invoice_no,
+                        "Enquiry Date": enquiry_date,
+                        "Booking Date": booking_date,
+                        "Booking ID": booking_id,
+                        "Booking Source": booking_source,
+                        "Room Type": room_type,
+                        "Breakfast": breakfast,
+                        "Plan Status": plan_status
+                    }
+                    
+                    # Add to session state
+                    st.session_state.reservations.append(reservation)
+                    
+                    st.success(f"✅ Reservation saved successfully! Booking ID: {booking_id}")
+                    st.balloons()
+                    
+                    # Reset form submission state after successful save
+                    st.session_state.form_submitted = False
+    
+    # Display recent reservations for reference
+    if st.session_state.reservations:
+        st.markdown("---")
+        st.subheader("📋 Recent Reservations")
+        recent_df = pd.DataFrame(st.session_state.reservations[-5:])  # Show last 5 reservations
+        st.dataframe(
+            recent_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status"]],
+            use_container_width=True,
+            hide_index=True
+        )
 
 def show_reservations():
     st.header("📋 View Reservations")
