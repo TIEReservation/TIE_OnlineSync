@@ -52,10 +52,12 @@ if 'reservations' not in st.session_state:
 def generate_booking_id():
     return f"TIE{datetime.now().strftime('%Y%m%d')}{len(st.session_state.reservations) + 1:03d}"
 
-# Helper function to calculate days between dates
+# Helper function to calculate days between dates (calendar days)
 def calculate_days(check_in, check_out):
     if check_in and check_out:
-        return (check_out - check_in).days
+        # Calculate the difference in calendar days
+        delta = check_out - check_in
+        return delta.days
     return 0
 
 # Main App
@@ -65,9 +67,9 @@ def main():
     
     # Sidebar for navigation
     st.sidebar.title("Navigation")
-    page = st.sidebar.selectbox("Choose a page", ["New Reservation", "View Reservations", "Analytics"])
+    page = st.sidebar.selectbox("Choose a page", ["Direct Reservations", "View Reservations", "Analytics"])
     
-    if page == "New Reservation":
+    if page == "Direct Reservations":
         show_new_reservation_form()
     elif page == "View Reservations":
         show_reservations()
@@ -75,7 +77,7 @@ def main():
         show_analytics()
 
 def show_new_reservation_form():
-    st.header("📝 New Reservation")
+    st.header("📝 Direct Reservations")
     
     with st.form("reservation_form"):
         col1, col2, col3 = st.columns(3)
@@ -97,21 +99,21 @@ def show_new_reservation_form():
             check_in = st.date_input("Check In", value=date.today())
             check_out = st.date_input("Check Out", value=date.today() + timedelta(days=1))
             no_of_days = calculate_days(check_in, check_out)
-            st.text_input("No of Days", value=str(no_of_days), disabled=True)
+            st.text_input("No of Days", value=str(max(0, no_of_days)), disabled=True)
             room_type = st.selectbox("Room Type", ["Standard", "Deluxe", "Suite", "Presidential"])
         
         col4, col5 = st.columns(2)
         
         with col4:
             tariff = st.number_input("Tariff (per day)", min_value=0.0, value=0.0, step=100.0)
-            total_tariff = tariff * no_of_days
+            total_tariff = tariff * max(0, no_of_days)
             st.text_input("Total Tariff", value=f"₹{total_tariff:.2f}", disabled=True)
             advance_mop = st.selectbox("Advance MOP", ["Cash", "Card", "UPI", "Bank Transfer", "Online"])
             balance_mop = st.selectbox("Balance MOP", ["Cash", "Card", "UPI", "Bank Transfer", "Online", "Pending"])
             
         with col5:
             advance_amount = st.number_input("Advance Amount", min_value=0.0, value=0.0, step=100.0)
-            balance_amount = total_tariff - advance_amount
+            balance_amount = max(0, total_tariff - advance_amount)
             st.text_input("Balance Amount", value=f"₹{balance_amount:.2f}", disabled=True)
             mob = st.text_input("MOB (Mode of Booking)", placeholder="e.g., Phone, Walk-in, Online")
             invoice_no = st.text_input("Invoice No", placeholder="Enter invoice number")
@@ -137,6 +139,11 @@ def show_new_reservation_form():
             else:
                 # Generate booking ID
                 booking_id = generate_booking_id()
+                
+                # Calculate final values
+                no_of_days = calculate_days(check_in, check_out)
+                total_tariff = tariff * max(0, no_of_days)
+                balance_amount = max(0, total_tariff - advance_amount)
                 
                 # Create reservation record
                 reservation = {
@@ -178,7 +185,7 @@ def show_reservations():
     st.header("📋 View Reservations")
     
     if not st.session_state.reservations:
-        st.info("No reservations found. Please add a new reservation.")
+        st.info("No reservations found. Please add a new reservation from Direct Reservations.")
         return
     
     # Convert to DataFrame for better display
