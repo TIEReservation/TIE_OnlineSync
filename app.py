@@ -146,8 +146,8 @@ def show_new_reservation_form():
             tariff = st.number_input("Tariff (per day)", min_value=0.0, value=0.0, step=100.0)
             total_tariff = tariff * max(0, no_of_days)
             st.text_input("Total Tariff", value=f"₹{total_tariff:.2f}", disabled=True)
-            advance_mop = st.selectbox("Advance MOP", ["Cash", "Card", "UPI", "Bank Transfer", "Online"])
-            balance_mop = st.selectbox("Balance MOP", ["Cash", "Card", "UPI", "Bank Transfer", "Online", "Pending"])
+            advance_mop = st.selectbox("Advance MOP", ["Cash", "Card", "UPI", "Bank Transfer", "Agoda", "MMT", "Airbnb", "Expedia", "Staflexi", "Website"])
+            balance_mop = st.selectbox("Balance MOP", ["Cash", "Card", "UPI", "Bank Transfer", "Agoda", "MMT", "Airbnb", "Expedia", "Stayflexi", "Website", "Pending"])
             
         with col5:
             advance_amount = st.number_input("Advance Amount", min_value=0.0, value=0.0, step=100.0)
@@ -164,8 +164,8 @@ def show_new_reservation_form():
             booking_source = st.selectbox("Booking Source", ["Direct", "Online", "Agent", "Walk-in", "Phone"])
             
         with col7:
-            breakfast = st.selectbox("Breakfast", ["Included", "Not Included", "Paid"])
-            plan_status = st.selectbox("Plan Status", ["Confirmed", "Pending", "Cancelled", "Completed"])
+            breakfast = st.selectbox("Breakfast", ["CP", "EP"])
+            plan_status = st.selectbox("Plan Status", ["Confirmed", "Pending", "Cancelled", "Completed","No Show"])
         
         # Form submission button
         submitted = st.form_submit_button("💾 Save Reservation", use_container_width=True)
