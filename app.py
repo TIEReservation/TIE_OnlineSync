@@ -14,8 +14,8 @@ def check_authentication():
         
         # Login button
         if st.button("🔑 Login"):
-            # Change "TIE2024" to your desired password
-            if password == "TIE2024":
+            # Set pwd
+            if password == "TIEHotel@2025":
                 st.session_state.authenticated = True
                 st.success("✅ Login successful! Redirecting...")
                 st.rerun()
