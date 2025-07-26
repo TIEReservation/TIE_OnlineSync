@@ -247,6 +247,63 @@ def show_new_reservation_form():
             hide_index=True
         )
 
+def show_edit_reservations():
+    st.header("✏️ Edit Reservations")
+    
+    if not st.session_state.reservations:
+        st.info("No reservations found. Please add a new reservation from Direct Reservations.")
+        return
+    
+    # Convert to DataFrame for display
+    df = pd.DataFrame(st.session_state.reservations)
+    
+    # Search functionality
+    search_term = st.text_input("🔍 Search by Booking ID, Guest Name, or Mobile No", placeholder="Enter search term")
+    
+    # Filter reservations based on search
+    if search_term:
+        filtered_indices = []
+        for i, reservation in enumerate(st.session_state.reservations):
+            if (search_term.lower() in reservation["Booking ID"].lower() or 
+                search_term.lower() in reservation["Guest Name"].lower() or 
+                search_term in reservation["Mobile No"]):
+                filtered_indices.append(i)
+    else:
+        filtered_indices = list(range(len(st.session_state.reservations)))
+    
+    if not filtered_indices:
+        st.info("No reservations match your search criteria.")
+        return
+    
+    # Display reservations with edit buttons
+    st.subheader("📋 Select Reservation to Edit")
+    
+    for idx in filtered_indices:
+        reservation = st.session_state.reservations[idx]
+        
+        with st.expander(f"🏷️ {reservation['Booking ID']} - {reservation['Guest Name']} (Room: {reservation['Room No']})"):
+            col1, col2, col3 = st.columns([2, 2, 1])
+            
+            with col1:
+                st.write(f"**Check In:** {reservation['Check In']}")
+                st.write(f"**Check Out:** {reservation['Check Out']}")
+                st.write(f"**Mobile:** {reservation['Mobile No']}")
+            
+            with col2:
+                st.write(f"**Total Tariff:** ₹{reservation['Total Tariff']:.2f}")
+                st.write(f"**Balance:** ₹{reservation['Balance Amount']:.2f}")
+                st.write(f"**Status:** {reservation['Plan Status']}")
+            
+            with col3:
+                if st.button(f"✏️ Edit", key=f"edit_{idx}"):
+                    st.session_state.edit_mode = True
+                    st.session_state.edit_index = idx
+                    st.rerun()
+    
+    # Edit form
+    if st.session_state.edit_mode and st.session_state.edit_index is not None:
+        show_edit_form(st.session_state.edit_index)
+
 def show_edit_form(edit_index):
     st.markdown("---")
     st.subheader("✏️ Edit Reservation")
@@ -414,7 +471,6 @@ def show_edit_form(edit_index):
                         "Plan Status": plan_status
                     }
                     
-                    # *** MISSING PART - NOW FIXED ***
                     # Update the reservation in session state
                     st.session_state.reservations[edit_index] = updated_reservation
                     
