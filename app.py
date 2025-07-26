@@ -130,29 +130,33 @@ def show_new_reservation_form():
             adults = st.number_input("No of Adults", min_value=0, value=1)
             children = st.number_input("No of Children", min_value=0, value=0)
             infants = st.number_input("No of Infants", min_value=0, value=0)
+            # Auto-calculate Total Pax
             total_pax = adults + children + infants
-            st.text_input("Total Pax", value=str(total_pax), disabled=True)
+            st.text_input("Total Pax", value=str(total_pax), disabled=True, help="Automatically calculated from Adults + Children + Infants")
             
         with col3:
             check_in = st.date_input("Check In", value=date.today())
             check_out = st.date_input("Check Out", value=date.today() + timedelta(days=1))
+            # Auto-calculate Number of Days
             no_of_days = calculate_days(check_in, check_out)
-            st.text_input("No of Days", value=str(max(0, no_of_days)), disabled=True)
+            st.text_input("No of Days", value=str(max(0, no_of_days)), disabled=True, help="Automatically calculated from Check-in and Check-out dates")
             room_type = st.selectbox("Room Type", ["Double", "Triple", "Family", "1BHK", "2BHK", "3BHK", "4BHK", "Superior Villa"])
         
         col4, col5 = st.columns(2)
         
         with col4:
             tariff = st.number_input("Tariff (per day)", min_value=0.0, value=0.0, step=100.0)
+            # Auto-calculate Total Tariff
             total_tariff = tariff * max(0, no_of_days)
-            st.text_input("Total Tariff", value=f"₹{total_tariff:.2f}", disabled=True)
+            st.text_input("Total Tariff", value=f"₹{total_tariff:.2f}", disabled=True, help="Automatically calculated as Tariff × No of Days")
             advance_mop = st.selectbox("Advance MOP", ["Cash", "Card", "UPI", "Bank Transfer", "Agoda", "MMT", "Airbnb", "Expedia", "Staflexi", "Website"])
             balance_mop = st.selectbox("Balance MOP", ["Cash", "Card", "UPI", "Bank Transfer", "Agoda", "MMT", "Airbnb", "Expedia", "Stayflexi", "Website", "Pending"])
             
         with col5:
             advance_amount = st.number_input("Advance Amount", min_value=0.0, value=0.0, step=100.0)
+            # Auto-calculate Balance Amount
             balance_amount = max(0, total_tariff - advance_amount)
-            st.text_input("Balance Amount", value=f"₹{balance_amount:.2f}", disabled=True)
+            st.text_input("Balance Amount", value=f"₹{balance_amount:.2f}", disabled=True, help="Automatically calculated as Total Tariff - Advance Amount")
             mob = st.text_input("MOB (Mode of Booking)", placeholder="e.g., Phone, Walk-in, Online")
             invoice_no = st.text_input("Invoice No", placeholder="Enter invoice number")
         
@@ -192,8 +196,9 @@ def show_new_reservation_form():
                     # Generate booking ID
                     booking_id = generate_booking_id()
                     
-                    # Calculate final values
+                    # Calculate final values (recalculate to ensure accuracy)
                     no_of_days = calculate_days(check_in, check_out)
+                    total_pax = adults + children + infants
                     total_tariff = tariff * max(0, no_of_days)
                     balance_amount = max(0, total_tariff - advance_amount)
                     
@@ -344,14 +349,16 @@ def show_edit_form(edit_index):
             adults = st.number_input("No of Adults", min_value=0, value=current_reservation["No of Adults"])
             children = st.number_input("No of Children", min_value=0, value=current_reservation["No of Children"])
             infants = st.number_input("No of Infants", min_value=0, value=current_reservation["No of Infants"])
+            # Auto-calculate Total Pax
             total_pax = adults + children + infants
-            st.text_input("Total Pax", value=str(total_pax), disabled=True)
+            st.text_input("Total Pax", value=str(total_pax), disabled=True, help="Automatically calculated from Adults + Children + Infants")
             
         with col3:
             check_in = st.date_input("Check In", value=current_reservation["Check In"])
             check_out = st.date_input("Check Out", value=current_reservation["Check Out"])
+            # Auto-calculate Number of Days
             no_of_days = calculate_days(check_in, check_out)
-            st.text_input("No of Days", value=str(max(0, no_of_days)), disabled=True)
+            st.text_input("No of Days", value=str(max(0, no_of_days)), disabled=True, help="Automatically calculated from Check-in and Check-out dates")
             
             # Fix room type options to match your original data
             room_type_options = ["Double", "Triple", "Family", "1BHK", "2BHK", "3BHK", "4BHK", "Superior Villa"]
@@ -365,8 +372,9 @@ def show_edit_form(edit_index):
         
         with col4:
             tariff = st.number_input("Tariff (per day)", min_value=0.0, value=current_reservation["Tariff"], step=100.0)
+            # Auto-calculate Total Tariff
             total_tariff = tariff * max(0, no_of_days)
-            st.text_input("Total Tariff", value=f"₹{total_tariff:.2f}", disabled=True)
+            st.text_input("Total Tariff", value=f"₹{total_tariff:.2f}", disabled=True, help="Automatically calculated as Tariff × No of Days")
             
             # Fix MOP options to match your original data
             advance_mop_options = ["Cash", "Card", "UPI", "Bank Transfer", "Agoda", "MMT", "Airbnb", "Expedia", "Staflexi", "Website"]
@@ -385,8 +393,9 @@ def show_edit_form(edit_index):
             
         with col5:
             advance_amount = st.number_input("Advance Amount", min_value=0.0, value=current_reservation["Advance Amount"], step=100.0)
+            # Auto-calculate Balance Amount
             balance_amount = max(0, total_tariff - advance_amount)
-            st.text_input("Balance Amount", value=f"₹{balance_amount:.2f}", disabled=True)
+            st.text_input("Balance Amount", value=f"₹{balance_amount:.2f}", disabled=True, help="Automatically calculated as Total Tariff - Advance Amount")
             mob = st.text_input("MOB (Mode of Booking)", value=current_reservation["MOB"])
             invoice_no = st.text_input("Invoice No", value=current_reservation["Invoice No"])
         
@@ -436,8 +445,9 @@ def show_edit_form(edit_index):
                 if is_duplicate:
                     st.error(f"❌ Guest '{guest_name}' with mobile '{mobile_no}' in room '{room_no}' already exists! Existing Booking ID: {existing_booking_id}")
                 else:
-                    # Calculate final values
+                    # Calculate final values (recalculate to ensure accuracy)
                     no_of_days = calculate_days(check_in, check_out)
+                    total_pax = adults + children + infants
                     total_tariff = tariff * max(0, no_of_days)
                     balance_amount = max(0, total_tariff - advance_amount)
                     
