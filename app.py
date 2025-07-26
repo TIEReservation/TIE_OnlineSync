@@ -247,63 +247,6 @@ def show_new_reservation_form():
             hide_index=True
         )
 
-def show_edit_reservations():
-    st.header("✏️ Edit Reservations")
-    
-    if not st.session_state.reservations:
-        st.info("No reservations found. Please add a new reservation from Direct Reservations.")
-        return
-    
-    # Convert to DataFrame for display
-    df = pd.DataFrame(st.session_state.reservations)
-    
-    # Search functionality
-    search_term = st.text_input("🔍 Search by Booking ID, Guest Name, or Mobile No", placeholder="Enter search term")
-    
-    # Filter reservations based on search
-    if search_term:
-        filtered_indices = []
-        for i, reservation in enumerate(st.session_state.reservations):
-            if (search_term.lower() in reservation["Booking ID"].lower() or 
-                search_term.lower() in reservation["Guest Name"].lower() or 
-                search_term in reservation["Mobile No"]):
-                filtered_indices.append(i)
-    else:
-        filtered_indices = list(range(len(st.session_state.reservations)))
-    
-    if not filtered_indices:
-        st.info("No reservations match your search criteria.")
-        return
-    
-    # Display reservations with edit buttons
-    st.subheader("📋 Select Reservation to Edit")
-    
-    for idx in filtered_indices:
-        reservation = st.session_state.reservations[idx]
-        
-        with st.expander(f"🏷️ {reservation['Booking ID']} - {reservation['Guest Name']} (Room: {reservation['Room No']})"):
-            col1, col2, col3 = st.columns([2, 2, 1])
-            
-            with col1:
-                st.write(f"**Check In:** {reservation['Check In']}")
-                st.write(f"**Check Out:** {reservation['Check Out']}")
-                st.write(f"**Mobile:** {reservation['Mobile No']}")
-            
-            with col2:
-                st.write(f"**Total Tariff:** ₹{reservation['Total Tariff']:.2f}")
-                st.write(f"**Balance:** ₹{reservation['Balance Amount']:.2f}")
-                st.write(f"**Status:** {reservation['Plan Status']}")
-            
-            with col3:
-                if st.button(f"✏️ Edit", key=f"edit_{idx}"):
-                    st.session_state.edit_mode = True
-                    st.session_state.edit_index = idx
-                    st.rerun()
-    
-    # Edit form
-    if st.session_state.edit_mode and st.session_state.edit_index is not None:
-        show_edit_form(st.session_state.edit_index)
-
 def show_edit_form(edit_index):
     st.markdown("---")
     st.subheader("✏️ Edit Reservation")
@@ -352,8 +295,14 @@ def show_edit_form(edit_index):
             check_out = st.date_input("Check Out", value=current_reservation["Check Out"])
             no_of_days = calculate_days(check_in, check_out)
             st.text_input("No of Days", value=str(max(0, no_of_days)), disabled=True)
-            room_type = st.selectbox("Room Type", ["Standard", "Deluxe", "Suite", "Presidential"], 
-                                   index=["Standard", "Deluxe", "Suite", "Presidential"].index(current_reservation["Room Type"]))
+            
+            # Fix room type options to match your original data
+            room_type_options = ["Double", "Triple", "Family", "1BHK", "2BHK", "3BHK", "4BHK", "Superior Villa"]
+            current_room_type = current_reservation["Room Type"]
+            if current_room_type not in room_type_options:
+                room_type_options.append(current_room_type)
+            room_type = st.selectbox("Room Type", room_type_options, 
+                                   index=room_type_options.index(current_room_type))
         
         col4, col5 = st.columns(2)
         
@@ -361,12 +310,21 @@ def show_edit_form(edit_index):
             tariff = st.number_input("Tariff (per day)", min_value=0.0, value=current_reservation["Tariff"], step=100.0)
             total_tariff = tariff * max(0, no_of_days)
             st.text_input("Total Tariff", value=f"₹{total_tariff:.2f}", disabled=True)
-            advance_mop_options = ["Cash", "Card", "UPI", "Bank Transfer", "Online"]
+            
+            # Fix MOP options to match your original data
+            advance_mop_options = ["Cash", "Card", "UPI", "Bank Transfer", "Agoda", "MMT", "Airbnb", "Expedia", "Staflexi", "Website"]
+            current_advance_mop = current_reservation["Advance MOP"]
+            if current_advance_mop not in advance_mop_options:
+                advance_mop_options.append(current_advance_mop)
             advance_mop = st.selectbox("Advance MOP", advance_mop_options, 
-                                     index=advance_mop_options.index(current_reservation["Advance MOP"]))
-            balance_mop_options = ["Cash", "Card", "UPI", "Bank Transfer", "Online", "Pending"]
+                                     index=advance_mop_options.index(current_advance_mop))
+            
+            balance_mop_options = ["Cash", "Card", "UPI", "Bank Transfer", "Agoda", "MMT", "Airbnb", "Expedia", "Stayflexi", "Website", "Pending"]
+            current_balance_mop = current_reservation["Balance MOP"]
+            if current_balance_mop not in balance_mop_options:
+                balance_mop_options.append(current_balance_mop)
             balance_mop = st.selectbox("Balance MOP", balance_mop_options, 
-                                     index=balance_mop_options.index(current_reservation["Balance MOP"]))
+                                     index=balance_mop_options.index(current_balance_mop))
             
         with col5:
             advance_amount = st.number_input("Advance Amount", min_value=0.0, value=current_reservation["Advance Amount"], step=100.0)
@@ -385,10 +343,12 @@ def show_edit_form(edit_index):
                                         index=booking_source_options.index(current_reservation["Booking Source"]))
             
         with col7:
-            breakfast_options = ["Included", "Not Included", "Paid"]
+            # Fix breakfast options to match your original data
+            breakfast_options = ["CP", "EP"]
             breakfast = st.selectbox("Breakfast", breakfast_options, 
                                    index=breakfast_options.index(current_reservation["Breakfast"]))
-            plan_status_options = ["Confirmed", "Pending", "Cancelled", "Completed"]
+            
+            plan_status_options = ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"]
             plan_status = st.selectbox("Plan Status", plan_status_options, 
                                      index=plan_status_options.index(current_reservation["Plan Status"]))
         
@@ -454,6 +414,7 @@ def show_edit_form(edit_index):
                         "Plan Status": plan_status
                     }
                     
+                    # *** MISSING PART - NOW FIXED ***
                     # Update the reservation in session state
                     st.session_state.reservations[edit_index] = updated_reservation
                     
