@@ -235,13 +235,19 @@ def show_reservations():
         return
     df = pd.DataFrame(st.session_state.reservations)
     # Filters
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         search_guest = st.text_input("🔍 Search by Guest Name")
     with col2:
         filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Completed"])
     with col3:
         filter_property = st.selectbox("Filter by Property", ["All"] + list(df["Property Name"].unique()))
+    with col4:
+        filter_check_in = st.date_input("Check-in From", value=None, key="filter_check_in")
+    with col5:
+        filter_check_out = st.date_input("Check-out Until", value=None, key="filter_check_out")
+
+    # Apply filters
     filtered_df = df.copy()
     if search_guest:
         filtered_df = filtered_df[filtered_df["Guest Name"].str.contains(search_guest, case=False, na=False)]
@@ -249,6 +255,10 @@ def show_reservations():
         filtered_df = filtered_df[filtered_df["Plan Status"] == filter_status]
     if filter_property != "All":
         filtered_df = filtered_df[filtered_df["Property Name"] == filter_property]
+    if filter_check_in:
+        filtered_df = filtered_df[filtered_df["Check In"] >= filter_check_in]
+    if filter_check_out:
+        filtered_df = filtered_df[filtered_df["Check Out"] <= filter_check_out]
 
     # Stats
     col1, col2, col3, col4 = st.columns(4)
@@ -280,13 +290,17 @@ def show_edit_reservations():
     df = pd.DataFrame(st.session_state.reservations)
     
     # Filters for selecting reservations
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         search_guest = st.text_input("🔍 Search by Guest Name", key="edit_search_guest")
     with col2:
         filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Completed", "No Show"], key="edit_filter_status")
     with col3:
         filter_property = st.selectbox("Filter by Property", ["All"] + list(df["Property Name"].unique()), key="edit_filter_property")
+    with col4:
+        filter_check_in = st.date_input("Check-in From", value=None, key="edit_filter_check_in")
+    with col5:
+        filter_check_out = st.date_input("Check-out Until", value=None, key="edit_filter_check_out")
 
     # Apply filters
     filtered_df = df.copy()
@@ -296,6 +310,10 @@ def show_edit_reservations():
         filtered_df = filtered_df[filtered_df["Plan Status"] == filter_status]
     if filter_property != "All":
         filtered_df = filtered_df[filtered_df["Property Name"] == filter_property]
+    if filter_check_in:
+        filtered_df = filtered_df[filtered_df["Check In"] >= filter_check_in]
+    if filter_check_out:
+        filtered_df = filtered_df[filtered_df["Check Out"] <= filter_check_out]
 
     # Display filtered reservations
     if filtered_df.empty:
