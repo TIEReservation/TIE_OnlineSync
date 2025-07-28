@@ -243,9 +243,9 @@ def show_reservations():
     with col3:
         filter_property = st.selectbox("Filter by Property", ["All"] + list(df["Property Name"].unique()))
     with col4:
-        filter_check_in = st.date_input("Check-in From", value=None, key="filter_check_in")
+        filter_check_in_date = st.date_input("Check-in Date", value=None, key="filter_check_in_date")
     with col5:
-        filter_check_out = st.date_input("Check-out Until", value=None, key="filter_check_out")
+        filter_check_out_date = st.date_input("Check-out Date", value=None, key="filter_check_out_date")
 
     # Apply filters
     filtered_df = df.copy()
@@ -255,10 +255,17 @@ def show_reservations():
         filtered_df = filtered_df[filtered_df["Plan Status"] == filter_status]
     if filter_property != "All":
         filtered_df = filtered_df[filtered_df["Property Name"] == filter_property]
-    if filter_check_in:
-        filtered_df = filtered_df[filtered_df["Check In"] >= filter_check_in]
-    if filter_check_out:
-        filtered_df = filtered_df[filtered_df["Check Out"] <= filter_check_out]
+    if filter_check_in_date:
+        filtered_df = filtered_df[filtered_df["Check In"] == filter_check_in_date]
+    if filter_check_out_date:
+        filtered_df = filtered_df[filtered_df["Check Out"] == filter_check_out_date]
+
+    # Display filtered reservations
+    st.subheader("📋 Filtered Reservations")
+    st.dataframe(
+        filtered_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status"]],
+        use_container_width=True
+    )
 
     # Stats
     col1, col2, col3, col4 = st.columns(4)
@@ -267,18 +274,20 @@ def show_reservations():
     with col2:
         st.metric("Total Revenue", f"₹{filtered_df['Total Tariff'].sum():,.2f}")
     with col3:
-        if not df.empty:
-            st.metric("Average Tariff", f"₹{df['Tariff'].mean():,.2f}")
+        if not filtered_df.empty:
+            st.metric("Average Tariff", f"₹{filtered_df['Tariff'].mean():,.2f}")
         else:
             st.metric("Average Tariff", "₹0.00")
     with col4:
-        if not df.empty:
-            st.metric("Average Stay", f"{df['No of Days'].mean():.1f} days")
+        if not filtered_df.empty:
+            st.metric("Average Stay", f"{filtered_df['No of Days'].mean():.1f} days")
         else:
             st.metric("Average Stay", "0.0 days")
     # Advance and Balance
-    st.metric("Advance Collected", f"₹{filtered_df['Advance Amount'].sum():,.2f}")
-    with col4:
+    col5, col6 = st.columns(2)
+    with col5:
+        st.metric("Advance Collected", f"₹{filtered_df['Advance Amount'].sum():,.2f}")
+    with col6:
         st.metric("Balance Pending", f"₹{filtered_df['Balance Amount'].sum():,.2f}")
 
 def show_edit_reservations():
@@ -298,9 +307,9 @@ def show_edit_reservations():
     with col3:
         filter_property = st.selectbox("Filter by Property", ["All"] + list(df["Property Name"].unique()), key="edit_filter_property")
     with col4:
-        filter_check_in = st.date_input("Check-in From", value=None, key="edit_filter_check_in")
+        filter_check_in_date = st.date_input("Check-in Date", value=None, key="edit_filter_check_in_date")
     with col5:
-        filter_check_out = st.date_input("Check-out Until", value=None, key="edit_filter_check_out")
+        filter_check_out_date = st.date_input("Check-out Date", value=None, key="edit_filter_check_out_date")
 
     # Apply filters
     filtered_df = df.copy()
@@ -310,10 +319,10 @@ def show_edit_reservations():
         filtered_df = filtered_df[filtered_df["Plan Status"] == filter_status]
     if filter_property != "All":
         filtered_df = filtered_df[filtered_df["Property Name"] == filter_property]
-    if filter_check_in:
-        filtered_df = filtered_df[filtered_df["Check In"] >= filter_check_in]
-    if filter_check_out:
-        filtered_df = filtered_df[filtered_df["Check Out"] <= filter_check_out]
+    if filter_check_in_date:
+        filtered_df = filtered_df[filtered_df["Check In"] == filter_check_in_date]
+    if filter_check_out_date:
+        filtered_df = filtered_df[filtered_df["Check Out"] == filter_check_out_date]
 
     # Display filtered reservations
     if filtered_df.empty:
