@@ -119,29 +119,64 @@ def show_new_reservation_form():
         no_of_days = calculate_days(check_in, check_out)
         st.text_input("No of Days", value=str(no_of_days), disabled=True, help="Check-out - Check-in")
         room_type = st.selectbox("Room Type",
-                                 ["Double", "Triple", "Family", "1BHK", "2BHK", "3BHK", "4BHK", "Superior Villa"],
-                                 key=f"{form_key}_roomtype")
+                                ["Double", "Triple", "Family", "1BHK", "2BHK", "3BHK", "4BHK", "Superior Villa", "Other"],
+                                key=f"{form_key}_roomtype")
+        if room_type == "Other":
+            custom_room_type = st.text_input("Custom Room Type", key=f"{form_key}_custom_roomtype")
+        else:
+            custom_room_type = None
+
     col4, col5 = st.columns(2)
     with col4:
         tariff = st.number_input("Tariff (per day)", min_value=0.0, value=0.0, step=100.0, key=f"{form_key}_tariff")
         total_tariff = safe_float(tariff) * max(0, no_of_days)
         st.text_input("Total Tariff", value=f"₹{total_tariff:.2f}", disabled=True, help="Tariff × No of Days")
-        advance_mop = st.selectbox("Advance MOP", ["Cash", "Card", "UPI", "Bank Transfer", "Agoda", "MMT", "Airbnb", "Expedia", "Staflexi", "Website"], key=f"{form_key}_advmop")
-        balance_mop = st.selectbox("Balance MOP", ["Cash", "Card", "UPI", "Bank Transfer", "Agoda", "MMT", "Airbnb", "Expedia", "Stayflexi", "Website", "Pending"], key=f"{form_key}_balmop")
+        advance_mop = st.selectbox("Advance MOP",
+                                  ["Cash", "Card", "UPI", "Bank Transfer", "Agoda", "MMT", "Airbnb", "Expedia", "Stayflexi", "Website", "Other"],
+                                  key=f"{form_key}_advmop")
+        if advance_mop == "Other":
+            custom_advance_mop = st.text_input("Custom Advance MOP", key=f"{form_key}_custom_advmop")
+        else:
+            custom_advance_mop = None
+        balance_mop = st.selectbox("Balance MOP",
+                                  ["Cash", "Card", "UPI", "Bank Transfer", "Agoda", "MMT", "Airbnb", "Expedia", "Stayflexi", "Website", "Pending", "Other"],
+                                  key=f"{form_key}_balmop")
+        if balance_mop == "Other":
+            custom_balance_mop = st.text_input("Custom Balance MOP", key=f"{form_key}_custom_balmop")
+        else:
+            custom_balance_mop = None
     with col5:
         advance_amount = st.number_input("Advance Amount", min_value=0.0, value=0.0, step=100.0, key=f"{form_key}_advance")
         balance_amount = max(0, total_tariff - safe_float(advance_amount))
         st.text_input("Balance Amount", value=f"₹{balance_amount:.2f}", disabled=True, help="Total Tariff - Advance Amount")
-        mob = st.text_input("MOB (Mode of Booking)", placeholder="e.g., Phone, Walk-in, Online", key=f"{form_key}_mob")
+        mob = st.selectbox("MOB (Mode of Booking)",
+                          ["Direct", "Online", "Agent", "Walk-in", "Phone", "Website", "Others"],
+                          key=f"{form_key}_mob")
+        if mob == "Others":
+            custom_mob = st.text_input("Custom MOB", key=f"{form_key}_custom_mob")
+        else:
+            custom_mob = None
+        if mob == "Online":
+            online_source = st.selectbox("Online Source",
+                                       ["Booking.com", "Agoda Prepaid", "Agoda Booking.com", "Expedia", "MMT", "Cleartrip", "Others"],
+                                       key=f"{form_key}_online_source")
+            if online_source == "Others":
+                custom_online_source = st.text_input("Custom Online Source", key=f"{form_key}_custom_online_source")
+            else:
+                custom_online_source = None
+        else:
+            online_source = None
+            custom_online_source = None
         invoice_no = st.text_input("Invoice No", placeholder="Enter invoice number", key=f"{form_key}_invoice")
+
     col6, col7 = st.columns(2)
     with col6:
         enquiry_date = st.date_input("Enquiry Date", value=date.today(), key=f"{form_key}_enquiry")
         booking_date = st.date_input("Booking Date", value=date.today(), key=f"{form_key}_booking")
-        booking_source = st.selectbox("Booking Source", ["Direct", "Online", "Agent", "Walk-in", "Phone"], key=f"{form_key}_source")
     with col7:
         breakfast = st.selectbox("Breakfast", ["CP", "EP"], key=f"{form_key}_breakfast")
         plan_status = st.selectbox("Plan Status", ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"], key=f"{form_key}_status")
+
     if st.button("💾 Save Reservation", use_container_width=True):
         if not all([property_name, room_no, guest_name, mobile_no]):
             st.error("❌ Please fill in all required fields")
@@ -171,21 +206,22 @@ def show_new_reservation_form():
                     "Total Tariff": total_tariff,
                     "Advance Amount": safe_float(advance_amount),
                     "Balance Amount": balance_amount,
-                    "Advance MOP": advance_mop,
-                    "Balance MOP": balance_mop,
-                    "MOB": mob,
+                    "Advance MOP": custom_advance_mop if advance_mop == "Other" else advance_mop,
+                    "Balance MOP": custom_balance_mop if balance_mop == "Other" else balance_mop,
+                    "MOB": custom_mob if mob == "Others" else mob,
+                    "Online Source": custom_online_source if online_source == "Others" else online_source,
                     "Invoice No": invoice_no,
                     "Enquiry Date": enquiry_date,
                     "Booking Date": booking_date,
                     "Booking ID": booking_id,
-                    "Booking Source": booking_source,
-                    "Room Type": room_type,
+                    "Room Type": custom_room_type if room_type == "Other" else room_type,
                     "Breakfast": breakfast,
                     "Plan Status": plan_status
                 }
                 st.session_state.reservations.append(reservation)
                 st.success(f"✅ Reservation saved! Booking ID: {booking_id}")
                 st.balloons()
+
     if st.session_state.reservations:
         st.markdown("---")
         st.subheader("📋 Recent Reservations")
@@ -235,21 +271,13 @@ def show_reservations():
     with col4:
         st.metric("Balance Pending", f"₹{filtered_df['Balance Amount'].sum():,.2f}")
 
-    st.markdown("---")
-    # Charts omitted for brevity
-    # [Include your chart code here, same as before]
-    # ...
-
 def show_edit_reservations():
-    # Your existing code with fix for currency symbols in show_edit_form
     pass
 
 def show_edit_form(edit_index):
-    # Your existing code with fix for currency symbols in show_edit_form
     pass
 
 def show_analytics():
-    # Your existing code
     pass
 
 if __name__ == "__main__":
