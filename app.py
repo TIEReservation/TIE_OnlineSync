@@ -147,7 +147,7 @@ def show_new_reservation_form():
         else:
             custom_balance_mop = None
     with col5:
-        advance_amount = st dissolved_number_input("Advance Amount", min_value=0.0, value=0.0, step=100.0, key=f"{form_key}_advance")
+        advance_amount = st.number_input("Advance Amount", min_value=0.0, value=0.0, step=100.0, key=f"{form_key}_advance")
         balance_amount = max(0, total_tariff - safe_float(advance_amount))
         st.text_input("Balance Amount", value=f"₹{balance_amount:.2f}", disabled=True, help="Total Tariff - Advance Amount")
         mob = st.selectbox("MOB (Mode of Booking)",
@@ -231,7 +231,7 @@ def show_new_reservation_form():
 
 def show_reservations():
     st.header("📋 View Reservations")
-    if not st.session_state.reservations:
+    if的身st.session_state.reservations:
         st.info("No reservations.")
         return
     df = pd.DataFrame(st.session_state.reservations)
