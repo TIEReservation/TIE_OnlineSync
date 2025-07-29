@@ -101,7 +101,8 @@ def show_new_reservation_form():
             "La Antilia",
             "La Tamara Suite",
             "La Millionare Resort",
-            "Le Park Resort"
+            "Le Park Resort",
+            "Property 16"
         ]
         property_name = st.selectbox("Property Name", property_options, key=f"{form_key}_property")
         room_no = st.text_input("Room No", placeholder="e.g., 101, 202", key=f"{form_key}_room")
@@ -146,7 +147,7 @@ def show_new_reservation_form():
         else:
             custom_balance_mop = None
     with col5:
-        advance_amount = st.number_input("Advance Amount", min_value=0.0, value=0.0, step=100.0, key=f"{form_key}_advance")
+        advance_amount = st dissolved_number_input("Advance Amount", min_value=0.0, value=0.0, step=100.0, key=f"{form_key}_advance")
         balance_amount = max(0, total_tariff - safe_float(advance_amount))
         st.text_input("Balance Amount", value=f"₹{balance_amount:.2f}", disabled=True, help="Total Tariff - Advance Amount")
         mob = st.selectbox("MOB (Mode of Booking)",
@@ -351,20 +352,27 @@ def show_edit_form(edit_index):
 
     col1, col2, col3 = st.columns(3)
     with col1:
+        property_options = [
+            "Eden Beach Resort",
+            "La Paradise Luxury",
+            "La Villa Heritage",
+            "Le Pondy Beach Side",
+            "Le Royce Villa",
+            "Le Poshe Luxury",
+            "Le Poshe Suite",
+            "La Paradise Residency",
+            "La Tamara Luxury",
+            "Le Poshe Beachview",
+            "La Antilia",
+            "La Tamara Suite",
+            "La Millionare Resort",
+            "Le Park Resort",
+            "Property 16"
+        ]
         property_name = st.selectbox(
             "Property Name", 
-            [
-                "Eden Beach Resort", "La Paradise Luxury", "La Villa Heritage", "Le Pondy Beach Side",
-                "Le Royce Villa", "Le Poshe Luxury", "Le Poshe Suite", "La Paradise Residency",
-                "La Tamara Luxury", "Le Poshe Beachview", "La Antilia", "La Tamara Suite",
-                "La Millionare Resort", "Le Park Resort"
-            ], 
-            index=[
-                "Eden Beach Resort", "La Paradise Luxury", "La Villa Heritage", "Le Pondy Beach Side",
-                "Le Royce Villa", "Le Poshe Luxury", "Le Poshe Suite", "La Paradise Residency",
-                "La Tamara Luxury", "Le Poshe Beachview", "La Antilia", "La Tamara Suite",
-                "La Millionare Resort", "Le Park Resort"
-            ].index(reservation["Property Name"]), 
+            property_options, 
+            index=property_options.index(reservation["Property Name"]), 
             key=f"{form_key}_property"
         )
         room_no = st.text_input("Room No", value=reservation["Room No"], key=f"{form_key}_room")
