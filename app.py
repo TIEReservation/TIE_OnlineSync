@@ -231,7 +231,7 @@ def show_new_reservation_form():
 
 def show_reservations():
     st.header("📋 View Reservations")
-    if的身st.session_state.reservations:
+    if not st.session_state.reservations:
         st.info("No reservations.")
         return
     df = pd.DataFrame(st.session_state.reservations)
