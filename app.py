@@ -505,13 +505,17 @@ def show_analytics():
 
     # Filters
     st.subheader("Filters")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Completed", "No Show"], key="analytics_filter_status")
     with col2:
         filter_check_in_date = st.date_input("Check-in Date", value=None, key="analytics_filter_check_in_date")
     with col3:
         filter_check_out_date = st.date_input("Check-out Date", value=None, key="analytics_filter_check_out_date")
+    with col4:
+        filter_enquiry_date = st.date_input("Enquiry Date", value=None, key="analytics_filter_enquiry_date")
+    with col5:
+        filter_booking_date = st.date_input("Booking Date", value=None, key="analytics_filter_booking_date")
 
     # Apply filters
     filtered_df = df.copy()
@@ -521,6 +525,10 @@ def show_analytics():
         filtered_df = filtered_df[filtered_df["Check In"] == filter_check_in_date]
     if filter_check_out_date:
         filtered_df = filtered_df[filtered_df["Check Out"] == filter_check_out_date]
+    if filter_enquiry_date:
+        filtered_df = filtered_df[filtered_df["Enquiry Date"] == filter_enquiry_date]
+    if filter_booking_date:
+        filtered_df = filtered_df[filtered_df["Booking Date"] == filter_booking_date]
 
     if filtered_df.empty:
         st.warning("No reservations match the selected filters.")
