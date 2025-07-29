@@ -283,7 +283,6 @@ def show_reservations():
             st.metric("Average Stay", f"{filtered_df['No of Days'].mean():.1f} days")
         else:
             st.metric("Average Stay", "0.0 days")
-    # Advance and Balance
     col5, col6 = st.columns(2)
     with col5:
         st.metric("Advance Collected", f"₹{filtered_df['Advance Amount'].sum():,.2f}")
@@ -497,7 +496,92 @@ def show_edit_form(edit_index):
             st.rerun()
 
 def show_analytics():
-    pass
+    st.header("📊 Analytics Dashboard")
+    if not st.session_state.reservations:
+        st.info("No reservations available for analysis.")
+        return
+
+    df = pd.DataFrame(st.session_state.reservations)
+
+    # Filters
+    st.subheader("Filters")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Completed", "No Show"], key="analytics_filter_status")
+    with col2:
+        filter_check_in_date = st.date_input("Check-in Date", value=None, key="analytics_filter_check_in_date")
+    with col3:
+        filter_check_out_date = st.date_input("Check-out Date", value=None, key="analytics_filter_check_out_date")
+
+    # Apply filters
+    filtered_df = df.copy()
+    if filter_status != "All":
+        filtered_df = filtered_df[filtered_df["Plan Status"] == filter_status]
+    if filter_check_in_date:
+        filtered_df = filtered_df[filtered_df["Check In"] == filter_check_in_date]
+    if filter_check_out_date:
+        filtered_df = filtered_df[filtered_df["Check Out"] == filter_check_out_date]
+
+    if filtered_df.empty:
+        st.warning("No reservations match the selected filters.")
+        return
+
+    # Overall Summary
+    st.subheader("Overall Summary")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Reservations", len(filtered_df))
+    with col2:
+        st.metric("Total Revenue", f"₹{filtered_df['Total Tariff'].sum():,.2f}")
+    with col3:
+        st.metric("Average Tariff", f"₹{filtered_df['Tariff'].mean():,.2f}" if not filtered_df.empty else "₹0.00")
+    with col4:
+        st.metric("Average Stay", f"{filtered_df['No of Days'].mean():.1f} days" if not filtered_df.empty else "0.0 days")
+
+    # Visualizations
+    st.subheader("Visualizations")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Pie chart for reservation distribution by property
+        property_counts = filtered_df["Property Name"].value_counts().reset_index()
+        property_counts.columns = ["Property Name", "Reservation Count"]
+        fig_pie = px.pie(
+            property_counts,
+            values="Reservation Count",
+            names="Property Name",
+            title="Reservation Distribution by Property",
+            height=400
+        )
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+    with col2:
+        # Bar chart for total revenue by property
+        revenue_by_property = filtered_df.groupby("Property Name")["Total Tariff"].sum().reset_index()
+        fig_bar = px.bar(
+            revenue_by_property,
+            x="Property Name",
+            y="Total Tariff",
+            title="Total Revenue by Property",
+            height=400,
+            labels={"Total Tariff": "Revenue (₹)"}
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+    # Property-wise Details
+    st.subheader("Property-wise Reservation Details")
+    properties = filtered_df["Property Name"].unique()
+    for property in properties:
+        with st.expander(f"{property} Reservations"):
+            property_df = filtered_df[filtered_df["Property Name"] == property]
+            st.write(f"**Total Reservations**: {len(property_df)}")
+            st.write(f"**Total Revenue**: ₹{property_df['Total Tariff'].sum():,.2f}")
+            st.write(f"**Average Tariff**: ₹{property_df['Tariff'].mean():,.2f}" if not property_df.empty else "₹0.00")
+            st.write(f"**Average Stay**: {property_df['No of Days'].mean():.1f} days" if not property_df.empty else "0.0 days")
+            st.dataframe(
+                property_df[["Booking ID", "Guest Name", "Room No", "Check In", "Check Out", "Total Tariff", "Plan Status"]],
+                use_container_width=True
+            )
 
 if __name__ == "__main__":
     main()
