@@ -2,6 +2,10 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import datetime, date, timedelta
+from supabase import create_client, Client
+
+# Initialize Supabase client
+supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
 
 # Page config
 st.set_page_config(
@@ -38,14 +42,15 @@ if 'edit_mode' not in st.session_state:
 def generate_booking_id():
     return f"TIE{datetime.now().strftime('%Y%m%d')}{len(st.session_state.reservations) + 1:03d}"
 
-def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_index=None):
-    for i, reservation in enumerate(st.session_state.reservations):
-        if exclude_index is not None and i == exclude_index:
+def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=None):
+    response = supabase.table("reservations").select("*").execute()
+    for reservation in response.data:
+        if exclude_booking_id and reservation["booking_id"] == exclude_booking_id:
             continue
-        if (reservation["Guest Name"].lower() == guest_name.lower() and
-            reservation["Mobile No"] == mobile_no and
-            reservation["Room No"] == room_no):
-            return True, reservation["Booking ID"]
+        if (reservation["guest_name"].lower() == guest_name.lower() and
+            reservation["mobile_no"] == mobile_no and
+            reservation["room_no"] == room_no):
+            return True, reservation["booking_id"]
     return False, None
 
 def calculate_days(check_in, check_out):
@@ -66,7 +71,139 @@ def safe_float(value, default=0.0):
     except (ValueError, TypeError):
         return default
 
+def load_reservations_from_supabase():
+    try:
+        response = supabase.table("reservations").select("*").execute()
+        reservations = []
+        for record in response.data:
+            reservation = {
+                "Booking ID": record["booking_id"],
+                "Property Name": record["property_name"],
+                "Room No": record["room_no"],
+                "Guest Name": record["guest_name"],
+                "Mobile No": record["mobile_no"],
+                "No of Adults": safe_int(record["no_of_adults"]),
+                "No of Children": safe_int(record["no_of_children"]),
+                "No of Infants": safe_int(record["no_of_infants"]),
+                "Total Pax": safe_int(record["total_pax"]),
+                "Check In": datetime.strptime(record["check_in"], "%Y-%m-%d").date() if record["check_in"] else None,
+                "Check Out": datetime.strptime(record["check_out"], "%Y-%m-%d").date() if record["check_out"] else None,
+                "No of Days": safe_int(record["no_of_days"]),
+                "Tariff": safe_float(record["tariff"]),
+                "Total Tariff": safe_float(record["total_tariff"]),
+                "Advance Amount": safe_float(record["advance_amount"]),
+                "Balance Amount": safe_float(record["balance_amount"]),
+                "Advance MOP": record["advance_mop"],
+                "Balance MOP": record["balance_mop"],
+                "MOB": record["mob"],  # Changed to match table column
+                "Online Source": record["online_source"],
+                "Invoice No": record["invoice_no"],
+                "Enquiry Date": datetime.strptime(record["enquiry_date"], "%Y-%m-%d").date() if record["enquiry_date"] else None,
+                "Booking Date": datetime.strptime(record["booking_date"], "%Y-%m-%d").date() if record["booking_date"] else None,
+                "Room Type": record["room_type"],
+                "Breakfast": record["breakfast"],
+                "Plan Status": record["plan_status"]
+            }
+            reservations.append(reservation)
+        return reservations
+    except Exception as e:
+        st.error(f"Error loading reservations: {e}")
+        return []
+
+def save_reservation_to_supabase(reservation):
+    try:
+        supabase_reservation = {
+            "booking_id": reservation["Booking ID"],
+            "property_name": reservation["Property Name"],
+            "room_no": reservation["Room No"],
+            "guest_name": reservation["Guest Name"],
+            "mobile_no": reservation["Mobile No"],
+            "no_of_adults": reservation["No of Adults"],
+            "no_of_children": reservation["No of Children"],
+            "no_of_infants": reservation["No of Infants"],
+            "total_pax": reservation["Total Pax"],
+            "check_in": reservation["Check In"].strftime("%Y-%m-%d") if reservation["Check In"] else None,
+            "check_out": reservation["Check Out"].strftime("%Y-%m-%d") if reservation["Check Out"] else None,
+            "no_of_days": reservation["No of Days"],
+            "tariff": reservation["Tariff"],
+            "total_tariff": reservation["Total Tariff"],
+            "advance_amount": reservation["Advance Amount"],
+            "balance_amount": reservation["Balance Amount"],
+            "advance_mop": reservation["Advance MOP"],
+            "balance_mop": reservation["Balance MOP"],
+            "mob": reservation["MOB"],  # Changed to match table column
+            "online_source": reservation["Online Source"],
+            "invoice_no": reservation["Invoice No"],
+            "enquiry_date": reservation["Enquiry Date"].strftime("%Y-%m-%d") if reservation["Enquiry Date"] else None,
+            "booking_date": reservation["Booking Date"].strftime("%Y-%m-%d") if reservation["Booking Date"] else None,
+            "room_type": reservation["Room Type"],
+            "breakfast": reservation["Breakfast"],
+            "plan_status": reservation["Plan Status"]
+        }
+        response = supabase.table("reservations").insert(supabase_reservation).execute()
+        if response.data:
+            return True
+        else:
+            return False
+    except Exception as e:
+        st.error(f"Error saving reservation: {e}")
+        return False
+
+def update_reservation_in_supabase(booking_id, updated_reservation):
+    try:
+        supabase_reservation = {
+            "booking_id": updated_reservation["Booking ID"],
+            "property_name": updated_reservation["Property Name"],
+            "room_no": updated_reservation["Room No"],
+            "guest_name": updated_reservation["Guest Name"],
+            "mobile_no": updated_reservation["Mobile No"],
+            "no_of_adults": updated_reservation["No of Adults"],
+            "no_of_children": updated_reservation["No of Children"],
+            "no_of_infants": updated_reservation["No of Infants"],
+            "total_pax": updated_reservation["Total Pax"],
+            "check_in": updated_reservation["Check In"].strftime("%Y-%m-%d") if updated_reservation["Check In"] else None,
+            "check_out": updated_reservation["Check Out"].strftime("%Y-%m-%d") if updated_reservation["Check Out"] else None,
+            "no_of_days": updated_reservation["No of Days"],
+            "tariff": updated_reservation["Tariff"],
+            "total_tariff": updated_reservation["Total Tariff"],
+            "advance_amount": updated_reservation["Advance Amount"],
+            "balance_amount": updated_reservation["Balance Amount"],
+            "advance_mop": updated_reservation["Advance MOP"],
+            "balance_mop": updated_reservation["Balance MOP"],
+            "mob": updated_reservation["MOB"],  # Changed to match table column
+            "online_source": updated_reservation["Online Source"],
+            "invoice_no": updated_reservation["Invoice No"],
+            "enquiry_date": updated_reservation["Enquiry Date"].strftime("%Y-%m-%d") if updated_reservation["Enquiry Date"] else None,
+            "booking_date": updated_reservation["Booking Date"].strftime("%Y-%m-%d") if updated_reservation["Booking Date"] else None,
+            "room_type": updated_reservation["Room Type"],
+            "breakfast": updated_reservation["Breakfast"],
+            "plan_status": updated_reservation["Plan Status"]
+        }
+        response = supabase.table("reservations").update(supabase_reservation).eq("booking_id", booking_id).execute()
+        if response.data:
+            return True
+        else:
+            return False
+    except Exception as e:
+        st.error(f"Error updating reservation: {e}")
+        return False
+
+def delete_reservation_in_supabase(booking_id):
+    try:
+        response = supabase.table("reservations").delete().eq("booking_id", booking_id).execute()
+        if response.data:
+            return True
+        else:
+            return False
+    except Exception as e:
+        st.error(f"Error deleting reservation: {e}")
+        return False
+
 def main():
+    # Load reservations from Supabase on startup
+    if 'reservations' not in st.session_state:
+        st.session_state.reservations = load_reservations_from_supabase()
+
     st.title("🏢 TIE Reservation System")
     st.markdown("---")
     st.sidebar.title("Navigation")
@@ -219,9 +356,12 @@ def show_new_reservation_form():
                     "Breakfast": breakfast,
                     "Plan Status": plan_status
                 }
-                st.session_state.reservations.append(reservation)
-                st.success(f"✅ Reservation saved! Booking ID: {booking_id}")
-                st.balloons()
+                if save_reservation_to_supabase(reservation):
+                    st.session_state.reservations.append(reservation)
+                    st.success(f"✅ Reservation saved! Booking ID: {booking_id}")
+                    st.balloons()
+                else:
+                    st.error("❌ Failed to save reservation")
 
     if st.session_state.reservations:
         st.markdown("---")
@@ -458,7 +598,7 @@ def show_edit_form(edit_index):
             elif no_of_days <= 0:
                 st.error("❌ Number of days must be greater than 0")
             else:
-                is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no, exclude_index=edit_index)
+                is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=reservation["Booking ID"])
                 if is_duplicate:
                     st.error(f"❌ Guest already exists! Booking ID: {existing_booking_id}")
                 else:
@@ -485,23 +625,29 @@ def show_edit_form(edit_index):
                         "Invoice No": invoice_no,
                         "Enquiry Date": enquiry_date,
                         "Booking Date": booking_date,
-                        "Booking ID": reservation["Booking ID"],  # Keep original Booking ID
+                        "Booking ID": reservation["Booking ID"],
                         "Room Type": custom_room_type if room_type == "Other" else room_type,
                         "Breakfast": breakfast,
                         "Plan Status": plan_status
                     }
-                    st.session_state.reservations[edit_index] = updated_reservation
-                    st.session_state.edit_mode = False
-                    st.session_state.edit_index = None
-                    st.success(f"✅ Reservation {reservation['Booking ID']} updated successfully!")
-                    st.rerun()
+                    if update_reservation_in_supabase(reservation["Booking ID"], updated_reservation):
+                        st.session_state.reservations[edit_index] = updated_reservation
+                        st.session_state.edit_mode = False
+                        st.session_state.edit_index = None
+                        st.success(f"✅ Reservation {reservation['Booking ID']} updated successfully!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to update reservation")
     with col_btn2:
         if st.button("🗑️ Delete Reservation", key=f"{form_key}_delete", use_container_width=True):
-            st.session_state.reservations.pop(edit_index)
-            st.session_state.edit_mode = False
-            st.session_state.edit_index = None
-            st.success(f"🗑️ Reservation {reservation['Booking ID']} deleted successfully!")
-            st.rerun()
+            if delete_reservation_in_supabase(reservation["Booking ID"]):
+                st.session_state.reservations.pop(edit_index)
+                st.session_state.edit_mode = False
+                st.session_state.edit_index = None
+                st.success(f"🗑️ Reservation {reservation['Booking ID']} deleted successfully!")
+                st.rerun()
+            else:
+                st.error("❌ Failed to delete reservation")
 
 def show_analytics():
     st.header("📊 Analytics Dashboard")
