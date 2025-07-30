@@ -43,15 +43,20 @@ def generate_booking_id():
     return f"TIE{datetime.now().strftime('%Y%m%d')}{len(st.session_state.reservations) + 1:03d}"
 
 def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=None):
-    response = supabase.table("reservations").select("*").execute()
-    for reservation in response.data:
-        if exclude_booking_id and reservation["booking_id"] == exclude_booking_id:
-            continue
-        if (reservation["guest_name"].lower() == guest_name.lower() and
-            reservation["mobile_no"] == mobile_no and
-            reservation["room_no"] == room_no):
-            return True, reservation["booking_id"]
-    return False, None
+    try:
+        response = supabase.table("reservations").select("*").execute()
+        if response.data:
+            for reservation in response.data:
+                if (exclude_booking_id and reservation["booking_id"] == exclude_booking_id):
+                    continue
+                if (reservation.get("guest_name", "").lower() == guest_name.lower() and
+                    reservation.get("mobile_no", "") == mobile_no and
+                    reservation.get("room_no", "") == room_no):
+                    return True, reservation.get("booking_id")
+        return False, None
+    except Exception as e:
+        st.error(f"Error checking duplicate guest: {e}")
+        return False, None
 
 def calculate_days(check_in, check_out):
     if check_in and check_out and check_out > check_in:
@@ -75,36 +80,36 @@ def load_reservations_from_supabase():
     try:
         response = supabase.table("reservations").select("*").execute()
         reservations = []
-        for record in response.data:
+        for record in response.data or []:
             reservation = {
-                "Booking ID": record["booking_id"],
-                "Property Name": record["property_name"],
-                "Room No": record["room_no"],
-                "Guest Name": record["guest_name"],
-                "Mobile No": record["mobile_no"],
-                "No of Adults": safe_int(record["no_of_adults"]),
-                "No of Children": safe_int(record["no_of_children"]),
-                "No of Infants": safe_int(record["no_of_infants"]),
-                "Total Pax": safe_int(record["total_pax"]),
-                "Check In": datetime.strptime(record["check_in"], "%Y-%m-%d").date() if record["check_in"] else None,
-                "Check Out": datetime.strptime(record["check_out"], "%Y-%m-%d").date() if record["check_out"] else None,
-                "No of Days": safe_int(record["no_of_days"]),
-                "Tariff": safe_float(record["tariff"]),
-                "Total Tariff": safe_float(record["total_tariff"]),
-                "Advance Amount": safe_float(record["advance_amount"]),
-                "Balance Amount": safe_float(record["balance_amount"]),
-                "Advance MOP": record["advance_mop"],
-                "Balance MOP": record["balance_mop"],
-                "MOB": record["mob"],
-                "Online Source": record["online_source"],
-                "Invoice No": record["invoice_no"],
-                "Enquiry Date": datetime.strptime(record["enquiry_date"], "%Y-%m-%d").date() if record["enquiry_date"] else None,
-                "Booking Date": datetime.strptime(record["booking_date"], "%Y-%m-%d").date() if record["booking_date"] else None,
-                "Room Type": record["room_type"],
-                "Breakfast": record["breakfast"],
-                "Plan Status": record["plan_status"],
-                "Submitted By": record["submitted_by"],
-                "Modified By": record["modified_by"]
+                "Booking ID": record.get("booking_id", ""),
+                "Property Name": record.get("property_name", ""),
+                "Room No": record.get("room_no", ""),
+                "Guest Name": record.get("guest_name", ""),
+                "Mobile No": record.get("mobile_no", ""),
+                "No of Adults": safe_int(record.get("no_of_adults")),
+                "No of Children": safe_int(record.get("no_of_children")),
+                "No of Infants": safe_int(record.get("no_of_infants")),
+                "Total Pax": safe_int(record.get("total_pax")),
+                "Check In": datetime.strptime(record.get("check_in", ""), "%Y-%m-%d").date() if record.get("check_in") else None,
+                "Check Out": datetime.strptime(record.get("check_out", ""), "%Y-%m-%d").date() if record.get("check_out") else None,
+                "No of Days": safe_int(record.get("no_of_days")),
+                "Tariff": safe_float(record.get("tariff")),
+                "Total Tariff": safe_float(record.get("total_tariff")),
+                "Advance Amount": safe_float(record.get("advance_amount")),
+                "Balance Amount": safe_float(record.get("balance_amount")),
+                "Advance MOP": record.get("advance_mop", ""),
+                "Balance MOP": record.get("balance_mop", ""),
+                "MOB": record.get("mob", ""),
+                "Online Source": record.get("online_source", ""),
+                "Invoice No": record.get("invoice_no", ""),
+                "Enquiry Date": datetime.strptime(record.get("enquiry_date", ""), "%Y-%m-%d").date() if record.get("enquiry_date") else None,
+                "Booking Date": datetime.strptime(record.get("booking_date", ""), "%Y-%m-%d").date() if record.get("booking_date") else None,
+                "Room Type": record.get("room_type", ""),
+                "Breakfast": record.get("breakfast", ""),
+                "Plan Status": record.get("plan_status", ""),
+                "Submitted By": record.get("submitted_by", ""),
+                "Modified By": record.get("modified_by", "")
             }
             reservations.append(reservation)
         return reservations
@@ -115,34 +120,34 @@ def load_reservations_from_supabase():
 def save_reservation_to_supabase(reservation):
     try:
         supabase_reservation = {
-            "booking_id": reservation["Booking ID"],
-            "property_name": reservation["Property Name"],
-            "room_no": reservation["Room No"],
-            "guest_name": reservation["Guest Name"],
-            "mobile_no": reservation["Mobile No"],
-            "no_of_adults": reservation["No of Adults"],
-            "no_of_children": reservation["No of Children"],
-            "no_of_infants": reservation["No of Infants"],
-            "total_pax": reservation["Total Pax"],
-            "check_in": reservation["Check In"].strftime("%Y-%m-%d") if reservation["Check In"] else None,
-            "check_out": reservation["Check Out"].strftime("%Y-%m-%d") if reservation["Check Out"] else None,
-            "no_of_days": reservation["No of Days"],
-            "tariff": reservation["Tariff"],
-            "total_tariff": reservation["Total Tariff"],
-            "advance_amount": reservation["Advance Amount"],
-            "balance_amount": reservation["Balance Amount"],
-            "advance_mop": reservation["Advance MOP"],
-            "balance_mop": reservation["Balance MOP"],
-            "mob": reservation["MOB"],
-            "online_source": reservation["Online Source"],
-            "invoice_no": reservation["Invoice No"],
-            "enquiry_date": reservation["Enquiry Date"].strftime("%Y-%m-%d") if reservation["Enquiry Date"] else None,
-            "booking_date": reservation["Booking Date"].strftime("%Y-%m-%d") if reservation["Booking Date"] else None,
-            "room_type": reservation["Room Type"],
-            "breakfast": reservation["Breakfast"],
-            "plan_status": reservation["Plan Status"],
-            "submitted_by": reservation["Submitted By"],
-            "modified_by": reservation["Modified By"]
+            "booking_id": reservation.get("Booking ID", ""),
+            "property_name": reservation.get("Property Name", ""),
+            "room_no": reservation.get("Room No", ""),
+            "guest_name": reservation.get("Guest Name", ""),
+            "mobile_no": reservation.get("Mobile No", ""),
+            "no_of_adults": reservation.get("No of Adults", 0),
+            "no_of_children": reservation.get("No of Children", 0),
+            "no_of_infants": reservation.get("No of Infants", 0),
+            "total_pax": reservation.get("Total Pax", 0),
+            "check_in": reservation.get("Check In", None).strftime("%Y-%m-%d") if reservation.get("Check In") else None,
+            "check_out": reservation.get("Check Out", None).strftime("%Y-%m-%d") if reservation.get("Check Out") else None,
+            "no_of_days": reservation.get("No of Days", 0),
+            "tariff": reservation.get("Tariff", 0.0),
+            "total_tariff": reservation.get("Total Tariff", 0.0),
+            "advance_amount": reservation.get("Advance Amount", 0.0),
+            "balance_amount": reservation.get("Balance Amount", 0.0),
+            "advance_mop": reservation.get("Advance MOP", ""),
+            "balance_mop": reservation.get("Balance MOP", ""),
+            "mob": reservation.get("MOB", ""),
+            "online_source": reservation.get("Online Source", ""),
+            "invoice_no": reservation.get("Invoice No", ""),
+            "enquiry_date": reservation.get("Enquiry Date", None).strftime("%Y-%m-%d") if reservation.get("Enquiry Date") else None,
+            "booking_date": reservation.get("Booking Date", None).strftime("%Y-%m-%d") if reservation.get("Booking Date") else None,
+            "room_type": reservation.get("Room Type", ""),
+            "breakfast": reservation.get("Breakfast", ""),
+            "plan_status": reservation.get("Plan Status", ""),
+            "submitted_by": reservation.get("Submitted By", ""),
+            "modified_by": reservation.get("Modified By", "")
         }
         response = supabase.table("reservations").insert(supabase_reservation).execute()
         if response.data:
@@ -156,34 +161,34 @@ def save_reservation_to_supabase(reservation):
 def update_reservation_in_supabase(booking_id, updated_reservation):
     try:
         supabase_reservation = {
-            "booking_id": updated_reservation["Booking ID"],
-            "property_name": updated_reservation["Property Name"],
-            "room_no": updated_reservation["Room No"],
-            "guest_name": updated_reservation["Guest Name"],
-            "mobile_no": updated_reservation["Mobile No"],
-            "no_of_adults": updated_reservation["No of Adults"],
-            "no_of_children": updated_reservation["No of Children"],
-            "no_of_infants": updated_reservation["No of Infants"],
-            "total_pax": updated_reservation["Total Pax"],
-            "check_in": updated_reservation["Check In"].strftime("%Y-%m-%d") if updated_reservation["Check In"] else None,
-            "check_out": updated_reservation["Check Out"].strftime("%Y-%m-%d") if updated_reservation["Check Out"] else None,
-            "no_of_days": updated_reservation["No of Days"],
-            "tariff": updated_reservation["Tariff"],
-            "total_tariff": updated_reservation["Total Tariff"],
-            "advance_amount": updated_reservation["Advance Amount"],
-            "balance_amount": updated_reservation["Balance Amount"],
-            "advance_mop": updated_reservation["Advance MOP"],
-            "balance_mop": updated_reservation["Balance MOP"],
-            "mob": updated_reservation["MOB"],
-            "online_source": updated_reservation["Online Source"],
-            "invoice_no": updated_reservation["Invoice No"],
-            "enquiry_date": updated_reservation["Enquiry Date"].strftime("%Y-%m-%d") if updated_reservation["Enquiry Date"] else None,
-            "booking_date": updated_reservation["Booking Date"].strftime("%Y-%m-%d") if updated_reservation["Booking Date"] else None,
-            "room_type": updated_reservation["Room Type"],
-            "breakfast": updated_reservation["Breakfast"],
-            "plan_status": updated_reservation["Plan Status"],
-            "submitted_by": updated_reservation["Submitted By"],
-            "modified_by": updated_reservation["Modified By"]
+            "booking_id": updated_reservation.get("Booking ID", ""),
+            "property_name": updated_reservation.get("Property Name", ""),
+            "room_no": updated_reservation.get("Room No", ""),
+            "guest_name": updated_reservation.get("Guest Name", ""),
+            "mobile_no": updated_reservation.get("Mobile No", ""),
+            "no_of_adults": updated_reservation.get("No of Adults", 0),
+            "no_of_children": updated_reservation.get("No of Children", 0),
+            "no_of_infants": updated_reservation.get("No of Infants", 0),
+            "total_pax": updated_reservation.get("Total Pax", 0),
+            "check_in": updated_reservation.get("Check In", None).strftime("%Y-%m-%d") if updated_reservation.get("Check In") else None,
+            "check_out": updated_reservation.get("Check Out", None).strftime("%Y-%m-%d") if updated_reservation.get("Check Out") else None,
+            "no_of_days": updated_reservation.get("No of Days", 0),
+            "tariff": updated_reservation.get("Tariff", 0.0),
+            "total_tariff": updated_reservation.get("Total Tariff", 0.0),
+            "advance_amount": updated_reservation.get("Advance Amount", 0.0),
+            "balance_amount": updated_reservation.get("Balance Amount", 0.0),
+            "advance_mop": updated_reservation.get("Advance MOP", ""),
+            "balance_mop": updated_reservation.get("Balance MOP", ""),
+            "mob": updated_reservation.get("MOB", ""),
+            "online_source": updated_reservation.get("Online Source", ""),
+            "invoice_no": updated_reservation.get("Invoice No", ""),
+            "enquiry_date": updated_reservation.get("Enquiry Date", None).strftime("%Y-%m-%d") if updated_reservation.get("Enquiry Date") else None,
+            "booking_date": updated_reservation.get("Booking Date", None).strftime("%Y-%m-%d") if updated_reservation.get("Booking Date") else None,
+            "room_type": updated_reservation.get("Room Type", ""),
+            "breakfast": updated_reservation.get("Breakfast", ""),
+            "plan_status": updated_reservation.get("Plan Status", ""),
+            "submitted_by": updated_reservation.get("Submitted By", ""),
+            "modified_by": updated_reservation.get("Modified By", "")
         }
         response = supabase.table("reservations").update(supabase_reservation).eq("booking_id", booking_id).execute()
         if response.data:
