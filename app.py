@@ -95,14 +95,16 @@ def load_reservations_from_supabase():
                 "Balance Amount": safe_float(record["balance_amount"]),
                 "Advance MOP": record["advance_mop"],
                 "Balance MOP": record["balance_mop"],
-                "MOB": record["mob"],  # Changed to match table column
+                "MOB": record["mob"],
                 "Online Source": record["online_source"],
                 "Invoice No": record["invoice_no"],
                 "Enquiry Date": datetime.strptime(record["enquiry_date"], "%Y-%m-%d").date() if record["enquiry_date"] else None,
                 "Booking Date": datetime.strptime(record["booking_date"], "%Y-%m-%d").date() if record["booking_date"] else None,
                 "Room Type": record["room_type"],
                 "Breakfast": record["breakfast"],
-                "Plan Status": record["plan_status"]
+                "Plan Status": record["plan_status"],
+                "Submitted By": record["submitted_by"],
+                "Modified By": record["modified_by"]
             }
             reservations.append(reservation)
         return reservations
@@ -131,14 +133,16 @@ def save_reservation_to_supabase(reservation):
             "balance_amount": reservation["Balance Amount"],
             "advance_mop": reservation["Advance MOP"],
             "balance_mop": reservation["Balance MOP"],
-            "mob": reservation["MOB"],  # Changed to match table column
+            "mob": reservation["MOB"],
             "online_source": reservation["Online Source"],
             "invoice_no": reservation["Invoice No"],
             "enquiry_date": reservation["Enquiry Date"].strftime("%Y-%m-%d") if reservation["Enquiry Date"] else None,
             "booking_date": reservation["Booking Date"].strftime("%Y-%m-%d") if reservation["Booking Date"] else None,
             "room_type": reservation["Room Type"],
             "breakfast": reservation["Breakfast"],
-            "plan_status": reservation["Plan Status"]
+            "plan_status": reservation["Plan Status"],
+            "submitted_by": reservation["Submitted By"],
+            "modified_by": reservation["Modified By"]
         }
         response = supabase.table("reservations").insert(supabase_reservation).execute()
         if response.data:
@@ -170,14 +174,16 @@ def update_reservation_in_supabase(booking_id, updated_reservation):
             "balance_amount": updated_reservation["Balance Amount"],
             "advance_mop": updated_reservation["Advance MOP"],
             "balance_mop": updated_reservation["Balance MOP"],
-            "mob": updated_reservation["MOB"],  # Changed to match table column
+            "mob": updated_reservation["MOB"],
             "online_source": updated_reservation["Online Source"],
             "invoice_no": updated_reservation["Invoice No"],
             "enquiry_date": updated_reservation["Enquiry Date"].strftime("%Y-%m-%d") if updated_reservation["Enquiry Date"] else None,
             "booking_date": updated_reservation["Booking Date"].strftime("%Y-%m-%d") if updated_reservation["Booking Date"] else None,
             "room_type": updated_reservation["Room Type"],
             "breakfast": updated_reservation["Breakfast"],
-            "plan_status": updated_reservation["Plan Status"]
+            "plan_status": updated_reservation["Plan Status"],
+            "submitted_by": updated_reservation["Submitted By"],
+            "modified_by": updated_reservation["Modified By"]
         }
         response = supabase.table("reservations").update(supabase_reservation).eq("booking_id", booking_id).execute()
         if response.data:
@@ -245,6 +251,7 @@ def show_new_reservation_form():
         room_no = st.text_input("Room No", placeholder="e.g., 101, 202", key=f"{form_key}_room")
         guest_name = st.text_input("Guest Name", placeholder="Enter guest name", key=f"{form_key}_guest")
         mobile_no = st.text_input("Mobile No", placeholder="Enter mobile number", key=f"{form_key}_mobile")
+        submitted_by = st.text_input("Submitted By", placeholder="Enter your name", key=f"{form_key}_submitted_by")
     with col2:
         adults = st.number_input("No of Adults", min_value=0, value=1, key=f"{form_key}_adults")
         children = st.number_input("No of Children", min_value=0, value=0, key=f"{form_key}_children")
@@ -316,7 +323,7 @@ def show_new_reservation_form():
         plan_status = st.selectbox("Plan Status", ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"], key=f"{form_key}_status")
 
     if st.button("💾 Save Reservation", use_container_width=True):
-        if not all([property_name, room_no, guest_name, mobile_no]):
+        if not all([property_name, room_no, guest_name, mobile_no, submitted_by]):
             st.error("❌ Please fill in all required fields")
         elif check_out <= check_in:
             st.error("❌ Check-out date must be after check-in")
@@ -354,7 +361,9 @@ def show_new_reservation_form():
                     "Booking ID": booking_id,
                     "Room Type": custom_room_type if room_type == "Other" else room_type,
                     "Breakfast": breakfast,
-                    "Plan Status": plan_status
+                    "Plan Status": plan_status,
+                    "Submitted By": submitted_by,
+                    "Modified By": None  # Set to None for new reservations
                 }
                 if save_reservation_to_supabase(reservation):
                     st.session_state.reservations.append(reservation)
@@ -367,7 +376,7 @@ def show_new_reservation_form():
         st.markdown("---")
         st.subheader("📋 Recent Reservations")
         recent_df = pd.DataFrame(st.session_state.reservations[-5:])
-        st.dataframe(recent_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status"]])
+        st.dataframe(recent_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status", "Submitted By"]])
 
 def show_reservations():
     st.header("📋 View Reservations")
@@ -404,7 +413,7 @@ def show_reservations():
     # Display filtered reservations
     st.subheader("📋 Filtered Reservations")
     st.dataframe(
-        filtered_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status"]],
+        filtered_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status", "Submitted By", "Modified By"]],
         use_container_width=True
     )
 
@@ -471,7 +480,7 @@ def show_edit_reservations():
 
     st.subheader("📋 Select a Reservation to Edit")
     st.dataframe(
-        filtered_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status"]],
+        filtered_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status", "Submitted By", "Modified By"]],
         use_container_width=True
     )
 
@@ -518,12 +527,14 @@ def show_edit_form(edit_index):
         room_no = st.text_input("Room No", value=reservation["Room No"], key=f"{form_key}_room")
         guest_name = st.text_input("Guest Name", value=reservation["Guest Name"], key=f"{form_key}_guest")
         mobile_no = st.text_input("Mobile No", value=reservation["Mobile No"], key=f"{form_key}_mobile")
+        submitted_by = st.text_input("Submitted By", value=reservation["Submitted By"], disabled=True, key=f"{form_key}_submitted_by")
     with col2:
         adults = st.number_input("No of Adults", min_value=0, value=reservation["No of Adults"], key=f"{form_key}_adults")
         children = st.number_input("No of Children", min_value=0, value=reservation["No of Children"], key=f"{form_key}_children")
         infants = st.number_input("No of Infants", min_value=0, value=reservation["No of Infants"], key=f"{form_key}_infants")
         total_pax = safe_int(adults) + safe_int(children) + safe_int(infants)
         st.text_input("Total Pax", value=str(total_pax), disabled=True, help="Adults + Children + Infants")
+        modified_by = st.text_input("Modified By", value=reservation["Modified By"] or "", placeholder="Enter your name", key=f"{form_key}_modified_by")
     with col3:
         check_in = st.date_input("Check In", value=reservation["Check In"], key=f"{form_key}_checkin")
         check_out = st.date_input("Check Out", value=reservation["Check Out"], key=f"{form_key}_checkout")
@@ -591,7 +602,7 @@ def show_edit_form(edit_index):
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
         if st.button("💾 Update Reservation", key=f"{form_key}_update", use_container_width=True):
-            if not all([property_name, room_no, guest_name, mobile_no]):
+            if not all([property_name, room_no, guest_name, mobile_no, modified_by]):
                 st.error("❌ Please fill in all required fields")
             elif check_out <= check_in:
                 st.error("❌ Check-out date must be after check-in")
@@ -628,7 +639,9 @@ def show_edit_form(edit_index):
                         "Booking ID": reservation["Booking ID"],
                         "Room Type": custom_room_type if room_type == "Other" else room_type,
                         "Breakfast": breakfast,
-                        "Plan Status": plan_status
+                        "Plan Status": plan_status,
+                        "Submitted By": reservation["Submitted By"],
+                        "Modified By": modified_by
                     }
                     if update_reservation_in_supabase(reservation["Booking ID"], updated_reservation):
                         st.session_state.reservations[edit_index] = updated_reservation
@@ -741,7 +754,7 @@ def show_analytics():
             st.write(f"**Average Tariff**: ₹{property_df['Tariff'].mean():,.2f}" if not property_df.empty else "₹0.00")
             st.write(f"**Average Stay**: {property_df['No of Days'].mean():.1f} days" if not property_df.empty else "0.0 days")
             st.dataframe(
-                property_df[["Booking ID", "Guest Name", "Room No", "Check In", "Check Out", "Total Tariff", "Plan Status"]],
+                property_df[["Booking ID", "Guest Name", "Room No", "Check In", "Check Out", "Total Tariff", "Plan Status", "Submitted By", "Modified By"]],
                 use_container_width=True
             )
 
