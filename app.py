@@ -40,7 +40,26 @@ if 'edit_mode' not in st.session_state:
     st.session_state.edit_index = None
 
 def generate_booking_id():
-    return f"TIE{datetime.now().strftime('%Y%m%d')}{len(st.session_state.reservations) + 1:03d}"
+    try:
+        # Fetch the latest booking_id from Supabase
+        response = supabase.table("reservations").select("booking_id").order("booking_id", desc=True).limit(1).execute()
+        latest_id = response.data[0]["booking_id"] if response.data else None
+        
+        if latest_id:
+            # Extract the sequence number from the latest ID (e.g., 1001 from TIE202507311001)
+            date_part = latest_id[3:11]  # Extract YYYYMMDD
+            current_date = datetime.now().strftime("%Y%m%d")
+            if date_part == current_date:
+                seq = int(latest_id[11:]) + 1  # Increment the sequence
+            else:
+                seq = 1  # Start new sequence if date changes
+        else:
+            seq = 1  # Start from 1 if no records exist
+        
+        return f"TIE{datetime.now().strftime('%Y%m%d')}{seq:03d}"
+    except Exception as e:
+        st.error(f"Error generating booking ID: {e}")
+        return f"TIE{datetime.now().strftime('%Y%m%d')}001"  # Fallback to default
 
 def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=None):
     try:
