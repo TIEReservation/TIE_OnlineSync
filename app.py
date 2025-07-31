@@ -156,7 +156,8 @@ def save_reservation_to_supabase(reservation):
             "booking_date": reservation["Booking Date"].strftime("%Y-%m-%d") if reservation["Booking Date"] else None,
             "room_type": reservation["Room Type"],
             "breakfast": reservation["Breakfast"],
-            "plan_status": reservation["Plan Status"]
+            "plan_status": reservation["Plan Status"],
+            "submitted_by": reservation["Submitted By"]
         }
         response = supabase.table("reservations").insert(supabase_reservation).execute()
         if response.data:
@@ -197,7 +198,9 @@ def update_reservation_in_supabase(booking_id, updated_reservation):
             "booking_date": updated_reservation["Booking Date"].strftime("%Y-%m-%d") if updated_reservation["Booking Date"] else None,
             "room_type": updated_reservation["Room Type"],
             "breakfast": updated_reservation["Breakfast"],
-            "plan_status": updated_reservation["Plan Status"]
+            "plan_status": updated_reservation["Plan Status"],
+            "modified_by": reservation["Modified By"],
+            "modified_comments": reservation["Modified Comments"]
         }
         response = supabase.table("reservations").update(supabase_reservation).eq("booking_id", booking_id).execute()
         if response.data:
