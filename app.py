@@ -402,8 +402,8 @@ def show_new_reservation_form():
                         st.write(f"**Reservation Confirmed!**\n\nBooking ID: {booking_id}\nGuest Name: {guest_name}\nRoom No: {room_no}\nCheck-In: {check_in}\nCheck-Out: {check_out}")
                         if st.button("✔️ Confirm", use_container_width=True):
                             st.rerun()
-                    # Open the dialog
-                    st.dialog("Confirmation", show_confirmation_dialog, width="large")
+                    # Open the dialog with correct syntax
+                    st.dialog("Confirmation", callback=show_confirmation_dialog, width="large")
                 else:
                     st.error("❌ Failed to save reservation")
 
@@ -689,8 +689,8 @@ def show_edit_form(edit_index):
                             st.write(f"**Reservation Updated!**\n\nBooking ID: {reservation['Booking ID']}\nGuest Name: {guest_name}\nRoom No: {room_no}\nCheck-In: {check_in}\nCheck-Out: {check_out}\nModified Comments: {modified_comments}")
                             if st.button("✔️ Confirm", use_container_width=True):
                                 st.rerun()
-                        # Open the dialog
-                        st.dialog("Confirmation", show_confirmation_dialog, width="large")
+                        # Open the dialog with correct syntax
+                        st.dialog("Confirmation", callback=show_confirmation_dialog, width="large")
                     else:
                         st.error("❌ Failed to update reservation")
     with col_btn2:
