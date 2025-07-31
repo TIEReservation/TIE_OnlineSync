@@ -397,13 +397,11 @@ def show_new_reservation_form():
                     st.session_state.reservations.append(reservation)
                     st.success(f"✅ Reservation saved! Booking ID: {booking_id}")
                     st.balloons()
-                    # Define the dialog content as a function
-                    def show_confirmation_dialog():
+                    # Open the dialog with correct syntax for Streamlit 1.47.1
+                    with st.dialog("Confirmation"):
                         st.write(f"**Reservation Confirmed!**\n\nBooking ID: {booking_id}\nGuest Name: {guest_name}\nRoom No: {room_no}\nCheck-In: {check_in}\nCheck-Out: {check_out}")
                         if st.button("✔️ Confirm", use_container_width=True):
                             st.rerun()
-                    # Open the dialog with correct syntax
-                    st.dialog("Confirmation", show_confirmation_dialog, width="large")
                 else:
                     st.error("❌ Failed to save reservation")
 
@@ -684,13 +682,11 @@ def show_edit_form(edit_index):
                         st.session_state.reservations[edit_index] = updated_reservation
                         st.success(f"✅ Reservation updated! Booking ID: {reservation['Booking ID']}")
                         st.balloons()  # Add balloons for update
-                        # Define the dialog content as a function
-                        def show_confirmation_dialog():
+                        # Open the dialog with correct syntax for Streamlit 1.47.1
+                        with st.dialog("Confirmation"):
                             st.write(f"**Reservation Updated!**\n\nBooking ID: {reservation['Booking ID']}\nGuest Name: {guest_name}\nRoom No: {room_no}\nCheck-In: {check_in}\nCheck-Out: {check_out}\nModified Comments: {modified_comments}")
                             if st.button("✔️ Confirm", use_container_width=True):
                                 st.rerun()
-                        # Open the dialog with correct syntax
-                        st.dialog("Confirmation", show_confirmation_dialog, width="large")
                     else:
                         st.error("❌ Failed to update reservation")
     with col_btn2:
