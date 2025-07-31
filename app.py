@@ -109,7 +109,8 @@ def load_reservations_from_supabase():
                 "Breakfast": record.get("breakfast", ""),
                 "Plan Status": record.get("plan_status", ""),
                 "Submitted By": record.get("submitted_by", ""),
-                "Modified By": record.get("modified_by", "")
+                "Modified By": record.get("modified_by", ""),
+                "Modified Comments": record.get("modified_comments", "")  # Renamed from comments
             }
             reservations.append(reservation)
         return reservations
@@ -147,7 +148,8 @@ def save_reservation_to_supabase(reservation):
             "breakfast": reservation.get("Breakfast", ""),
             "plan_status": reservation.get("Plan Status", ""),
             "submitted_by": reservation.get("Submitted By", ""),
-            "modified_by": reservation.get("Modified By", "")
+            "modified_by": reservation.get("Modified By", ""),
+            "modified_comments": reservation.get("Modified Comments", "")  # Renamed from comments
         }
         response = supabase.table("reservations").insert(supabase_reservation).execute()
         if response.data:
@@ -188,7 +190,8 @@ def update_reservation_in_supabase(booking_id, updated_reservation):
             "breakfast": updated_reservation.get("Breakfast", ""),
             "plan_status": updated_reservation.get("Plan Status", ""),
             "submitted_by": updated_reservation.get("Submitted By", ""),
-            "modified_by": updated_reservation.get("Modified By", "")
+            "modified_by": updated_reservation.get("Modified By", ""),
+            "modified_comments": updated_reservation.get("Modified Comments", "")  # Renamed from comments
         }
         response = supabase.table("reservations").update(supabase_reservation).eq("booking_id", booking_id).execute()
         if response.data:
@@ -368,12 +371,17 @@ def show_new_reservation_form():
                     "Breakfast": breakfast,
                     "Plan Status": plan_status,
                     "Submitted By": submitted_by,
-                    "Modified By": None  # Set to None for new reservations
+                    "Modified By": None,
+                    "Modified Comments": None  # Renamed from comments, set to None for new reservations
                 }
                 if save_reservation_to_supabase(reservation):
                     st.session_state.reservations.append(reservation)
                     st.success(f"✅ Reservation saved! Booking ID: {booking_id}")
                     st.balloons()
+                    with st.dialog("Confirmation", width="large"):
+                        st.write(f"**Reservation Confirmed!**\n\nBooking ID: {booking_id}\nGuest Name: {guest_name}\nRoom No: {room_no}\nCheck-In: {check_in}\nCheck-Out: {check_out}")
+                        if st.button("✔️ Confirm", use_container_width=True):
+                            st.rerun()
                 else:
                     st.error("❌ Failed to save reservation")
 
@@ -381,7 +389,7 @@ def show_new_reservation_form():
         st.markdown("---")
         st.subheader("📋 Recent Reservations")
         recent_df = pd.DataFrame(st.session_state.reservations[-5:])
-        st.dataframe(recent_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status", "Submitted By"]])
+        st.dataframe(recent_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status", "Submitted By", "Modified By", "Modified Comments"]])
 
 def show_reservations():
     st.header("📋 View Reservations")
@@ -418,7 +426,7 @@ def show_reservations():
     # Display filtered reservations
     st.subheader("📋 Filtered Reservations")
     st.dataframe(
-        filtered_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status", "Submitted By", "Modified By"]],
+        filtered_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status", "Submitted By", "Modified By", "Modified Comments"]],
         use_container_width=True
     )
 
@@ -485,7 +493,7 @@ def show_edit_reservations():
 
     st.subheader("📋 Select a Reservation to Edit")
     st.dataframe(
-        filtered_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status", "Submitted By", "Modified By"]],
+        filtered_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status", "Submitted By", "Modified By", "Modified Comments"]],
         use_container_width=True
     )
 
@@ -603,6 +611,7 @@ def show_edit_form(edit_index):
     with col7:
         breakfast = st.selectbox("Breakfast", ["CP", "EP"], index=["CP", "EP"].index(reservation["Breakfast"]), key=f"{form_key}_breakfast")
         plan_status = st.selectbox("Plan Status", ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"], index=["Confirmed", "Pending", "Cancelled", "Completed", "No Show"].index(reservation["Plan Status"]), key=f"{form_key}_status")
+        modified_comments = st.text_area("Modified Comments", value=reservation["Modified Comments"], placeholder="Enter modified comments (max 20 words)", max_chars=100, key=f"{form_key}_modified_comments")  # Renamed from comments
 
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
@@ -646,14 +655,17 @@ def show_edit_form(edit_index):
                         "Breakfast": breakfast,
                         "Plan Status": plan_status,
                         "Submitted By": reservation["Submitted By"],
-                        "Modified By": modified_by
+                        "Modified By": modified_by,
+                        "Modified Comments": modified_comments  # Renamed from comments
                     }
                     if update_reservation_in_supabase(reservation["Booking ID"], updated_reservation):
                         st.session_state.reservations[edit_index] = updated_reservation
-                        st.session_state.edit_mode = False
-                        st.session_state.edit_index = None
-                        st.success(f"✅ Reservation {reservation['Booking ID']} updated successfully!")
-                        st.rerun()
+                        st.success(f"✅ Reservation updated! Booking ID: {reservation['Booking ID']}")
+                        st.balloons()  # Add balloons for update
+                        with st.dialog("Confirmation", width="large"):
+                            st.write(f"**Reservation Updated!**\n\nBooking ID: {reservation['Booking ID']}\nGuest Name: {guest_name}\nRoom No: {room_no}\nCheck-In: {check_in}\nCheck-Out: {check_out}\nModified Comments: {modified_comments}")
+                            if st.button("✔️ Confirm", use_container_width=True):
+                                st.rerun()
                     else:
                         st.error("❌ Failed to update reservation")
     with col_btn2:
@@ -698,7 +710,7 @@ def show_analytics():
     if filter_check_out_date:
         filtered_df = filtered_df[filtered_df["Check Out"] == filter_check_out_date]
     if filter_enquiry_date:
-        filtered_df = filtered_df[filtered_df["Enquiry Date"] == filter_enquiry_date]
+        filtered_df = filtered_df[filtered_df["Enquiry Date"] == filter_check_in_date]
     if filter_booking_date:
         filtered_df = filtered_df[filtered_df["Booking Date"] == filter_booking_date]
 
@@ -759,7 +771,7 @@ def show_analytics():
             st.write(f"**Average Tariff**: ₹{property_df['Tariff'].mean():,.2f}" if not property_df.empty else "₹0.00")
             st.write(f"**Average Stay**: {property_df['No of Days'].mean():.1f} days" if not property_df.empty else "0.0 days")
             st.dataframe(
-                property_df[["Booking ID", "Guest Name", "Room No", "Check In", "Check Out", "Total Tariff", "Plan Status", "Submitted By", "Modified By"]],
+                property_df[["Booking ID", "Guest Name", "Room No", "Check In", "Check Out", "Total Tariff", "Plan Status", "Submitted By", "Modified By", "Modified Comments"]],
                 use_container_width=True
             )
 
