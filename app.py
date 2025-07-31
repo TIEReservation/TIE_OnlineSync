@@ -40,7 +40,25 @@ if 'edit_mode' not in st.session_state:
     st.session_state.edit_index = None
 
 def generate_booking_id():
-    return f"TIE{datetime.now().strftime('%Y%m%d')}{len(st.session_state.reservations) + 1:03d}"
+    """Generate a unique booking ID by checking existing IDs in Supabase."""
+    try:
+        # Get current date in YYYYMMDD format
+        today = datetime.now().strftime('%Y%m%d')
+        # Query Supabase for booking IDs matching today's date
+        response = supabase.table("reservations").select("booking_id").like("booking_id", f"TIE{today}%").execute()
+        
+        # Extract existing booking IDs
+        existing_ids = [record["booking_id"] for record in response.data]
+        
+        # Find the next available sequence number
+        sequence = 1
+        while f"TIE{today}{sequence:03d}" in existing_ids:
+            sequence += 1
+            
+        return f"TIE{today}{sequence:03d}"
+    except Exception as e:
+        st.error(f"Error generating booking ID: {e}")
+        return None
 
 def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=None):
     response = supabase.table("reservations").select("*").execute()
@@ -102,10 +120,7 @@ def load_reservations_from_supabase():
                 "Booking Date": datetime.strptime(record["booking_date"], "%Y-%m-%d").date() if record["booking_date"] else None,
                 "Room Type": record["room_type"],
                 "Breakfast": record["breakfast"],
-                "Plan Status": record["plan_status"],
-                "Submitted By": record["submitted_by"],
-                "Modified By": record["modified_by"],
-                "Modified Comments": record["modified_comments"]
+                "Plan Status": record["plan_status"]
             }
             reservations.append(reservation)
         return reservations
@@ -141,13 +156,12 @@ def save_reservation_to_supabase(reservation):
             "booking_date": reservation["Booking Date"].strftime("%Y-%m-%d") if reservation["Booking Date"] else None,
             "room_type": reservation["Room Type"],
             "breakfast": reservation["Breakfast"],
-            "plan_status": reservation["Plan Status"],
-            "submitted_by": reservation["Submitted By"],
-            "modified_by": reservation["Modified By"],
-            "modified_comments": reservation["Modified Comments"]
+            "plan_status": reservation["Plan Status"]
         }
         response = supabase.table("reservations").insert(supabase_reservation).execute()
         if response.data:
+            # Refresh session state reservations after successful save
+            st.session_state.reservations = load_reservations_from_supabase()
             return True
         else:
             return False
@@ -183,10 +197,7 @@ def update_reservation_in_supabase(booking_id, updated_reservation):
             "booking_date": updated_reservation["Booking Date"].strftime("%Y-%m-%d") if updated_reservation["Booking Date"] else None,
             "room_type": updated_reservation["Room Type"],
             "breakfast": updated_reservation["Breakfast"],
-            "plan_status": updated_reservation["Plan Status"],
-            "submitted_by": updated_reservation["Submitted By"],
-            "modified_by": updated_reservation["Modified By"],
-            "modified_comments": updated_reservation["Modified Comments"]
+            "plan_status": updated_reservation["Plan Status"]
         }
         response = supabase.table("reservations").update(supabase_reservation).eq("booking_id", booking_id).execute()
         if response.data:
@@ -227,6 +238,12 @@ def main():
     elif page == "Analytics":
         show_analytics()
 
+@st.dialog("Reservation Confirmation")
+def show_confirmation_dialog(booking_id):
+    st.markdown(f"**Reservation Confirmed!**\n\nBooking ID: {booking_id}")
+    if st.button("✔️ Confirm", use_container_width=True):
+        st.rerun()
+
 def show_new_reservation_form():
     st.header("📝 Direct Reservations")
     form_key = "new_reservation"
@@ -254,7 +271,6 @@ def show_new_reservation_form():
         room_no = st.text_input("Room No", placeholder="e.g., 101, 202", key=f"{form_key}_room")
         guest_name = st.text_input("Guest Name", placeholder="Enter guest name", key=f"{form_key}_guest")
         mobile_no = st.text_input("Mobile No", placeholder="Enter mobile number", key=f"{form_key}_mobile")
-        submitted_by = st.text_input("Submitted By", placeholder="Enter submitter name", key=f"{form_key}_submitted_by")
     with col2:
         adults = st.number_input("No of Adults", min_value=0, value=1, key=f"{form_key}_adults")
         children = st.number_input("No of Children", min_value=0, value=0, key=f"{form_key}_children")
@@ -324,11 +340,9 @@ def show_new_reservation_form():
     with col7:
         breakfast = st.selectbox("Breakfast", ["CP", "EP"], key=f"{form_key}_breakfast")
         plan_status = st.selectbox("Plan Status", ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"], key=f"{form_key}_status")
-        modified_by = st.text_input("Modified By", placeholder="Enter modifier name", key=f"{form_key}_modified_by")
-        modified_comments = st.text_area("Modified Comments", Placeholder="Enter modification comments", key=f"{form_key}_modified_comments")
 
     if st.button("💾 Save Reservation", use_container_width=True):
-        if not all([property_name, room_no, guest_name, mobile_no, submitted_by]):
+        if not all([property_name, room_no, guest_name, mobile_no]):
             st.error("❌ Please fill in all required fields")
         elif check_out <= check_in:
             st.error("❌ Check-out date must be after check-in")
@@ -340,6 +354,9 @@ def show_new_reservation_form():
                 st.error(f"❌ Guest already exists! Booking ID: {existing_booking_id}")
             else:
                 booking_id = generate_booking_id()
+                if not booking_id:
+                    st.error("❌ Failed to generate a unique booking ID")
+                    return
                 reservation = {
                     "Property Name": property_name,
                     "Room No": room_no,
@@ -366,15 +383,13 @@ def show_new_reservation_form():
                     "Booking ID": booking_id,
                     "Room Type": custom_room_type if room_type == "Other" else room_type,
                     "Breakfast": breakfast,
-                    "Plan Status": plan_status,
-                    "Submitted By": submitted_by,
-                    "Modified By": modified_by,
-                    "Modified Comments": modified_comments
+                    "Plan Status": plan_status
                 }
                 if save_reservation_to_supabase(reservation):
                     st.session_state.reservations.append(reservation)
                     st.success(f"✅ Reservation saved! Booking ID: {booking_id}")
                     st.balloons()
+                    show_confirmation_dialog(booking_id)
                 else:
                     st.error("❌ Failed to save reservation")
 
@@ -533,7 +548,6 @@ def show_edit_form(edit_index):
         room_no = st.text_input("Room No", value=reservation["Room No"], key=f"{form_key}_room")
         guest_name = st.text_input("Guest Name", value=reservation["Guest Name"], key=f"{form_key}_guest")
         mobile_no = st.text_input("Mobile No", value=reservation["Mobile No"], key=f"{form_key}_mobile")
-        submitted_by = st.text_input("Submitted By", value=reservation["Submitted By"], key=f"{form_key}_submitted_by")
     with col2:
         adults = st.number_input("No of Adults", min_value=0, value=reservation["No of Adults"], key=f"{form_key}_adults")
         children = st.number_input("No of Children", min_value=0, value=reservation["No of Children"], key=f"{form_key}_children")
@@ -603,13 +617,11 @@ def show_edit_form(edit_index):
     with col7:
         breakfast = st.selectbox("Breakfast", ["CP", "EP"], index=["CP", "EP"].index(reservation["Breakfast"]), key=f"{form_key}_breakfast")
         plan_status = st.selectbox("Plan Status", ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"], index=["Confirmed", "Pending", "Cancelled", "Completed", "No Show"].index(reservation["Plan Status"]), key=f"{form_key}_status")
-        modified_by = st.text_input("Modified By", value=reservation["Modified By"], key=f"{form_key}_modified_by")
-        modified_comments = st.text_area("Modified Comments", value=reservation["Modified Comments"], key=f"{form_key}_modified_comments")
 
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
         if st.button("💾 Update Reservation", key=f"{form_key}_update", use_container_width=True):
-            if not all([property_name, room_no, guest_name, mobile_no, submitted_by]):
+            if not all([property_name, room_no, guest_name, mobile_no]):
                 st.error("❌ Please fill in all required fields")
             elif check_out <= check_in:
                 st.error("❌ Check-out date must be after check-in")
@@ -646,10 +658,7 @@ def show_edit_form(edit_index):
                         "Booking ID": reservation["Booking ID"],
                         "Room Type": custom_room_type if room_type == "Other" else room_type,
                         "Breakfast": breakfast,
-                        "Plan Status": plan_status,
-                        "Submitted By": submitted_by,
-                        "Modified By": modified_by,
-                        "Modified Comments": modified_comments
+                        "Plan Status": plan_status
                     }
                     if update_reservation_in_supabase(reservation["Booking ID"], updated_reservation):
                         st.session_state.reservations[edit_index] = updated_reservation
