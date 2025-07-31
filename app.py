@@ -305,15 +305,15 @@ def show_new_reservation_form():
         total_tariff = safe_float(tariff) * max(0, no_of_days)
         st.text_input("Total Tariff", value=f"₹{total_tariff:.2f}", disabled=True, help="Tariff × No of Days")
         advance_mop = st.selectbox("Advance MOP",
-                                  ["Cash", "Card", "UPI", "Bank Transfer", "Agoda", "MMT", "Airbnb", "Expedia", "Stayflexi", "Website", "Other"],
-                                  key=f"{form_key}_advmop")
+                                   ["Cash", "Card", "UPI", "Bank Transfer", "Agoda", "MMT", "Airbnb", "Expedia", "Stayflexi", "Website", "Other"],
+                                   key=f"{form_key}_advmop")
         if advance_mop == "Other":
             custom_advance_mop = st.text_input("Custom Advance MOP", key=f"{form_key}_custom_advmop")
         else:
             custom_advance_mop = None
         balance_mop = st.selectbox("Balance MOP",
-                                  ["Cash", "Card", "UPI", "Bank Transfer", "Agoda", "MMT", "Airbnb", "Expedia", "Stayflexi", "Website", "Pending", "Other"],
-                                  key=f"{form_key}_balmop")
+                                   ["Cash", "Card", "UPI", "Bank Transfer", "Agoda", "MMT", "Airbnb", "Expedia", "Stayflexi", "Website", "Pending", "Other"],
+                                   key=f"{form_key}_balmop")
         if balance_mop == "Other":
             custom_balance_mop = st.text_input("Custom Balance MOP", key=f"{form_key}_custom_balmop")
         else:
@@ -323,16 +323,16 @@ def show_new_reservation_form():
         balance_amount = max(0, total_tariff - safe_float(advance_amount))
         st.text_input("Balance Amount", value=f"₹{balance_amount:.2f}", disabled=True, help="Total Tariff - Advance Amount")
         mob = st.selectbox("MOB (Mode of Booking)",
-                          ["Direct", "Online", "Agent", "Walk-in", "Phone", "Website", "Others"],
-                          key=f"{form_key}_mob")
+                           ["Direct", "Online", "Agent", "Walk-in", "Phone", "Website", "Others"],
+                           key=f"{form_key}_mob")
         if mob == "Others":
             custom_mob = st.text_input("Custom MOB", key=f"{form_key}_custom_mob")
         else:
             custom_mob = None
         if mob == "Online":
             online_source = st.selectbox("Online Source",
-                                       ["Booking.com", "Agoda Prepaid", "Agoda Booking.com", "Expedia", "MMT", "Cleartrip", "Others"],
-                                       key=f"{form_key}_online_source")
+                                         ["Booking.com", "Agoda Prepaid", "Agoda Booking.com", "Expedia", "MMT", "Cleartrip", "Others"],
+                                         key=f"{form_key}_online_source")
             if online_source == "Others":
                 custom_online_source = st.text_input("Custom Online Source", key=f"{form_key}_custom_online_source")
             else:
@@ -346,12 +346,10 @@ def show_new_reservation_form():
     with col6:
         enquiry_date = st.date_input("Enquiry Date", value=date.today(), key=f"{form_key}_enquiry")
         booking_date = st.date_input("Booking Date", value=date.today(), key=f"{form_key}_booking")
-        submitted_by = st.text_input("Submitted By", placeholder="Enter submitter name", key=f"{form_key}_submitted_by")
     with col7:
         breakfast = st.selectbox("Breakfast", ["CP", "EP"], key=f"{form_key}_breakfast")
         plan_status = st.selectbox("Plan Status", ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"], key=f"{form_key}_status")
-        modified_by = st.text_input("Modified By", placeholder="Enter modifier name (if any)", key=f"{form_key}_modified_by")
-        modified_comments = st.text_area("Modified Comments", placeholder="Enter modification comments (if any)", key=f"{form_key}_modified_comments")
+        submitted_by = st.text_input("Submitted By", placeholder="Enter submitter name", key=f"{form_key}_submitted_by")
 
     if st.button("💾 Save Reservation", use_container_width=True):
         if not all([property_name, room_no, guest_name, mobile_no]):
@@ -397,8 +395,8 @@ def show_new_reservation_form():
                     "Breakfast": breakfast,
                     "Plan Status": plan_status,
                     "Submitted By": submitted_by,
-                    "Modified By": modified_by,
-                    "Modified Comments": modified_comments
+                    "Modified By": "",
+                    "Modified Comments": ""
                 }
                 if save_reservation_to_supabase(reservation):
                     st.session_state.reservations.append(reservation)
