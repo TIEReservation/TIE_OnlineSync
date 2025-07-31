@@ -248,8 +248,9 @@ def main():
         show_analytics()
 
 @st.dialog("Reservation Confirmation")
-def show_confirmation_dialog(booking_id):
-    st.markdown(f"**Reservation Confirmed!**\n\nBooking ID: {booking_id}")
+def show_confirmation_dialog(booking_id, is_update=False):
+    message = "Reservation Updated!" if is_update else "Reservation Confirmed!"
+    st.markdown(f"**{message}**\n\nBooking ID: {booking_id}")
     if st.button("✔️ Confirm", use_container_width=True):
         st.rerun()
 
@@ -684,7 +685,7 @@ def show_edit_form(edit_index):
                         st.session_state.edit_mode = False
                         st.session_state.edit_index = None
                         st.success(f"✅ Reservation {reservation['Booking ID']} updated successfully!")
-                        st.rerun()
+                        show_confirmation_dialog(reservation["Booking ID"], is_update=True)
                     else:
                         st.error("❌ Failed to update reservation")
     with col_btn2:
