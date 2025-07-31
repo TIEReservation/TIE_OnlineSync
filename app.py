@@ -40,7 +40,25 @@ if 'edit_mode' not in st.session_state:
     st.session_state.edit_index = None
 
 def generate_booking_id():
-    return f"TIE{datetime.now().strftime('%Y%m%d')}{len(st.session_state.reservations) + 1:03d}"
+    """Generate a unique booking ID by checking existing IDs in Supabase."""
+    try:
+        # Get current date in YYYYMMDD format
+        today = datetime.now().strftime('%Y%m%d')
+        # Query Supabase for booking IDs matching today's date
+        response = supabase.table("reservations").select("booking_id").like("booking_id", f"TIE{today}%").execute()
+        
+        # Extract existing booking IDs
+        existing_ids = [record["booking_id"] for record in response.data]
+        
+        # Find the next available sequence number
+        sequence = 1
+        while f"TIE{today}{sequence:03d}" in existing_ids:
+            sequence += 1
+            
+        return f"TIE{today}{sequence:03d}"
+    except Exception as e:
+        st.error(f"Error generating booking ID: {e}")
+        return None
 
 def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=None):
     response = supabase.table("reservations").select("*").execute()
@@ -142,6 +160,8 @@ def save_reservation_to_supabase(reservation):
         }
         response = supabase.table("reservations").insert(supabase_reservation).execute()
         if response.data:
+            # Refresh session state reservations after successful save
+            st.session_state.reservations = load_reservations_from_supabase()
             return True
         else:
             return False
@@ -217,6 +237,12 @@ def main():
         show_edit_reservations()
     elif page == "Analytics":
         show_analytics()
+
+@st.dialog("Reservation Confirmation")
+def show_confirmation_dialog(booking_id):
+    st.markdown(f"**Reservation Confirmed!**\n\nBooking ID: {booking_id}")
+    if st.button("✔️ Confirm", use_container_width=True):
+        st.rerun()
 
 def show_new_reservation_form():
     st.header("📝 Direct Reservations")
@@ -328,6 +354,9 @@ def show_new_reservation_form():
                 st.error(f"❌ Guest already exists! Booking ID: {existing_booking_id}")
             else:
                 booking_id = generate_booking_id()
+                if not booking_id:
+                    st.error("❌ Failed to generate a unique booking ID")
+                    return
                 reservation = {
                     "Property Name": property_name,
                     "Room No": room_no,
@@ -360,15 +389,7 @@ def show_new_reservation_form():
                     st.session_state.reservations.append(reservation)
                     st.success(f"✅ Reservation saved! Booking ID: {booking_id}")
                     st.balloons()
-
-                    # Define the dialog content as a function
-                    @st.dialog("Confirmation")
-                    def show_confirmation_dialog():
-                        st.write(f"*Reservation Confirmed!*\n\nBooking ID: {booking_id}\nGuest Name: {guest_name}\nRoom No: {room_no}\nCheck-In: {check_in}\nCheck-Out: {check_out}")
-                        if st.button("✔ Confirm", use_container_width=True):
-                            st.rerun()  # Reload the page
-                    show_confirmation_dialog()
-
+                    show_confirmation_dialog(booking_id)
                 else:
                     st.error("❌ Failed to save reservation")
 
