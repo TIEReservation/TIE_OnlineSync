@@ -403,7 +403,7 @@ def show_new_reservation_form():
                         if st.button("✔️ Confirm", use_container_width=True):
                             st.rerun()
                     # Open the dialog with correct syntax
-                    st.dialog("Confirmation", callback=show_confirmation_dialog, width="large")
+                    st.dialog("Confirmation", show_confirmation_dialog, width="large")
                 else:
                     st.error("❌ Failed to save reservation")
 
@@ -690,7 +690,7 @@ def show_edit_form(edit_index):
                             if st.button("✔️ Confirm", use_container_width=True):
                                 st.rerun()
                         # Open the dialog with correct syntax
-                        st.dialog("Confirmation", callback=show_confirmation_dialog, width="large")
+                        st.dialog("Confirmation", show_confirmation_dialog, width="large")
                     else:
                         st.error("❌ Failed to update reservation")
     with col_btn2:
