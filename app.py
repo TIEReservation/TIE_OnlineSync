@@ -636,7 +636,7 @@ def show_edit_form(edit_index):
 
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
-        if st.button("💾 Update Reservation", key=f"{form_key}_update", use_container_width=True):
+        if st.button("💾 Save Reservation", key=f"{form_key}_update", use_container_width=True):
             if not all([property_name, room_no, guest_name, mobile_no]):
                 st.error("❌ Please fill in all required fields")
             elif check_out <= check_in:
