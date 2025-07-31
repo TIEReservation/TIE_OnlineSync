@@ -40,7 +40,25 @@ if 'edit_mode' not in st.session_state:
     st.session_state.edit_index = None
 
 def generate_booking_id():
-    return f"TIE{datetime.now().strftime('%Y%m%d')}{len(st.session_state.reservations) + 1:03d}"
+    """Generate a unique booking ID by checking existing IDs in Supabase."""
+    try:
+        # Get current date in YYYYMMDD format
+        today = datetime.now().strftime('%Y%m%d')
+        # Query Supabase for booking IDs matching today's date
+        response = supabase.table("reservations").select("booking_id").like("booking_id", f"TIE{today}%").execute()
+        
+        # Extract existing booking IDs
+        existing_ids = [record["booking_id"] for record in response.data]
+        
+        # Find the next available sequence number
+        sequence = 1
+        while f"TIE{today}{sequence:03d}" in existing_ids:
+            sequence += 1
+            
+        return f"TIE{today}{sequence:03d}"
+    except Exception as e:
+        st.error(f"Error generating booking ID: {e}")
+        return None
 
 def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=None):
     response = supabase.table("reservations").select("*").execute()
@@ -75,9 +93,7 @@ def load_reservations_from_supabase():
     try:
         response = supabase.table("reservations").select("*").execute()
         reservations = []
-        
         for record in response.data:
-            # Ensure that the newly added fields are included here
             reservation = {
                 "Booking ID": record["booking_id"],
                 "Property Name": record["property_name"],
@@ -105,11 +121,9 @@ def load_reservations_from_supabase():
                 "Room Type": record["room_type"],
                 "Breakfast": record["breakfast"],
                 "Plan Status": record["plan_status"],
-                
-                # Adding the new fields
-                "Submitted By": record.get("submitted_by", ""),  # Default to empty if not available
-                "Modified By": record.get("modified_by", ""),  # Default to empty if not available
-                "Modified Comments": record.get("modified_comments", "")  # Default to empty if not available
+                "Submitted By": record.get("submitted_by", ""),
+                "Modified By": record.get("modified_by", ""),
+                "Modified Comments": record.get("modified_comments", "")
             }
             reservations.append(reservation)
         return reservations
@@ -146,13 +160,14 @@ def save_reservation_to_supabase(reservation):
             "room_type": reservation["Room Type"],
             "breakfast": reservation["Breakfast"],
             "plan_status": reservation["Plan Status"],
-            # Include the new fields in the insert
             "submitted_by": reservation["Submitted By"],
             "modified_by": reservation["Modified By"],
             "modified_comments": reservation["Modified Comments"]
         }
         response = supabase.table("reservations").insert(supabase_reservation).execute()
         if response.data:
+            # Refresh session state reservations after successful save
+            st.session_state.reservations = load_reservations_from_supabase()
             return True
         else:
             return False
@@ -189,7 +204,6 @@ def update_reservation_in_supabase(booking_id, updated_reservation):
             "room_type": updated_reservation["Room Type"],
             "breakfast": updated_reservation["Breakfast"],
             "plan_status": updated_reservation["Plan Status"],
-            # Include the new fields for update
             "submitted_by": updated_reservation["Submitted By"],
             "modified_by": updated_reservation["Modified By"],
             "modified_comments": updated_reservation["Modified Comments"]
@@ -233,6 +247,12 @@ def main():
     elif page == "Analytics":
         show_analytics()
 
+@st.dialog("Reservation Confirmation")
+def show_confirmation_dialog(booking_id):
+    st.markdown(f"**Reservation Confirmed!**\n\nBooking ID: {booking_id}")
+    if st.button("✔️ Confirm", use_container_width=True):
+        st.rerun()
+
 def show_new_reservation_form():
     st.header("📝 Direct Reservations")
     form_key = "new_reservation"
@@ -272,8 +292,8 @@ def show_new_reservation_form():
         no_of_days = calculate_days(check_in, check_out)
         st.text_input("No of Days", value=str(no_of_days), disabled=True, help="Check-out - Check-in")
         room_type = st.selectbox("Room Type",
-                                ["Double", "Triple", "Family", "1BHK", "2BHK", "3BHK", "4BHK", "Superior Villa", "Other"],
-                                key=f"{form_key}_roomtype")
+                                 ["Double", "Triple", "Family", "1BHK", "2BHK", "3BHK", "4BHK", "Superior Villa", "Other"],
+                                 key=f"{form_key}_roomtype")
         if room_type == "Other":
             custom_room_type = st.text_input("Custom Room Type", key=f"{form_key}_custom_roomtype")
         else:
@@ -326,9 +346,12 @@ def show_new_reservation_form():
     with col6:
         enquiry_date = st.date_input("Enquiry Date", value=date.today(), key=f"{form_key}_enquiry")
         booking_date = st.date_input("Booking Date", value=date.today(), key=f"{form_key}_booking")
+        submitted_by = st.text_input("Submitted By", placeholder="Enter submitter name", key=f"{form_key}_submitted_by")
     with col7:
         breakfast = st.selectbox("Breakfast", ["CP", "EP"], key=f"{form_key}_breakfast")
         plan_status = st.selectbox("Plan Status", ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"], key=f"{form_key}_status")
+        modified_by = st.text_input("Modified By", placeholder="Enter modifier name (if any)", key=f"{form_key}_modified_by")
+        modified_comments = st.text_area("Modified Comments", placeholder="Enter modification comments (if any)", key=f"{form_key}_modified_comments")
 
     if st.button("💾 Save Reservation", use_container_width=True):
         if not all([property_name, room_no, guest_name, mobile_no]):
@@ -343,6 +366,9 @@ def show_new_reservation_form():
                 st.error(f"❌ Guest already exists! Booking ID: {existing_booking_id}")
             else:
                 booking_id = generate_booking_id()
+                if not booking_id:
+                    st.error("❌ Failed to generate a unique booking ID")
+                    return
                 reservation = {
                     "Property Name": property_name,
                     "Room No": room_no,
@@ -360,7 +386,7 @@ def show_new_reservation_form():
                     "Advance Amount": safe_float(advance_amount),
                     "Balance Amount": balance_amount,
                     "Advance MOP": custom_advance_mop if advance_mop == "Other" else advance_mop,
-                "Balance MOP": custom_balance_mop if balance_mop == "Other" else balance_mop,
+                    "Balance MOP": custom_balance_mop if balance_mop == "Other" else balance_mop,
                     "MOB": custom_mob if mob == "Others" else mob,
                     "Online Source": custom_online_source if online_source == "Others" else online_source,
                     "Invoice No": invoice_no,
@@ -370,15 +396,15 @@ def show_new_reservation_form():
                     "Room Type": custom_room_type if room_type == "Other" else room_type,
                     "Breakfast": breakfast,
                     "Plan Status": plan_status,
-                    # Default values for newly added fields
-                    "Submitted By": "",  # You can modify this to be dynamically set if needed
-                    "Modified By": "",   # You can modify this to be dynamically set if needed
-                    "Modified Comments": ""  # You can modify this to be dynamically set if needed
+                    "Submitted By": submitted_by,
+                    "Modified By": modified_by,
+                    "Modified Comments": modified_comments
                 }
                 if save_reservation_to_supabase(reservation):
                     st.session_state.reservations.append(reservation)
                     st.success(f"✅ Reservation saved! Booking ID: {booking_id}")
                     st.balloons()
+                    show_confirmation_dialog(booking_id)
                 else:
                     st.error("❌ Failed to save reservation")
 
@@ -450,7 +476,7 @@ def show_reservations():
         st.metric("Balance Pending", f"₹{filtered_df['Balance Amount'].sum():,.2f}")
 
 def show_edit_reservations():
-    st.header("✏ Edit Reservations")
+    st.header("✏️ Edit Reservations")
     if not st.session_state.reservations:
         st.info("No reservations available to edit.")
         return
@@ -505,7 +531,7 @@ def show_edit_reservations():
         show_edit_form(edit_index)
 
 def show_edit_form(edit_index):
-    st.subheader(f"✏ Editing Reservation: {st.session_state.reservations[edit_index]['Booking ID']}")
+    st.subheader(f"✏️ Editing Reservation: {st.session_state.reservations[edit_index]['Booking ID']}")
     reservation = st.session_state.reservations[edit_index]
     form_key = f"edit_reservation_{edit_index}"
 
@@ -603,9 +629,12 @@ def show_edit_form(edit_index):
     with col6:
         enquiry_date = st.date_input("Enquiry Date", value=reservation["Enquiry Date"], key=f"{form_key}_enquiry")
         booking_date = st.date_input("Booking Date", value=reservation["Booking Date"], key=f"{form_key}_booking")
+        submitted_by = st.text_input("Submitted By", value=reservation["Submitted By"], key=f"{form_key}_submitted_by")
     with col7:
         breakfast = st.selectbox("Breakfast", ["CP", "EP"], index=["CP", "EP"].index(reservation["Breakfast"]), key=f"{form_key}_breakfast")
         plan_status = st.selectbox("Plan Status", ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"], index=["Confirmed", "Pending", "Cancelled", "Completed", "No Show"].index(reservation["Plan Status"]), key=f"{form_key}_status")
+        modified_by = st.text_input("Modified By", value=reservation["Modified By"], key=f"{form_key}_modified_by")
+        modified_comments = st.text_area("Modified Comments", value=reservation["Modified Comments"], key=f"{form_key}_modified_comments")
 
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
@@ -648,10 +677,9 @@ def show_edit_form(edit_index):
                         "Room Type": custom_room_type if room_type == "Other" else room_type,
                         "Breakfast": breakfast,
                         "Plan Status": plan_status,
-                        # Default values for the newly added fields
-                        "Submitted By": reservation["Submitted By"],
-                        "Modified By": reservation["Modified By"],
-                        "Modified Comments": reservation["Modified Comments"]
+                        "Submitted By": submitted_by,
+                        "Modified By": modified_by,
+                        "Modified Comments": modified_comments
                     }
                     if update_reservation_in_supabase(reservation["Booking ID"], updated_reservation):
                         st.session_state.reservations[edit_index] = updated_reservation
@@ -662,12 +690,12 @@ def show_edit_form(edit_index):
                     else:
                         st.error("❌ Failed to update reservation")
     with col_btn2:
-        if st.button("🗑 Delete Reservation", key=f"{form_key}_delete", use_container_width=True):
-if delete_reservation_in_supabase(reservation["Booking ID"]):
+        if st.button("🗑️ Delete Reservation", key=f"{form_key}_delete", use_container_width=True):
+            if delete_reservation_in_supabase(reservation["Booking ID"]):
                 st.session_state.reservations.pop(edit_index)
                 st.session_state.edit_mode = False
                 st.session_state.edit_index = None
-                st.success(f"🗑 Reservation {reservation['Booking ID']} deleted successfully!")
+                st.success(f"🗑️ Reservation {reservation['Booking ID']} deleted successfully!")
                 st.rerun()
             else:
                 st.error("❌ Failed to delete reservation")
@@ -759,14 +787,14 @@ def show_analytics():
     for property in properties:
         with st.expander(f"{property} Reservations"):
             property_df = filtered_df[filtered_df["Property Name"] == property]
-            st.write(f"Total Reservations: {len(property_df)}")
-            st.write(f"Total Revenue: ₹{property_df['Total Tariff'].sum():,.2f}")
-            st.write(f"Average Tariff: ₹{property_df['Tariff'].mean():,.2f}" if not property_df.empty else "₹0.00")
-            st.write(f"Average Stay: {property_df['No of Days'].mean():.1f} days" if not property_df.empty else "0.0 days")
+            st.write(f"**Total Reservations**: {len(property_df)}")
+            st.write(f"**Total Revenue**: ₹{property_df['Total Tariff'].sum():,.2f}")
+            st.write(f"**Average Tariff**: ₹{property_df['Tariff'].mean():,.2f}" if not property_df.empty else "₹0.00")
+            st.write(f"**Average Stay**: {property_df['No of Days'].mean():.1f} days" if not property_df.empty else "0.0 days")
             st.dataframe(
                 property_df[["Booking ID", "Guest Name", "Room No", "Check In", "Check Out", "Total Tariff", "Plan Status"]],
                 use_container_width=True
             )
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     main()
