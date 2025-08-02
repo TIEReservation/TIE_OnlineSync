@@ -24,6 +24,8 @@ def check_authentication():
         if st.button("🔑 Login"):
             if password == "TIE2024":
                 st.session_state.authenticated = True
+                # Load reservations from Supabase immediately after login
+                st.session_state.reservations = load_reservations_from_supabase()
                 st.success("✅ Login successful! Redirecting...")
                 st.rerun()
             else:
@@ -229,10 +231,6 @@ def delete_reservation_in_supabase(booking_id):
         return False
 
 def main():
-    # Load reservations from Supabase on startup
-    if 'reservations' not in st.session_state:
-        st.session_state.reservations = load_reservations_from_supabase()
-
     st.title("🏢 TIE Reservation System")
     st.markdown("---")
     st.sidebar.title("Navigation")
@@ -400,7 +398,6 @@ def show_new_reservation_form():
                     "Modified Comments": ""
                 }
                 if save_reservation_to_supabase(reservation):
-                    st.session_state.reservations.append(reservation)
                     st.success(f"✅ Reservation saved! Booking ID: {booking_id}")
                     st.balloons()
                     show_confirmation_dialog(booking_id)
