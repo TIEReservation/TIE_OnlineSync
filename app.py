@@ -14,71 +14,6 @@ st.set_page_config(
     layout="wide"
 )
 
-def check_authentication():
-    if 'authenticated' not in st.session_state:
-        st.session_state.authenticated = False
-    if not st.session_state.authenticated:
-        st.title("🔐 TIE Reservation System - Organization Login")
-        st.write("Please enter the organization password to access the system.")
-        password = st.text_input("Enter organization password:", type="password")
-        if st.button("🔑 Login"):
-            if password == "TIE2024":
-                st.session_state.authenticated = True
-                # Load reservations from Supabase immediately after login
-                st.session_state.reservations = load_reservations_from_supabase()
-                st.success("✅ Login successful! Redirecting...")
-                st.rerun()
-            else:
-                st.error("❌ Invalid password. Please try again.")
-        st.stop()
-
-check_authentication()
-
-if 'reservations' not in st.session_state:
-    st.session_state.reservations = []
-
-if 'edit_mode' not in st.session_state:
-    st.session_state.edit_mode = False
-    st.session_state.edit_index = None
-
-def generate_booking_id():
-    """Generate a unique booking ID by checking existing IDs in Supabase."""
-    try:
-        # Get current date in YYYYMMDD format
-        today = datetime.now().strftime('%Y%m%d')
-        # Query Supabase for booking IDs matching today's date
-        response = supabase.table("reservations").select("booking_id").like("booking_id", f"TIE{today}%").execute()
-        
-        # Extract existing booking IDs
-        existing_ids = [record["booking_id"] for record in response.data]
-        
-        # Find the next available sequence number
-        sequence = 1
-        while f"TIE{today}{sequence:03d}" in existing_ids:
-            sequence += 1
-            
-        return f"TIE{today}{sequence:03d}"
-    except Exception as e:
-        st.error(f"Error generating booking ID: {e}")
-        return None
-
-def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=None):
-    response = supabase.table("reservations").select("*").execute()
-    for reservation in response.data:
-        if exclude_booking_id and reservation["booking_id"] == exclude_booking_id:
-            continue
-        if (reservation["guest_name"].lower() == guest_name.lower() and
-            reservation["mobile_no"] == mobile_no and
-            reservation["room_no"] == room_no):
-            return True, reservation["booking_id"]
-    return False, None
-
-def calculate_days(check_in, check_out):
-    if check_in and check_out and check_out > check_in:
-        delta = check_out - check_in
-        return delta.days
-    return 0
-
 def safe_int(value, default=0):
     try:
         return int(value) if value is not None else default
@@ -130,8 +65,76 @@ def load_reservations_from_supabase():
             reservations.append(reservation)
         return reservations
     except Exception as e:
-        st.error(f"Error loading reservations: {e}")
+        st.error(f"Error loading reservations from Supabase: {e}")
         return []
+
+def check_authentication():
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    if not st.session_state.authenticated:
+        st.title("🔐 TIE Reservation System - Organization Login")
+        st.write("Please enter the organization password to access the system.")
+        password = st.text_input("Enter organization password:", type="password")
+        if st.button("🔑 Login"):
+            if password == "TIE2024":
+                st.session_state.authenticated = True
+                # Load reservations from Supabase immediately after login
+                st.session_state.reservations = load_reservations_from_supabase()
+                if st.session_state.reservations:
+                    st.success("✅ Login successful! Reservations loaded.")
+                else:
+                    st.warning("⚠️ No reservations found or error occurred.")
+                st.rerun()
+            else:
+                st.error("❌ Invalid password. Please try again.")
+        st.stop()
+
+check_authentication()
+
+if 'reservations' not in st.session_state:
+    st.session_state.reservations = []
+
+if 'edit_mode' not in st.session_state:
+    st.session_state.edit_mode = False
+    st.session_state.edit_index = None
+
+def generate_booking_id():
+    """Generate a unique booking ID by checking existing IDs in Supabase."""
+    try:
+        # Get current date in YYYYMMDD format
+        today = datetime.now().strftime('%Y%m%d')
+        # Query Supabase for booking IDs matching today's date
+        response = supabase.table("reservations").select("booking_id").like("booking_id", f"TIE{today}%").execute()
+        
+        # Extract existing booking IDs
+        existing_ids = [record["booking_id"] for record in response.data]
+        
+        # Find the next available sequence number
+        sequence = 1
+        while f"TIE{today}{sequence:03d}" in existing_ids:
+            sequence += 1
+            
+        return f"TIE{today}{sequence:03d}"
+    except Exception as e:
+        st.error(f"Error generating booking ID: {e}")
+        return None
+
+def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=None):
+    response = supabase.table("reservations").select("*").execute()
+    for reservation in response.data:
+        if exclude_booking_id and reservation["booking_id"] == exclude_booking_id:
+            continue
+        if (reservation["guest_name"].lower() == guest_name.lower() and
+            reservation["mobile_no"] == mobile_no and
+            reservation["room_no"] == room_no):
+            return True, reservation["booking_id"]
+    return False, None
+
+def calculate_days(check_in, check_out):
+    if check_in and check_out and check_out > check_in:
+        delta = check_out - check_in
+        return delta.days
+    return 0
 
 def save_reservation_to_supabase(reservation):
     try:
