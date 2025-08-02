@@ -14,6 +14,70 @@ st.set_page_config(
     layout="wide"
 )
 
+def check_authentication():
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+        st.session_state.user_role = None
+    if not st.session_state.authenticated:
+        st.title("🔐 TIE Reservation System - Login")
+        st.write("Please select your role and enter the password to access the system.")
+        user_role = st.selectbox("Select Role", ["Management", "Agent"], key="login_role")
+        password = st.text_input("Enter password:", type="password", key="login_password")
+        if st.button("🔑 Login", key="login_button"):
+            # Define role-based passwords (in production, use a secure method like Supabase Auth)
+            valid_credentials = {
+                "Management": "TIE2024M",
+                "Agent": "TIE2024A"
+            }
+            if password == valid_credentials.get(user_role):
+                st.session_state.authenticated = True
+                st.session_state.user_role = user_role
+                st.success(f"✅ Login successful as {user_role}! Redirecting...")
+                st.rerun()
+            else:
+                st.error("❌ Invalid password. Please try again.")
+        st.stop()
+
+check_authentication()
+
+if 'reservations' not in st.session_state:
+    st.session_state.reservations = []
+
+if 'edit_mode' not in st.session_state:
+    st.session_state.edit_mode = False
+    st.session_state.edit_index = None
+
+def generate_booking_id():
+    """Generate a unique booking ID by checking existing IDs in Supabase."""
+    try:
+        today = datetime.now().strftime('%Y%m%d')
+        response = supabase.table("reservations").select("booking_id").like("booking_id", f"TIE{today}%").execute()
+        existing_ids = [record["booking_id"] for record in response.data]
+        sequence = 1
+        while f"TIE{today}{sequence:03d}" in existing_ids:
+            sequence += 1
+        return f"TIE{today}{sequence:03d}"
+    except Exception as e:
+        st.error(f"Error generating booking ID: {e}")
+        return None
+
+def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=None):
+    response = supabase.table("reservations").select("*").execute()
+    for reservation in response.data:
+        if exclude_booking_id and reservation["booking_id"] == exclude_booking_id:
+            continue
+        if (reservation["guest_name"].lower() == guest_name.lower() and
+            reservation["mobile_no"] == mobile_no and
+            reservation["room_no"] == room_no):
+            return True, reservation["booking_id"]
+    return False, None
+
+def calculate_days(check_in, check_out):
+    if check_in and check_out and check_out > check_in:
+        delta = check_out - check_in
+        return delta.days
+    return 0
+
 def safe_int(value, default=0):
     try:
         return int(value) if value is not None else default
@@ -65,76 +129,8 @@ def load_reservations_from_supabase():
             reservations.append(reservation)
         return reservations
     except Exception as e:
-        st.error(f"Error loading reservations from Supabase: {e}")
+        st.error(f"Error loading reservations: {e}")
         return []
-
-def check_authentication():
-    if 'authenticated' not in st.session_state:
-        st.session_state.authenticated = False
-    if not st.session_state.authenticated:
-        st.title("🔐 TIE Reservation System - Organization Login")
-        st.write("Please enter the organization password to access the system.")
-        password = st.text_input("Enter organization password:", type="password")
-        if st.button("🔑 Login"):
-            if password == "TIE2024":
-                st.session_state.authenticated = True
-                # Load reservations from Supabase immediately after login
-                st.session_state.reservations = load_reservations_from_supabase()
-                if st.session_state.reservations:
-                    st.success("✅ Login successful! Reservations loaded.")
-                else:
-                    st.warning("⚠️ No reservations found or error occurred.")
-                st.rerun()
-            else:
-                st.error("❌ Invalid password. Please try again.")
-        st.stop()
-
-check_authentication()
-
-if 'reservations' not in st.session_state:
-    st.session_state.reservations = []
-
-if 'edit_mode' not in st.session_state:
-    st.session_state.edit_mode = False
-    st.session_state.edit_index = None
-
-def generate_booking_id():
-    """Generate a unique booking ID by checking existing IDs in Supabase."""
-    try:
-        # Get current date in YYYYMMDD format
-        today = datetime.now().strftime('%Y%m%d')
-        # Query Supabase for booking IDs matching today's date
-        response = supabase.table("reservations").select("booking_id").like("booking_id", f"TIE{today}%").execute()
-        
-        # Extract existing booking IDs
-        existing_ids = [record["booking_id"] for record in response.data]
-        
-        # Find the next available sequence number
-        sequence = 1
-        while f"TIE{today}{sequence:03d}" in existing_ids:
-            sequence += 1
-            
-        return f"TIE{today}{sequence:03d}"
-    except Exception as e:
-        st.error(f"Error generating booking ID: {e}")
-        return None
-
-def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=None):
-    response = supabase.table("reservations").select("*").execute()
-    for reservation in response.data:
-        if exclude_booking_id and reservation["booking_id"] == exclude_booking_id:
-            continue
-        if (reservation["guest_name"].lower() == guest_name.lower() and
-            reservation["mobile_no"] == mobile_no and
-            reservation["room_no"] == room_no):
-            return True, reservation["booking_id"]
-    return False, None
-
-def calculate_days(check_in, check_out):
-    if check_in and check_out and check_out > check_in:
-        delta = check_out - check_in
-        return delta.days
-    return 0
 
 def save_reservation_to_supabase(reservation):
     try:
@@ -171,7 +167,6 @@ def save_reservation_to_supabase(reservation):
         }
         response = supabase.table("reservations").insert(supabase_reservation).execute()
         if response.data:
-            # Refresh session state reservations after successful save
             st.session_state.reservations = load_reservations_from_supabase()
             return True
         else:
@@ -234,10 +229,17 @@ def delete_reservation_in_supabase(booking_id):
         return False
 
 def main():
+    if 'reservations' not in st.session_state:
+        st.session_state.reservations = load_reservations_from_supabase()
+
     st.title("🏢 TIE Reservation System")
     st.markdown("---")
-    st.sidebar.title("Navigation")
-    page = st.sidebar.selectbox("Choose a page", ["Direct Reservations", "View Reservations", "Edit Reservations", "Analytics"])
+    st.sidebar.title(f"Navigation (Logged in as {st.session_state.user_role})")
+    # Restrict Analytics page for Agents
+    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations"]
+    if st.session_state.user_role == "Management":
+        page_options.append("Analytics")
+    page = st.sidebar.selectbox("Choose a page", page_options)
 
     if page == "Direct Reservations":
         show_new_reservation_form()
@@ -401,6 +403,7 @@ def show_new_reservation_form():
                     "Modified Comments": ""
                 }
                 if save_reservation_to_supabase(reservation):
+                    st.session_state.reservations.append(reservation)
                     st.success(f"✅ Reservation saved! Booking ID: {booking_id}")
                     st.balloons()
                     show_confirmation_dialog(booking_id)
@@ -452,27 +455,28 @@ def show_reservations():
         use_container_width=True
     )
 
-    # Stats
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Reservations", len(filtered_df))
-    with col2:
-        st.metric("Total Revenue", f"₹{filtered_df['Total Tariff'].sum():,.2f}")
-    with col3:
-        if not filtered_df.empty:
-            st.metric("Average Tariff", f"₹{filtered_df['Tariff'].mean():,.2f}")
-        else:
-            st.metric("Average Tariff", "₹0.00")
-    with col4:
-        if not filtered_df.empty:
-            st.metric("Average Stay", f"{filtered_df['No of Days'].mean():.1f} days")
-        else:
-            st.metric("Average Stay", "0.0 days")
-    col5, col6 = st.columns(2)
-    with col5:
-        st.metric("Advance Collected", f"₹{filtered_df['Advance Amount'].sum():,.2f}")
-    with col6:
-        st.metric("Balance Pending", f"₹{filtered_df['Balance Amount'].sum():,.2f}")
+    # Stats (only for Management)
+    if st.session_state.user_role == "Management":
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Reservations", len(filtered_df))
+        with col2:
+            st.metric("Total Revenue", f"₹{filtered_df['Total Tariff'].sum():,.2f}")
+        with col3:
+            if not filtered_df.empty:
+                st.metric("Average Tariff", f"₹{filtered_df['Tariff'].mean():,.2f}")
+            else:
+                st.metric("Average Tariff", "₹0.00")
+        with col4:
+            if not filtered_df.empty:
+                st.metric("Average Stay", f"{filtered_df['No of Days'].mean():.1f} days")
+            else:
+                st.metric("Average Stay", "0.0 days")
+        col5, col6 = st.columns(2)
+        with col5:
+            st.metric("Advance Collected", f"₹{filtered_df['Advance Amount'].sum():,.2f}")
+        with col6:
+            st.metric("Balance Pending", f"₹{filtered_df['Balance Amount'].sum():,.2f}")
 
 def show_edit_reservations():
     st.header("✏️ Edit Reservations")
@@ -689,17 +693,21 @@ def show_edit_form(edit_index):
                     else:
                         st.error("❌ Failed to update reservation")
     with col_btn2:
-        if st.button("🗑️ Delete Reservation", key=f"{form_key}_delete", use_container_width=True):
-            if delete_reservation_in_supabase(reservation["Booking ID"]):
-                st.session_state.reservations.pop(edit_index)
-                st.session_state.edit_mode = False
-                st.session_state.edit_index = None
-                st.success(f"🗑️ Reservation {reservation['Booking ID']} deleted successfully!")
-                st.rerun()
-            else:
-                st.error("❌ Failed to delete reservation")
+        if st.session_state.user_role == "Management":
+            if st.button("🗑️ Delete Reservation", key=f"{form_key}_delete", use_container_width=True):
+                if delete_reservation_in_supabase(reservation["Booking ID"]):
+                    st.session_state.reservations.pop(edit_index)
+                    st.session_state.edit_mode = False
+                    st.session_state.edit_index = None
+                    st.success(f"🗑️ Reservation {reservation['Booking ID']} deleted successfully!")
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to delete reservation")
 
 def show_analytics():
+    if st.session_state.user_role == "Agent":
+        st.error("❌ Access Denied: Analytics section is restricted to Management users only.")
+        return
     st.header("📊 Analytics Dashboard")
     if not st.session_state.reservations:
         st.info("No reservations available for analysis.")
