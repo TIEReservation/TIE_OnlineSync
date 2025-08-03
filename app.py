@@ -235,7 +235,7 @@ if 'edit_mode' not in st.session_state:
     st.session_state.edit_index = None
 
 def main():
-    st.title("🏢 TIE Reservation System")
+    st.title("🏢 TIE Direct Reservations")
     st.markdown("---")
     st.sidebar.title("Navigation")
     page_options = ["Direct Reservations", "View Reservations", "Edit Reservations"]
