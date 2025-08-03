@@ -204,9 +204,9 @@ def check_authentication():
         st.session_state.authenticated = False
         st.session_state.role = None
     if not st.session_state.authenticated:
-        st.title("🔐 TIE Direct Reservations")
+        st.title("🔐 TIE Direct Reservations Login")
         st.write("Please select your role and enter the password to access the system.")
-        role = st.selectbox("Select Role", ["Management", "Agent"])
+        role = st.selectbox("Select Role", ["Management", "ReservationTeam"])
         password = st.text_input("Enter password:", type="password")
         if st.button("🔑 Login"):
             if role == "Management" and password == "TIE2024":
@@ -215,9 +215,9 @@ def check_authentication():
                 st.session_state.reservations = load_reservations_from_supabase()  # Auto-sync on login
                 st.success("✅ Management login successful! Redirecting...")
                 st.rerun()
-            elif role == "Agent" and password == "AGENT2024":
+            elif role == "ReservationTeam" and password == "TIE123":
                 st.session_state.authenticated = True
-                st.session_state.role = "Agent"
+                st.session_state.role = "ReservationTeam"
                 st.session_state.reservations = load_reservations_from_supabase()  # Auto-sync on login
                 st.success("✅ Agent login successful! Redirecting...")
                 st.rerun()
