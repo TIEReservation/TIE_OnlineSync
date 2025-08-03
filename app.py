@@ -9,10 +9,13 @@ supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supa
 
 # Page config
 st.set_page_config(
-    page_title="TIE Direct Reservation System",
-    page_icon="🏢",
+    page_title="TIE Reservation System",
+    page_icon="https://github.com/TIEReservation/TIEReservation-System/raw/main/TIE_Logo_Icon.png",
     layout="wide"
 )
+
+# Display logo in top-left corner
+st.image("https://github.com/TIEReservation/TIEReservation-System/raw/main/TIE_Logo_Icon.png", width=100)
 
 def check_authentication():
     if 'authenticated' not in st.session_state:
@@ -21,18 +24,18 @@ def check_authentication():
     if not st.session_state.authenticated:
         st.title("🔐 TIE Reservation System - Login")
         st.write("Please select your role and enter the password to access the system.")
-        role = st.selectbox("Select Role", ["ManagementTeam", "ReservationTeam"])
+        role = st.selectbox("Select Role", ["Management", "Agent"])
         password = st.text_input("Enter password:", type="password")
         if st.button("🔑 Login"):
-            if role == "ManagementTeam" and password == "TIE2024":
+            if role == "Management" and password == "TIE2024":
                 st.session_state.authenticated = True
-                st.session_state.role = "ManagementTeam"
+                st.session_state.role = "Management"
                 st.session_state.reservations = load_reservations_from_supabase()  # Auto-sync on login
                 st.success("✅ Management login successful! Redirecting...")
                 st.rerun()
-            elif role == "ReservationTeam" and password == "TIE123":
+            elif role == "Agent" and password == "AGENT2024":
                 st.session_state.authenticated = True
-                st.session_state.role = "ReservationTeam"
+                st.session_state.role = "Agent"
                 st.session_state.reservations = load_reservations_from_supabase()  # Auto-sync on login
                 st.success("✅ Agent login successful! Redirecting...")
                 st.rerun()
@@ -234,7 +237,6 @@ def main():
     st.title("🏢 TIE Reservation System")
     st.markdown("---")
     st.sidebar.title("Navigation")
-    # Restrict Analytics page for Agents
     page_options = ["Direct Reservations", "View Reservations", "Edit Reservations"]
     if st.session_state.role == "Management":
         page_options.append("Analytics")
