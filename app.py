@@ -191,7 +191,7 @@ def delete_reservation_in_supabase(booking_id):
 
 # Page config
 st.set_page_config(
-    page_title="TIE Reservation System",
+    page_title="TIE Direct Reservations",
     page_icon="https://github.com/TIEReservation/TIEReservation-System/raw/main/TIE_Logo_Icon.png",
     layout="wide"
 )
@@ -204,7 +204,7 @@ def check_authentication():
         st.session_state.authenticated = False
         st.session_state.role = None
     if not st.session_state.authenticated:
-        st.title("🔐 TIE Reservation System - Login")
+        st.title("🔐 TIE Direct Reservations")
         st.write("Please select your role and enter the password to access the system.")
         role = st.selectbox("Select Role", ["Management", "Agent"])
         password = st.text_input("Enter password:", type="password")
