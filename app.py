@@ -284,7 +284,7 @@ def show_new_reservation_form():
             "La Tamara Suite",
             "La Millionare Resort",
             "Le Park Resort",
-            "Villa Shakti"
+            "Villa Shakti",
             "Property 16"
         ]
         property_name = st.selectbox("Property Name", property_options, key=f"{form_key}_property")
