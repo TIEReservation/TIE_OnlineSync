@@ -456,7 +456,7 @@ def show_reservations():
 
     st.subheader("📋 Filtered Reservations")
     st.dataframe(
-        filtered_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status"]],
+        filtered_df[["Booking ID", "Guest Name", "Mobile No", "Property Name", "Check In", "Check Out", "Plan Status"]],
         use_container_width=True
     )
 
