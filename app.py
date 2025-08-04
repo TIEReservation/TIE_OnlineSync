@@ -329,7 +329,7 @@ def show_new_reservation_form():
         balance_amount = max(0, total_tariff - safe_float(advance_amount))
         st.text_input("Balance Amount", value=f"₹{balance_amount:.2f}", disabled=True, help="Total Tariff - Advance Amount")
         mob = st.selectbox("MOB (Mode of Booking)",
-                           ["Direct", "Online", "Agent", "Walk-in", "Phone", "Website", "Booking-Drt", "Social Media", "Others"],
+                           ["Direct", "Online", "Agent", "Walk-in", "Phone", "Website", "Booking-Drt", "Social Media", "Stay-back", "Others"],
                            key=f"{form_key}_mob")
         if mob == "Others":
             custom_mob = st.text_input("Custom MOB", key=f"{form_key}_custom_mob")
