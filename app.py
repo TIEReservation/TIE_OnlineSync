@@ -38,9 +38,9 @@ def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=Non
     return False, None
 
 def calculate_days(check_in, check_out):
-    if check_in and check_out and check_out > check_in:
+    if check_in and check_out and check_out >= check_in:
         delta = check_out - check_in
-        return delta.days
+        return max(1, delta.days)  # Return 1 for same-day stays
     return 0
 
 def safe_int(value, default=0):
@@ -316,7 +316,7 @@ def show_new_reservation_form():
         total_tariff = safe_float(tariff) * max(0, no_of_days)
         st.text_input("Total Tariff", value=f"₹{total_tariff:.2f}", disabled=True, help="Tariff × No of Days")
         advance_mop = st.selectbox("Advance MOP",
-                                   ["Cash", "Card", "UPI", "Bank Transfer", "ClearTrip", "TIE Management", "Booking.com","Pending", "Other"],
+                                   ["Cash", "Card", "UPI", "Bank Transfer", "ClearTrip", "TIE Management", "Booking.com", "Pending", "Other"],
                                    key=f"{form_key}_advmop")
         if advance_mop == "Other":
             custom_advance_mop = st.text_input("Custom Advance MOP", key=f"{form_key}_custom_advmop")
@@ -365,10 +365,10 @@ def show_new_reservation_form():
     if st.button("💾 Save Reservation", use_container_width=True):
         if not all([property_name, room_no, guest_name, mobile_no]):
             st.error("❌ Please fill in all required fields")
-        elif check_out <= check_in:
-            st.error("❌ Check-out date must be after check-in")
-        elif no_of_days <= 0:
-            st.error("❌ Number of days must be greater than 0")
+        elif check_out < check_in:
+            st.error("❌ Check-out date must be on or after check-in")
+        elif no_of_days < 0:
+            st.error("❌ Number of days cannot be negative")
         else:
             mob_value = custom_mob if mob == "Others" else mob
             is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no, mob=mob_value)
@@ -643,10 +643,10 @@ def show_edit_form(edit_index):
         if st.button("💾 Save Reservation", key=f"{form_key}_update", use_container_width=True):
             if not all([property_name, room_no, guest_name, mobile_no]):
                 st.error("❌ Please fill in all required fields")
-            elif check_out <= check_in:
-                st.error("❌ Check-out date must be after check-in")
-            elif no_of_days <= 0:
-                st.error("❌ Number of days must be greater than 0")
+            elif check_out < check_in:
+                st.error("❌ Check-out date must be on or after check-in")
+            elif no_of_days < 0:
+                st.error("❌ Number of days cannot be negative")
             else:
                 mob_value = custom_mob if mob == "Others" else mob
                 is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=reservation["Booking ID"], mob=mob_value)
