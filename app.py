@@ -316,7 +316,7 @@ def show_new_reservation_form():
         total_tariff = safe_float(tariff) * max(0, no_of_days)
         st.text_input("Total Tariff", value=f"₹{total_tariff:.2f}", disabled=True, help="Tariff × No of Days")
         advance_mop = st.selectbox("Advance MOP",
-                                   ["Cash", "Card", "UPI", "Bank Transfer", "ClearTrip", "TIE Management", "Booking.com", "Other"],
+                                   ["Cash", "Card", "UPI", "Bank Transfer", "ClearTrip", "TIE Management", "Booking.com","Pending", "Other"],
                                    key=f"{form_key}_advmop")
         if advance_mop == "Other":
             custom_advance_mop = st.text_input("Custom Advance MOP", key=f"{form_key}_custom_advmop")
