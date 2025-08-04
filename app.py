@@ -22,7 +22,8 @@ def generate_booking_id():
         st.error(f"Error generating booking ID: {e}")
         return None
 
-def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=None):
+def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=None, mob=None):
+    """Check for duplicate guest based on name, mobile number, and room number, allowing 'Stay-back' if MOB differs."""
     response = supabase.table("reservations").select("*").execute()
     for reservation in response.data:
         if exclude_booking_id and reservation["booking_id"] == exclude_booking_id:
@@ -30,6 +31,9 @@ def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=Non
         if (reservation["guest_name"].lower() == guest_name.lower() and
             reservation["mobile_no"] == mobile_no and
             reservation["room_no"] == room_no):
+            # Allow duplicate if the new MOB is 'Stay-back' and the existing MOB is not 'Stay-back'
+            if mob == "Stay-back" and reservation["mob"] != "Stay-back":
+                continue
             return True, reservation["booking_id"]
     return False, None
 
@@ -280,6 +284,7 @@ def show_new_reservation_form():
             "La Tamara Suite",
             "La Millionare Resort",
             "Le Park Resort",
+            "Villa Shakti"
             "Property 16"
         ]
         property_name = st.selectbox("Property Name", property_options, key=f"{form_key}_property")
@@ -365,7 +370,8 @@ def show_new_reservation_form():
         elif no_of_days <= 0:
             st.error("❌ Number of days must be greater than 0")
         else:
-            is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no)
+            mob_value = custom_mob if mob == "Others" else mob
+            is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no, mob=mob_value)
             if is_duplicate:
                 st.error(f"❌ Guest already exists! Booking ID: {existing_booking_id}")
             else:
@@ -391,7 +397,7 @@ def show_new_reservation_form():
                     "Balance Amount": balance_amount,
                     "Advance MOP": custom_advance_mop if advance_mop == "Other" else advance_mop,
                     "Balance MOP": custom_balance_mop if balance_mop == "Other" else balance_mop,
-                    "MOB": custom_mob if mob == "Others" else mob,
+                    "MOB": mob_value,
                     "Online Source": custom_online_source if online_source == "Others" else online_source,
                     "Invoice No": invoice_no,
                     "Enquiry Date": enquiry_date,
@@ -551,9 +557,9 @@ def show_edit_form(edit_index):
             "Property 16"
         ]
         property_name = st.selectbox(
-            "Property Name", 
-            property_options, 
-            index=property_options.index(reservation["Property Name"]), 
+            "Property Name",
+            property_options,
+            index=property_options.index(reservation["Property Name"]),
             key=f"{form_key}_property"
         )
         room_no = st.text_input("Room No", value=reservation["Room No"], key=f"{form_key}_room")
@@ -642,7 +648,8 @@ def show_edit_form(edit_index):
             elif no_of_days <= 0:
                 st.error("❌ Number of days must be greater than 0")
             else:
-                is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=reservation["Booking ID"])
+                mob_value = custom_mob if mob == "Others" else mob
+                is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=reservation["Booking ID"], mob=mob_value)
                 if is_duplicate:
                     st.error(f"❌ Guest already exists! Booking ID: {existing_booking_id}")
                 else:
@@ -664,7 +671,7 @@ def show_edit_form(edit_index):
                         "Balance Amount": balance_amount,
                         "Advance MOP": custom_advance_mop if advance_mop == "Other" else advance_mop,
                         "Balance MOP": custom_balance_mop if balance_mop == "Other" else balance_mop,
-                        "MOB": custom_mob if mob == "Others" else mob,
+                        "MOB": mob_value,
                         "Online Source": custom_online_source if online_source == "Others" else online_source,
                         "Invoice No": invoice_no,
                         "Enquiry Date": enquiry_date,
