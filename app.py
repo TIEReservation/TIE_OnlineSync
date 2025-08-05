@@ -554,6 +554,7 @@ def show_edit_form(edit_index):
             "La Tamara Suite",
             "La Millionare Resort",
             "Le Park Resort",
+            "Villa Shakti",
             "Property 16"
         ]
         property_name = st.selectbox(
