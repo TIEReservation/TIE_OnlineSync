@@ -1,5 +1,7 @@
 ```python
 from datetime import datetime
+import streamlit as st
+import requests
 
 def safe_int(value, default=0):
     """Convert value to integer with a default if invalid."""
@@ -34,6 +36,7 @@ def generate_booking_id(supabase, table_name="reservations"):
             sequence += 1
         return f"{prefix}{today}{sequence:03d}"
     except Exception as e:
+        st.error(f"Error generating booking ID: {e}")
         return None
 
 def check_duplicate_guest(supabase, table_name, guest_name, guest_phone, room_no, exclude_booking_id=None):
@@ -49,5 +52,27 @@ def check_duplicate_guest(supabase, table_name, guest_name, guest_phone, room_no
                 return True, reservation["booking_id"]
         return False, None
     except Exception as e:
+        st.error(f"Error checking duplicate guest: {e}")
         return False, None
+
+def get_property_name(hotel_id):
+    """Map Stayflexi hotelId to property_name."""
+    property_mapping = {
+        "27704": "La Antilia Luxury",
+        "27706": "La Paradise Luxury",
+        "27707": "La Paradise Residency",
+        "27709": "La Tamara Luxury",
+        "27710": "La Tamara Suite",
+        "27711": "La Villa Heritage",
+        "27719": "Le Poshe Beach View",
+        "27720": "Le Poshe Luxury",
+        "27721": "Le Poshe Suite",
+        "27722": "Le Royce Villa",
+        "27723": "Le Pondy Beachside",
+        "27724": "Villa Shakti",
+        "30357": "Eden Beach Resort",
+        "31550": "La Millionaire Luxury Resort",
+        "32470": "Le Park Resort"
+    }
+    return property_mapping.get(hotel_id, "Unknown Property")
 ```
