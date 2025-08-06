@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime, date, timedelta
 from supabase import create_client, Client
+from online_reservations import get_all_properties_bookings
 
 # Initialize Supabase client
 supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
@@ -193,6 +194,110 @@ def delete_reservation_in_supabase(booking_id):
         st.error(f"Error deleting reservation: {e}")
         return False
 
+def show_online_reservations():
+    st.header("📡 Online Reservations")
+    
+    # Date input and filter
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        date = st.date_input("Select Date", value=datetime.today(), key="online_date")
+    with col2:
+        is_today = st.checkbox("Show Today's Bookings", value=True, key="online_is_today")
+    
+    if date:
+        formatted_date = date.strftime("%Y-%m-%d")
+        bookings = get_all_properties_bookings(formatted_date, is_today)
+        
+        # Property name mapping
+        property_mapping = {
+            "27704": "Eden Beach Resort",
+            "27706": "La Paradise Luxury",
+            "27707": "La Villa Heritage",
+            "27709": "Le Pondy Beach Side",
+            "27710": "Le Royce Villa",
+            "27711": "Le Poshe Luxury",
+            "27719": "Le Poshe Suite",
+            "27720": "La Paradise Residency",
+            "27721": "La Tamara Luxury",
+            "27722": "Le Poshe Beachview",
+            "27723": "La Antilia",
+            "27724": "La Tamara Suite",
+            "30357": "La Millionare Resort",
+            "31550": "Le Park Resort",
+            "32470": "Villa Shakti"
+        }
+        
+        # Display bookings by property
+        for hotel_id, booking_data in bookings.items():
+            property_name = property_mapping.get(hotel_id, f"Property ID: {hotel_id}")
+            st.subheader(property_name)
+            
+            # Tabs for different booking types
+            tabs = st.tabs(["Check-ins", "New Bookings", "Cancelled"])
+            
+            # Check-ins tab
+            with tabs[0]:
+                if booking_data.get("CHECKINS"):
+                    for booking in booking_data["CHECKINS"]:
+                        st.markdown(
+                            f"""
+                            **Reservation ID**: {booking.get('reservation_id', 'N/A')}  
+                            **Guest**: {booking.get('user_name', 'N/A')}  
+                            **Check-in**: {booking.get('check_in', 'N/A')}  
+                            **Check-out**: {booking.get('check_out', 'N/A')}  
+                            **Room Type**: {booking.get('room_type', 'N/A')}  
+                            **Source**: {booking.get('booking_source', 'N/A')}  
+                            **Amount**: ₹{booking.get('reservation_amount', 0):.2f}
+                            """
+                        )
+                        st.markdown("---")
+                else:
+                    st.write("No check-ins found.")
+            
+            # New Bookings tab
+            with tabs[1]:
+                if booking_data.get("NEW_BOOKINGS"):
+                    for booking in booking_data["NEW_BOOKINGS"]:
+                        st.markdown(
+                            f"""
+                            **Reservation ID**: {booking.get('reservation_id', 'N/A')}  
+                            **Guest**: {booking.get('user_name', 'N/A')}  
+                            **Check-in**: {booking.get('check_in', 'N/A')}  
+                            **Check-out**: {booking.get('check_out', 'N/A')}  
+                            **Room Type**: {booking.get('room_type', 'N/A')}  
+                            **Source**: {booking.get('booking_source', 'N/A')}  
+                            **Amount**: ₹{booking.get('reservation_amount', 0):.2f}
+                            """
+                        )
+                        st.markdown("---")
+                else:
+                    st.write("No new bookings found.")
+            
+            # Cancelled Bookings tab
+            with tabs[2]:
+                cancelled_bookings = booking_data.get("CANCELLED", []) + booking_data.get("TODAY_CANCELLED", [])
+                if cancelled_bookings:
+                    for booking in cancelled_bookings:
+                        st.markdown(
+                            f"""
+                            **Reservation ID**: {booking.get('reservation_id', 'N/A')}  
+                            **Guest**: {booking.get('user_name', 'N/A')}  
+                            **Check-in**: {booking.get('check_in', 'N/A')}  
+                            **Check-out**: {booking.get('check_out', 'N/A')}  
+                            **Room Type**: {booking.get('room_type', 'N/A')}  
+                            **Source**: {booking.get('booking_source', 'N/A')}  
+                            **Cancel Date**: {booking.get('cancel_date', 'N/A')}
+                            """
+                        )
+                        st.markdown("---")
+                else:
+                    st.write("No cancelled bookings found.")
+            
+            st.markdown("---")
+    
+    else:
+        st.write("Please select a date to view bookings.")
+
 # Page config
 st.set_page_config(
     page_title="TIE Direct Reservations",
@@ -239,10 +344,10 @@ if 'edit_mode' not in st.session_state:
     st.session_state.edit_index = None
 
 def main():
-    st.title("🏢 TIE Direct Reservations")
+    st.title("🏢 TIE Reservations")
     st.markdown("---")
     st.sidebar.title("Navigation")
-    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations"]
+    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations"]
     if st.session_state.role == "Management":
         page_options.append("Analytics")
     page = st.sidebar.selectbox("Choose a page", page_options)
@@ -253,6 +358,8 @@ def main():
         show_reservations()
     elif page == "Edit Reservations":
         show_edit_reservations()
+    elif page == "Online Reservations":
+        show_online_reservations()
     elif page == "Analytics" and st.session_state.role == "Management":
         show_analytics()
 
