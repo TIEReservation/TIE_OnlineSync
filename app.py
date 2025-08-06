@@ -520,7 +520,7 @@ def show_edit_reservations():
     with col7:
         filter_submitted_by = st.text_input("Submitted By", key="edit_filter_submitted_by")
     with col8:
-s        filter_modified_by = st.text_input("Modified By", key="edit_filter_modified_by")
+        filter_modified_by = st.text_input("Modified By", key="edit_filter_modified_by")
 
     filtered_df = df.copy()
     if search_guest:
