@@ -7,7 +7,7 @@ from supabase import create_client, Client
 # Initialize Supabase client
 supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
 
-# Function definitions moved to the top to avoid NameError
+# Function definitions
 def generate_booking_id():
     """Generate a unique booking ID by checking existing IDs in Supabase."""
     try:
@@ -422,7 +422,10 @@ def show_new_reservation_form():
         st.markdown("---")
         st.subheader("📋 Recent Reservations")
         recent_df = pd.DataFrame(st.session_state.reservations[-5:])
-        st.dataframe(recent_df[["Booking ID", "Guest Name", "Mobile No", "Enquiry Date", "Room No", "Check In", "Check Out", "Plan Status"]])
+        st.dataframe(
+            recent_df[["Booking ID", "Guest Name", "Mobile No", "Enquiry Date", "Room No", "Check In", "Check Out", "Plan Status"]],
+            use_container_width=True
+        )
 
 def show_reservations():
     st.header("📋 View Reservations")
@@ -430,7 +433,7 @@ def show_reservations():
         st.info("No reservations.")
         return
     df = pd.DataFrame(st.session_state.reservations)
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
         search_guest = st.text_input("🔍 Search by Guest Name")
     with col2:
@@ -441,6 +444,8 @@ def show_reservations():
         filter_check_in_date = st.date_input("Check-in Date", value=None, key="filter_check_in_date")
     with col5:
         filter_check_out_date = st.date_input("Check-out Date", value=None, key="filter_check_out_date")
+    with col6:
+        filter_enquiry_date = st.date_input("Enquiry Date", value=None, key="filter_enquiry_date")
 
     filtered_df = df.copy()
     if search_guest:
@@ -453,6 +458,8 @@ def show_reservations():
         filtered_df = filtered_df[filtered_df["Check In"] == filter_check_in_date]
     if filter_check_out_date:
         filtered_df = filtered_df[filtered_df["Check Out"] == filter_check_out_date]
+    if filter_enquiry_date:
+        filtered_df = filtered_df[filtered_df["Enquiry Date"] == filter_enquiry_date]
 
     st.subheader("📋 Filtered Reservations")
     st.dataframe(
@@ -489,7 +496,7 @@ def show_edit_reservations():
         return
 
     df = pd.DataFrame(st.session_state.reservations)
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
         search_guest = st.text_input("🔍 Search by Guest Name", key="edit_search_guest")
     with col2:
@@ -500,6 +507,8 @@ def show_edit_reservations():
         filter_check_in_date = st.date_input("Check-in Date", value=None, key="edit_filter_check_in_date")
     with col5:
         filter_check_out_date = st.date_input("Check-out Date", value=None, key="edit_filter_check_out_date")
+    with col6:
+        filter_enquiry_date = st.date_input("Enquiry Date", value=None, key="edit_filter_enquiry_date")
 
     filtered_df = df.copy()
     if search_guest:
@@ -512,6 +521,8 @@ def show_edit_reservations():
         filtered_df = filtered_df[filtered_df["Check In"] == filter_check_in_date]
     if filter_check_out_date:
         filtered_df = filtered_df[filtered_df["Check Out"] == filter_check_out_date]
+    if filter_enquiry_date:
+        filtered_df = filtered_df[filtered_df["Enquiry Date"] == filter_enquiry_date]
 
     if filtered_df.empty:
         st.warning("No reservations match the selected filters.")
@@ -716,7 +727,7 @@ def show_analytics():
 
     df = pd.DataFrame(st.session_state.reservations)
     st.subheader("Filters")
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
         filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Completed", "No Show"], key="analytics_filter_status")
     with col2:
