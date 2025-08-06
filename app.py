@@ -740,6 +740,8 @@ def show_analytics():
         filter_enquiry_date = st.date_input("Enquiry Date", value=None, key="analytics_filter_enquiry_date")
     with col5:
         filter_booking_date = st.date_input("Booking Date", value=None, key="analytics_filter_booking_date")
+    with col6:
+        filter_property = st.selectbox("Filter by Property", ["All"] + list(df["Property Name"].unique()), key="analytics_filter_property")
 
     filtered_df = df.copy()
     if filter_status != "All":
@@ -752,6 +754,8 @@ def show_analytics():
         filtered_df = filtered_df[filtered_df["Enquiry Date"] == filter_enquiry_date]
     if filter_booking_date:
         filtered_df = filtered_df[filtered_df["Booking Date"] == filter_booking_date]
+    if filter_property != "All":
+        filtered_df = filtered_df[filtered_df["Property Name"] == filter_property]
 
     if filtered_df.empty:
         st.warning("No reservations match the selected filters.")
