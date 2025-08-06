@@ -1,9 +1,16 @@
 import streamlit as st
 import requests
 import pandas as pd
-from config import STAYFLEXI_API_TOKEN, STAYFLEXI_API_BASE_URL
 from datetime import datetime
 from supabase import create_client, Client
+
+# Configuration - using Streamlit secrets instead of config.py
+try:
+    from config import STAYFLEXI_API_TOKEN, STAYFLEXI_API_BASE_URL
+except ImportError:
+    # Fallback to Streamlit secrets if config.py doesn't exist
+    STAYFLEXI_API_TOKEN = st.secrets.get("STAYFLEXI_API_TOKEN", "")
+    STAYFLEXI_API_BASE_URL = st.secrets.get("STAYFLEXI_API_BASE_URL", "")
 
 # Initialize Supabase client
 supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
