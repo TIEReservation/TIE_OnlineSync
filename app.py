@@ -1,20 +1,20 @@
 import streamlit as st
-import pandas as pd
-import plotly.express as px
-from datetime import datetime, date, timedelta
-from supabase import create_client, Client
-from online_reservations import get_all_properties_bookings
+     import pandas as pd
+     import plotly.express as px
+     from datetime import datetime, date, timedelta
+     from supabase import create_client, Client
+     from online_reservations import get_all_properties_bookings
 
-# Initialize Supabase client
-supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
+     # Initialize Supabase client
+     supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
 
-# Function definitions
-def generate_booking_id():
-     """Generate a unique booking ID by checking existing IDs in Supabase."""
-     try:
-          today = datetime.now().strftime('%Y%m%d')
-          response = supabase.table("reservations").select("booking_id").like("booking_id", f"TIE{today}%").execute()
-          existing_ids = [record["booking_id"] for record in response.data]
+     # Function definitions
+     def generate_booking_id():
+         """Generate a unique booking ID by checking existing IDs in Supabase."""
+         try:
+             today = datetime.now().strftime('%Y%m%d')
+             response = supabase.table("reservations").select("booking_id").like("booking_id", f"TIE{today}%").execute()
+             existing_ids = [record["booking_id"] for record in response.data]
              sequence = 1
              while f"TIE{today}{sequence:03d}" in existing_ids:
                  sequence += 1
