@@ -422,7 +422,7 @@ def show_new_reservation_form():
         st.markdown("---")
         st.subheader("📋 Recent Reservations")
         recent_df = pd.DataFrame(st.session_state.reservations[-5:])
-        st.dataframe(recent_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status"]])
+        st.dataframe(recent_df[["Booking ID", "Guest Name", "Mobile No", "Enquiry Date", "Room No", "Check In", "Check Out", "Plan Status"]])
 
 def show_reservations():
     st.header("📋 View Reservations")
@@ -456,7 +456,7 @@ def show_reservations():
 
     st.subheader("📋 Filtered Reservations")
     st.dataframe(
-        filtered_df[["Booking ID", "Guest Name", "Mobile No", "Property Name", "Check In", "Check Out", "Plan Status"]],
+        filtered_df[["Booking ID", "Guest Name", "Mobile No", "Enquiry Date", "Property Name", "Check In", "Check Out", "Plan Status"]],
         use_container_width=True
     )
 
@@ -519,7 +519,7 @@ def show_edit_reservations():
 
     st.subheader("📋 Select a Reservation to Edit")
     st.dataframe(
-        filtered_df[["Booking ID", "Guest Name", "Mobile No", "Room No", "Check In", "Check Out", "Plan Status"]],
+        filtered_df[["Booking ID", "Guest Name", "Mobile No", "Enquiry Date", "Room No", "Check In", "Check Out", "Plan Status"]],
         use_container_width=True
     )
 
