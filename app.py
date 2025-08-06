@@ -433,7 +433,7 @@ def show_reservations():
         st.info("No reservations.")
         return
     df = pd.DataFrame(st.session_state.reservations)
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
     with col1:
         search_guest = st.text_input("🔍 Search by Guest Name")
     with col2:
@@ -446,6 +446,10 @@ def show_reservations():
         filter_check_out_date = st.date_input("Check-out Date", value=None, key="filter_check_out_date")
     with col6:
         filter_enquiry_date = st.date_input("Enquiry Date", value=None, key="filter_enquiry_date")
+    with col7:
+        filter_submitted_by = st.text_input("Submitted By", key="filter_submitted_by")
+    with col8:
+        filter_modified_by = st.text_input("Modified By", key="filter_modified_by")
 
     filtered_df = df.copy()
     if search_guest:
@@ -460,6 +464,10 @@ def show_reservations():
         filtered_df = filtered_df[filtered_df["Check Out"] == filter_check_out_date]
     if filter_enquiry_date:
         filtered_df = filtered_df[filtered_df["Enquiry Date"] == filter_enquiry_date]
+    if filter_submitted_by:
+        filtered_df = filtered_df[filtered_df["Submitted By"].str.contains(filter_submitted_by, case=False, na=False)]
+    if filter_modified_by:
+        filtered_df = filtered_df[filtered_df["Modified By"].str.contains(filter_modified_by, case=False, na=False)]
 
     st.subheader("📋 Filtered Reservations")
     st.dataframe(
@@ -496,7 +504,7 @@ def show_edit_reservations():
         return
 
     df = pd.DataFrame(st.session_state.reservations)
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
     with col1:
         search_guest = st.text_input("🔍 Search by Guest Name", key="edit_search_guest")
     with col2:
@@ -509,6 +517,10 @@ def show_edit_reservations():
         filter_check_out_date = st.date_input("Check-out Date", value=None, key="edit_filter_check_out_date")
     with col6:
         filter_enquiry_date = st.date_input("Enquiry Date", value=None, key="edit_filter_enquiry_date")
+    with col7:
+        filter_submitted_by = st.text_input("Submitted By", key="edit_filter_submitted_by")
+    with col8:
+s        filter_modified_by = st.text_input("Modified By", key="edit_filter_modified_by")
 
     filtered_df = df.copy()
     if search_guest:
@@ -523,6 +535,10 @@ def show_edit_reservations():
         filtered_df = filtered_df[filtered_df["Check Out"] == filter_check_out_date]
     if filter_enquiry_date:
         filtered_df = filtered_df[filtered_df["Enquiry Date"] == filter_enquiry_date]
+    if filter_submitted_by:
+        filtered_df = filtered_df[filtered_df["Submitted By"].str.contains(filter_submitted_by, case=False, na=False)]
+    if filter_modified_by:
+        filtered_df = filtered_df[filtered_df["Modified By"].str.contains(filter_modified_by, case=False, na=False)]
 
     if filtered_df.empty:
         st.warning("No reservations match the selected filters.")
@@ -727,7 +743,7 @@ def show_analytics():
 
     df = pd.DataFrame(st.session_state.reservations)
     st.subheader("Filters")
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
     with col1:
         filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Completed", "No Show"], key="analytics_filter_status")
     with col2:
@@ -738,6 +754,10 @@ def show_analytics():
         filter_enquiry_date = st.date_input("Enquiry Date", value=None, key="analytics_filter_enquiry_date")
     with col5:
         filter_booking_date = st.date_input("Booking Date", value=None, key="analytics_filter_booking_date")
+    with col6:
+        filter_submitted_by = st.text_input("Submitted By", key="analytics_filter_submitted_by")
+    with col7:
+        filter_modified_by = st.text_input("Modified By", key="analytics_filter_modified_by")
 
     filtered_df = df.copy()
     if filter_status != "All":
@@ -750,6 +770,10 @@ def show_analytics():
         filtered_df = filtered_df[filtered_df["Enquiry Date"] == filter_enquiry_date]
     if filter_booking_date:
         filtered_df = filtered_df[filtered_df["Booking Date"] == filter_booking_date]
+    if filter_submitted_by:
+        filtered_df = filtered_df[filtered_df["Submitted By"].str.contains(filter_submitted_by, case=False, na=False)]
+    if filter_modified_by:
+        filtered_df = filtered_df[filtered_df["Modified By"].str.contains(filter_modified_by, case=False, na=False)]
 
     if filtered_df.empty:
         st.warning("No reservations match the selected filters.")
