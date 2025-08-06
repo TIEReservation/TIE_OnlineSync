@@ -485,9 +485,11 @@ def show_reservations():
                 st.metric("Average Stay", "0.0 days")
         col5, col6 = st.columns(2)
         with col5:
-            st.metric("Advance Collected", f"₹{filtered_df['Advance Amount'].sum():,.2f}")
+            total_collected = filtered_df["Advance Amount"].sum() + filtered_df[filtered_df["Plan Status"] == "Completed"]["Balance Amount"].sum()
+            st.metric("Total Revenue Collected", f"₹{total_collected:,.2f}")
         with col6:
-            st.metric("Balance Pending", f"₹{filtered_df['Balance Amount'].sum():,.2f}")
+            balance_pending = filtered_df[filtered_df["Plan Status"] != "Completed"]["Balance Amount"].sum()
+            st.metric("Balance Pending", f"₹{balance_pending:,.2f}")
 
 def show_edit_reservations():
     st.header("✏️ Edit Reservations")
@@ -760,11 +762,19 @@ def show_analytics():
     with col1:
         st.metric("Total Reservations", len(filtered_df))
     with col2:
-        st.metric("Total Revenue", f"₹{filtered_df['Total Tariff'].sum():,.2f}")
+        total_revenue = filtered_df["Total Tariff"].sum()
+        st.metric("Total Revenue", f"₹{total_revenue:,.2f}")
     with col3:
         st.metric("Average Tariff", f"₹{filtered_df['Tariff'].mean():,.2f}" if not filtered_df.empty else "₹0.00")
     with col4:
         st.metric("Average Stay", f"{filtered_df['No of Days'].mean():.1f} days" if not filtered_df.empty else "0.0 days")
+    col5, col6 = st.columns(2)
+    with col5:
+        total_collected = filtered_df["Advance Amount"].sum() + filtered_df[filtered_df["Plan Status"] == "Completed"]["Balance Amount"].sum()
+        st.metric("Total Revenue Collected", f"₹{total_collected:,.2f}")
+    with col6:
+        balance_pending = filtered_df[filtered_df["Plan Status"] != "Completed"]["Balance Amount"].sum()
+        st.metric("Balance Pending", f"₹{balance_pending:,.2f}")
 
     st.subheader("Visualizations")
     col1, col2 = st.columns(2)
@@ -797,7 +807,12 @@ def show_analytics():
         with st.expander(f"{property} Reservations"):
             property_df = filtered_df[filtered_df["Property Name"] == property]
             st.write(f"**Total Reservations**: {len(property_df)}")
-            st.write(f"**Total Revenue**: ₹{property_df['Total Tariff'].sum():,.2f}")
+            total_revenue = property_df["Total Tariff"].sum()
+            st.write(f"**Total Revenue**: ₹{total_revenue:,.2f}")
+            total_collected = property_df["Advance Amount"].sum() + property_df[property_df["Plan Status"] == "Completed"]["Balance Amount"].sum()
+            st.write(f"**Total Revenue Collected**: ₹{total_collected:,.2f}")
+            balance_pending = property_df[property_df["Plan Status"] != "Completed"]["Balance Amount"].sum()
+            st.write(f"**Balance Pending**: ₹{balance_pending:,.2f}")
             st.write(f"**Average Tariff**: ₹{property_df['Tariff'].mean():,.2f}" if not property_df.empty else "₹0.00")
             st.write(f"**Average Stay**: {property_df['No of Days'].mean():.1f} days" if not property_df.empty else "0.0 days")
             st.dataframe(
