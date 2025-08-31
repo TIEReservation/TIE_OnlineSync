@@ -113,11 +113,20 @@ def process_and_sync_excel(uploaded_file):
             total_payment_made = safe_float(row.get("Total Payment Made"))
             balance_due = safe_float(row.get("balance_due"))
             mode_of_booking = ""  # Editable, default empty
-            booking_status = staflexi_status.capitalize()  # Map to standard, e.g., "Confirmed"
-            if "cancel" in booking_status.lower():
+            # Map staflexi_status to standard booking_status values
+            booking_status_lower = staflexi_status.lower()
+            if "cancel" in booking_status_lower:
                 booking_status = "Cancelled"
-            elif "confirm" in booking_status.lower():
+            elif "confirm" in booking_status_lower:
                 booking_status = "Confirmed"
+            elif "hold" in booking_status_lower or "pending" in booking_status_lower:
+                booking_status = "Pending"
+            elif "complete" in booking_status_lower:
+                booking_status = "Completed"
+            elif "no_show" in booking_status_lower or "noshow" in booking_status_lower:
+                booking_status = "No Show"
+            else:
+                booking_status = "Pending"  # Default fallback
             # Compute payment_status
             if total_payment_made >= booking_amount:
                 payment_status = "Fully Paid"
