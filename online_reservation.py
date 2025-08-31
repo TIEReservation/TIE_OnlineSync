@@ -108,7 +108,7 @@ def process_and_sync_excel(uploaded_file):
             booking_source = str(row.get("booking_source", ""))
             segment = str(row.get("segment", ""))
             staflexi_status = str(row.get("status", ""))
-            booking_Confirmed_on = None  # Editable, default None
+            booking_confirmed_on = None  # Editable, default None
             booking_amount = safe_float(row.get("booking_amount"))
             total_payment_made = safe_float(row.get("Total Payment Made"))
             balance_due = safe_float(row.get("balance_due"))
@@ -152,7 +152,7 @@ def process_and_sync_excel(uploaded_file):
                 "booking_source": booking_source,
                 "segment": segment,
                 "staflexi_status": staflexi_status,
-                "booking_Confirmed_on": booking_Confirmed_on,
+                "booking_confirmed_on": booking_confirmed_on,  # Fixed: lowercase 'c'
                 "booking_amount": booking_amount,
                 "total_payment_made": total_payment_made,
                 "balance_due": balance_due,
