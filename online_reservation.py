@@ -116,20 +116,9 @@ def process_and_sync_excel(uploaded_file):
             # Set mode_of_booking to booking_source by default
             mode_of_booking = booking_source
             
-            # Map staflexi_status to standard booking_status values
-            booking_status_lower = staflexi_status.lower()
-            if "cancel" in booking_status_lower:
-                booking_status = "Cancelled"
-            elif "confirm" in booking_status_lower:
-                booking_status = "Confirmed"
-            elif "hold" in booking_status_lower or "pending" in booking_status_lower:
-                booking_status = "Pending"
-            elif "complete" in booking_status_lower:
-                booking_status = "Completed"
-            elif "no_show" in booking_status_lower or "noshow" in booking_status_lower:
-                booking_status = "No Show"
-            else:
-                booking_status = "Pending"  # Default to Pending
+            # Always set booking_status to Pending by default
+            # Reservation agent will change it if required
+            booking_status = "Pending"
             
             # Compute payment_status
             if total_payment_made >= booking_amount:
