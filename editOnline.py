@@ -136,9 +136,30 @@ def show_edit_online_reservations():
         # Row 7: MOB (mode_of_booking), Booking Status, Payment Status
         col1, col2, col3 = st.columns(3)
         with col1:
-            mode_of_booking = st.text_input("MOB", value=reservation.get("mode_of_booking", ""))
+            # MOB dropdown with Booking Source as default and Booking-Dir as option
+            current_mob = reservation.get("mode_of_booking", "") or reservation.get("booking_source", "")
+            mob_options = [booking_source, "Booking-Dir"] if booking_source else ["Booking-Dir"]
+            # Ensure current value is in options
+            if current_mob and current_mob not in mob_options:
+                mob_options.insert(0, current_mob)
+            # Remove duplicates while preserving order
+            mob_options = list(dict.fromkeys(mob_options))
+            
+            try:
+                mob_index = mob_options.index(current_mob) if current_mob in mob_options else 0
+            except ValueError:
+                mob_index = 0
+            
+            mode_of_booking = st.selectbox("MOB", mob_options, index=mob_index)
         with col2:
-            booking_status = st.selectbox("Booking Status", ["Pending", "Confirmed", "Cancelled", "Completed", "No Show"], index=["Pending", "Confirmed", "Cancelled", "Completed", "No Show"].index(reservation.get("booking_status", "Pending")))
+            # Booking Status with Pending as default
+            booking_status_options = ["Pending", "Confirmed", "Cancelled", "Completed", "No Show"]
+            current_status = reservation.get("booking_status", "Pending")
+            try:
+                status_index = booking_status_options.index(current_status)
+            except ValueError:
+                status_index = 0  # Default to Pending
+            booking_status = st.selectbox("Booking Status", booking_status_options, index=status_index)
         with col3:
             payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], index=["Not Paid", "Fully Paid", "Partially Paid"].index(reservation.get("payment_status", "Not Paid")))
 
