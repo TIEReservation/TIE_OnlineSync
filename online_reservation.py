@@ -112,7 +112,10 @@ def process_and_sync_excel(uploaded_file):
             booking_amount = safe_float(row.get("booking_amount"))
             total_payment_made = safe_float(row.get("Total Payment Made"))
             balance_due = safe_float(row.get("balance_due"))
-            mode_of_booking = ""  # Editable, default empty
+            
+            # Set mode_of_booking to booking_source by default
+            mode_of_booking = booking_source
+            
             # Map staflexi_status to standard booking_status values
             booking_status_lower = staflexi_status.lower()
             if "cancel" in booking_status_lower:
@@ -126,7 +129,8 @@ def process_and_sync_excel(uploaded_file):
             elif "no_show" in booking_status_lower or "noshow" in booking_status_lower:
                 booking_status = "No Show"
             else:
-                booking_status = "Pending"  # Default fallback
+                booking_status = "Pending"  # Default to Pending
+            
             # Compute payment_status
             if total_payment_made >= booking_amount:
                 payment_status = "Fully Paid"
@@ -188,7 +192,7 @@ def process_and_sync_excel(uploaded_file):
 
 def show_online_reservations():
     """Display online reservations page with upload and view."""
-    st.title("📥 Online Reservations")
+    st.title("🔥 Online Reservations")
     if 'online_reservations' not in st.session_state:
         st.session_state.online_reservations = load_online_reservations_from_supabase()
 
