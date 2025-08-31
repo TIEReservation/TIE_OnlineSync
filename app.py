@@ -1,8 +1,11 @@
+# app.py (updated)
+
 import streamlit as st
 import os
 from supabase import create_client, Client
 from directreservation import show_new_reservation_form, show_reservations, show_edit_reservations, show_analytics, load_reservations_from_supabase
 from online_reservation import show_online_reservations
+from editOnline import show_edit_online_reservations
 
 # Page config
 st.set_page_config(
@@ -32,11 +35,12 @@ def check_authentication():
             if role == "Management" and password == "TIE2024":
                 st.session_state.authenticated = True
                 st.session_state.role = "Management"
-                st.session_state.reservations = []
+                st.session_state.reservations = load_reservations_from_supabase()
+                st.session_state.online_reservations = load_online_reservations_from_supabase()  # Added
                 st.session_state.edit_mode = False
                 st.session_state.edit_index = None
-                # Fetch reservations using load_reservations_from_supabase
-                st.session_state.reservations = load_reservations_from_supabase()
+                st.session_state.online_edit_mode = False  # Added
+                st.session_state.online_edit_index = None  # Added
                 if st.session_state.reservations:
                     st.success("✅ Management login successful! Reservations fetched.")
                 else:
@@ -45,11 +49,12 @@ def check_authentication():
             elif role == "ReservationTeam" and password == "TIE123":
                 st.session_state.authenticated = True
                 st.session_state.role = "ReservationTeam"
-                st.session_state.reservations = []
+                st.session_state.reservations = load_reservations_from_supabase()
+                st.session_state.online_reservations = load_online_reservations_from_supabase()  # Added
                 st.session_state.edit_mode = False
                 st.session_state.edit_index = None
-                # Fetch reservations using load_reservations_from_supabase
-                st.session_state.reservations = load_reservations_from_supabase()
+                st.session_state.online_edit_mode = False  # Added
+                st.session_state.online_edit_index = None  # Added
                 if st.session_state.reservations:
                     st.success("✅ Agent login successful! Reservations fetched.")
                 else:
@@ -64,7 +69,7 @@ def main():
     st.title("🏢 TIE Reservations")
     st.markdown("---")
     st.sidebar.title("Navigation")
-    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations"]
+    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations"]
     if st.session_state.role == "Management":
         page_options.append("Analytics")
     page = st.sidebar.selectbox("Choose a page", page_options)
@@ -77,6 +82,8 @@ def main():
         show_edit_reservations()
     elif page == "Online Reservations":
         show_online_reservations()
+    elif page == "Edit Online Reservations":
+        show_edit_online_reservations()
     elif page == "Analytics" and st.session_state.role == "Management":
         show_analytics()
 
@@ -85,8 +92,11 @@ def main():
         st.session_state.authenticated = False
         st.session_state.role = None
         st.session_state.reservations = []
+        st.session_state.online_reservations = []  # Added
         st.session_state.edit_mode = False
         st.session_state.edit_index = None
+        st.session_state.online_edit_mode = False  # Added
+        st.session_state.online_edit_index = None  # Added
         st.rerun()
 
 if __name__ == "__main__":
