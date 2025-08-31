@@ -53,10 +53,35 @@ def parse_pax(pax_str):
                 pass
     return adults, children, infants
 
+def truncate_string(value, max_length=50):
+    """Truncate string to specified length."""
+    if not value:
+        return value
+    return str(value)[:max_length] if len(str(value)) > max_length else str(value)
+
 def insert_online_reservation(reservation):
     """Insert a new online reservation into Supabase."""
     try:
-        response = supabase.table("online_reservations").insert(reservation).execute()
+        # Truncate string fields to prevent database errors
+        truncated_reservation = reservation.copy()
+        
+        # List of fields that might have character limits
+        string_fields_50 = [
+            "property", "booking_id", "guest_name", "guest_phone", "room_no", 
+            "room_type", "rate_plans", "booking_source", "segment", "staflexi_status",
+            "mode_of_booking", "booking_status", "payment_status", "submitted_by", "modified_by"
+        ]
+        
+        # Truncate to 50 characters for standard fields
+        for field in string_fields_50:
+            if field in truncated_reservation:
+                truncated_reservation[field] = truncate_string(truncated_reservation[field], 50)
+        
+        # Remarks might have a longer limit, but let's be safe and truncate to 500
+        if "remarks" in truncated_reservation:
+            truncated_reservation["remarks"] = truncate_string(truncated_reservation["remarks"], 500)
+        
+        response = supabase.table("online_reservations").insert(truncated_reservation).execute()
         return bool(response.data)
     except Exception as e:
         st.error(f"Error inserting online reservation: {e}")
@@ -95,26 +120,26 @@ def process_and_sync_excel(uploaded_file):
                 skipped += 1
                 continue
             booking_made_on = parse_date(row.get("booking_made_on"))
-            guest_name = str(row.get("customer_name", ""))
-            guest_phone = str(row.get("customer_phone", ""))
+            guest_name = truncate_string(row.get("customer_name", ""), 50)
+            guest_phone = truncate_string(row.get("customer_phone", ""), 50)
             check_in = parse_date(row.get("checkin"))
             check_out = parse_date(row.get("checkout"))
             pax_str = str(row.get("pax", ""))
             no_of_adults, no_of_children, no_of_infant = parse_pax(pax_str)
             total_pax = no_of_adults + no_of_children + no_of_infant
-            room_no = str(row.get("room ids", ""))
-            room_type = str(row.get("room types", ""))
-            rate_plans = str(row.get("rate_plans", ""))
-            booking_source = str(row.get("booking_source", ""))
-            segment = str(row.get("segment", ""))
-            staflexi_status = str(row.get("status", ""))
+            room_no = truncate_string(row.get("room ids", ""), 50)
+            room_type = truncate_string(row.get("room types", ""), 50)
+            rate_plans = truncate_string(row.get("rate_plans", ""), 50)
+            booking_source = truncate_string(row.get("booking_source", ""), 50)
+            segment = truncate_string(row.get("segment", ""), 50)
+            staflexi_status = truncate_string(row.get("status", ""), 50)
             booking_confirmed_on = None  # Editable, default None
             booking_amount = safe_float(row.get("booking_amount"))
             total_payment_made = safe_float(row.get("Total Payment Made"))
             balance_due = safe_float(row.get("balance_due"))
             
-            # Set mode_of_booking to booking_source by default
-            mode_of_booking = booking_source
+            # Set mode_of_booking to booking_source by default (truncated)
+            mode_of_booking = truncate_string(booking_source, 50)
             
             # Always set booking_status to Pending by default
             # Reservation agent will change it if required
@@ -127,7 +152,7 @@ def process_and_sync_excel(uploaded_file):
                 payment_status = "Partially Paid"
             else:
                 payment_status = "Not Paid"
-            remarks = str(row.get("special_requests", ""))  # Or ota_special_requests
+            remarks = truncate_string(row.get("special_requests", ""), 500)  # Longer limit for remarks
             submitted_by = ""  # Editable
             modified_by = ""  # Editable
             total_amount_with_services = safe_float(row.get("total_amount_with_services"))
