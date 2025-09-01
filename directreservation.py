@@ -68,13 +68,13 @@ def load_property_room_map():
             "Deluxe Triple Room": ["403"]
         },
         "La Antilia": {
-            "Deluex Suite Room": ["101"],
-            "Deluex Double Room": ["203", "204", "303", "304"],
+            "Deluex Suite": ["101"],
+            "Deluex Double": ["203", "204", "303", "304"],
             "Family Room": ["201", "202", "301", "302"],
-            "Deluex suite Room with Tarrace": ["404"]
+            "Deluex suite with Tarrace": ["404"]
         },
         "La Tamara Suite": {
-            "Two Bedroom apartment": ["101&102"],
+            "Deluxe Two Bedroom apartment": ["101&102"],
             "Deluxe Apartment": ["103&104"],
             "Deluxe Double Room": ["203", "204", "205"],
             "Deluxe Triple Room": ["201", "202"],
@@ -86,8 +86,8 @@ def load_property_room_map():
             "Family Retreate Villa": ["333&444", "333", "444"]
         },
         "Villa Shakti": {
-            "2BHA Studio Room": ["101&102"],
-            "2BHA with Balcony": ["202&203", "302&303"],
+            "Two Bedroom Villa": ["101&102"],
+            "Two Bedroom with Balcony": ["202&203", "302&303"],
             "Family Suite": ["201"],
             "Family Room": ["301"],
             "Terrace Room": ["401"]
