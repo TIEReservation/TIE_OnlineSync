@@ -56,11 +56,16 @@ def load_property_room_map():
             "Villa": ["101to104", "101", "102", "103", "104"]
         },
         "Le Royce Villa": {
-            "Villa": ["101to102&201to202", "101", "102", "202", "202"]  # Note: duplicate "202" as per data
+            "Villa": ["101to102&201to202", "101", "102", "201", "202"]  
         },
         "La Tamara Luxury": {
-            "3BHA": ["101to103", "101", "102", "103", "104to106", "104", "105", "106", "201to203", "201", "202", "203", "204to206", "204", "205", "206", "301to303", "301", "302", "303", "304to306", "304", "305", "306"],
-            "4BHA": ["401to404", "401", "402", "403", "404"]  # Note: duplicate "404" as per data
+            "Three Bedroom Villa": ["101to103", "104to106", "104", "105", "106", "201to203", "204to206", "204", "205", "206", "301to303", "304to306", "304", "305", "306"],
+            "Superior Villa": ["401to404"],
+            "Standard Double Room": ["101", "103", "201", "203", "301", "303"],
+            "Standard Triple Room": ["102", "202",  "302"],
+            "Deluxe Double Room": ["402", "404"],
+            "Deluxe Quadruple Room": ["401"],
+            "Deluxe Triple Room": ["403"]
         },
         "La Antilia": {
             "Deluex Suite Room": ["101"],
