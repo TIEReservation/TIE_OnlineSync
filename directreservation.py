@@ -31,9 +31,10 @@ def load_property_room_map():
         },
         "Le Poshe Luxury": {
             "Two Bedroom Appartment": ["101&102", "101", "102"],
-            "Two Bedroom Appartment with Balcony": ["201&202", "201", "202", "301&302", "301", "302", "401&402", "401", "402"],
-            "Three Bedroom Appartment": ["203to205", "203", "204", "205", "303to305", "303", "304", "305", "403to405", "403", "404", "405"],
-            "Double with Terrace": ["501"]
+            "Two Bedroom Appartment with Balcony": ["201&202", "301&302", "401&402"],
+            "Three Bedroom Appartment": ["203to205", "303to305", "403to405"],
+            "Double with Terrace": ["501"],
+            "Double Room" :["D1", "D2", "D3", "D4", "D5"]
         },
         "Le Poshe Suite": {
             "Two Bedroom Suite": ["601&602", "601", "602", "603", "604", "703", "704"],
