@@ -37,9 +37,10 @@ def load_property_room_map():
             "Double Room" :["D1", "D2", "D3", "D4", "D5"]
         },
         "Le Poshe Suite": {
-            "Two Bedroom Suite": ["601&602", "601", "602", "603", "604", "703", "704"],
-            "King Suite with Balcony": ["701&702", "701", "702"],
-            "Double Room with Terrace": ["801]            
+            "Two Bedroom Suite": ["601&602", "603&604", "703&704"],
+            "King Suite with Balcony": ["701&702"],
+            "Double Room with Terrace": ["801],
+            "One Bedroom":["602", "702", "604", "704"]            
         },
         "La Paradise Residency": {
             "Deluxe Double Room": ["101", "102", "103", "301", "304"],
