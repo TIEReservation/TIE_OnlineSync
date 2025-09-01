@@ -94,8 +94,8 @@ def load_property_room_map():
         },
         "Eden Beach Resort": {
             "Double Room": ["101", "102"],
-            "Deluex Room": ["103", "202"],
-            "Triple Room": ["201"]
+            "Deluex Double Room": ["103", "202"],
+            "Triple Room with Balcony": ["201"]
         }
     }
 
