@@ -19,33 +19,31 @@ def load_property_room_map():
     """
     return {
         "Le Poshe Beachview": {
-            "Double Room": ["101", "102", "202", "203", "204"],
+            "Deluex Room": ["101", "102", "202", "203", "204"],
             "Standard Room": ["201"],
             "Deluex Double Room Seaview": ["301", "302", "303", "304"]
         },
         "La Millionare Resort": {
-            "Double Room": ["101", "102", "103", "105"],
+            "Deluex Double Room": ["101", "102", "103", "105"],
             "Deluex Double Room with Balcony": ["205", "304", "305"],
-            "Deluex Triple Room with Balcony": ["201", "202", "203", "204", "301", "302", "303"],
-            "Deluex Family Room with Balcony": ["206", "207", "208", "306", "307", "308"],
-            "Deluex Triple Room": ["402"],
-            "Deluex Family Room": ["401"]
+            "Deluex Triple Room with Balcony": ["201", "202", "203", "204", "301", "302", "303","402"],
+            "Deluex Family Room with Balcony": ["206", "207", "208", "306", "307", "308","401"],            
         },
         "Le Poshe Luxury": {
-            "2BHA Appartment": ["101&102", "101", "102"],
-            "2BHA Appartment with Balcony": ["201&202", "201", "202", "301&302", "301", "302", "401&402", "401", "402"],
-            "3BHA Appartment": ["203to205", "203", "204", "205", "303to305", "303", "304", "305", "403to405", "403", "404", "405"],
-            "Double Room with Private Terrace": ["501"]
+            "Two Bedroom Appartment": ["101&102", "101", "102"],
+            "Two Bedroom Appartment with Balcony": ["201&202", "201", "202", "301&302", "301", "302", "401&402", "401", "402"],
+            "Three Bedroom Appartment": ["203to205", "203", "204", "205", "303to305", "303", "304", "305", "403to405", "403", "404", "405"],
+            "Double with Terrace": ["501"]
         },
         "Le Poshe Suite": {
-            "2BHA Appartment": ["601&602", "601", "602", "603", "604", "703", "704"],
-            "2BHA Appartment with Balcony": ["701&702", "701", "702"],
-            "Double Room with Terrace": ["801"]
+            "Two Bedroom Suite": ["601&602", "601", "602", "603", "604", "703", "704"],
+            "King Suite with Balcony": ["701&702", "701", "702"],
+            "Double Room with Terrace": ["801]            
         },
         "La Paradise Residency": {
-            "Double Room": ["101", "102", "103", "301", "304"],
-            "Family Room": ["201", "203"],
-            "Triple Room": ["202", "303"]
+            "Deluxe Double Room": ["101", "102", "103", "301", "304"],
+            "Deluxe Family Suite": ["201", "203"],
+            "Deluxe Triple Room": ["202", "303"]
         },
         "La Paradise Luxury": {
             "3BHA Appartment": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"]
