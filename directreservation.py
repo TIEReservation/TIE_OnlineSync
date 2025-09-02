@@ -233,7 +233,6 @@ def show_reservations():
 
 def show_edit_reservations():
     st.error("show_edit_reservations not implemented in this snippet.")
-    # Original truncated code starts here
     if st.session_state.edit_mode and st.session_state.edit_index is not None:
         edit_index = st.session_state.edit_index
         reservation = st.session_state.reservations[edit_index]
@@ -410,6 +409,7 @@ def show_edit_reservations():
                         st.rerun()
                     else:
                         st.error("❌ Failed to delete reservation")
+        # End of show_edit_reservations function
     except Exception as e:
         st.error(f"Error rendering edit form: {e}")
 
