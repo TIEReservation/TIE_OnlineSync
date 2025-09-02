@@ -409,9 +409,11 @@ def show_edit_reservations():
                         st.rerun()
                     else:
                         st.error("❌ Failed to delete reservation")
-        # End of show_edit_reservations function
+        # End of truncated edit form logic
     except Exception as e:
         st.error(f"Error rendering edit form: {e}")
+    # Ensure function is properly closed
+    pass  # Placeholder to complete the function definition
 
 def show_analytics():
     """Display analytics dashboard for Management users."""
