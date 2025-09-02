@@ -55,7 +55,7 @@ def load_property_room_map():
             "4BHA Appartment": ["201to203&301", "201", "202", "203", "301"]
         },
         "Le Pondy Beach Side": {
-            "Villa": ["101to104", "101", "102", "103", "104"]
+            "Villa": ["101to104", "F1"]
         },
         "Le Royce Villa": {
             "Villa": ["101to102&201to202", "102", "202"]  
