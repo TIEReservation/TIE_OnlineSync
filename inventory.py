@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date, timedelta
@@ -424,619 +423,84 @@ def show_calendar_navigation():
         show_monthly_daily_status(st.session_state.selected_year, st.session_state.selected_month)
 
 def show_monthly_daily_status(year, month):
-    """Show daily status for a selected month."""
-    st.markdown("---")
-    st.subheader(f"📊 Daily Status - {calendar.month_name[month]} {year}")
-    
-    # Get calendar for the month
-    cal = calendar.monthcalendar(year, month)
-    month_start = date(year, month, 1)
-    
-    # Get last day of month
-    if month == 12:
-        month_end = date(year + 1, 1, 1) - timedelta(days=1)
-    else:
-        month_end = date(year, month + 1, 1) - timedelta(days=1)
-    
-    # Date selector
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1:
-        selected_date = st.date_input(
-            "Select Date",
-            value=month_start,
-            min_value=month_start,
-            max_value=month_end,
-            key=f"date_selector_{year}_{month}"
-        )
-    
-    with col2:
-        if st.button("🔄 Refresh Data", key=f"refresh_{year}_{month}"):
-            if 'all_reservations' in st.session_state:
-                del st.session_state.all_reservations
-            st.rerun()
-    
-    with col3:
-        if st.button("📊 Analytics", key=f"analytics_{year}_{month}"):
-            st.session_state.show_analytics = True
-            st.rerun()
-    
-    # Show analytics if requested
-    if st.session_state.get('show_analytics', False):
-        show_inventory_analytics()
-        if st.button("← Back to Daily Status"):
-            st.session_state.show_analytics = False
-            st.rerun()
-        return
-    
-    if selected_date:
-        show_daily_property_status(selected_date)
+    """Show daily status for the selected month, listing properties and allowing selection for per-day details."""
+    st.subheader(f"Daily Status for {calendar.month_name[month]} {year}")
 
-def show_daily_property_status(selected_date):
-    """Show property-wise booking status for a selected date."""
-    st.subheader(f"🏨 Property Status - {selected_date.strftime('%B %d, %Y')}")
-    
-    # Load all reservations
+    # Load reservations if not loaded
     if 'all_reservations' not in st.session_state:
-        with st.spinner("Loading reservations..."):
-            st.session_state.all_reservations = load_all_reservations()
-    
+        st.session_state.all_reservations = load_all_reservations()
+
     reservations = st.session_state.all_reservations
-    
-    # Filter reservations for the selected date (check-in date)
-    daily_reservations = [
-        res for res in reservations 
-        if res["check_in"] == selected_date
+
+    # Get unique properties
+    properties = sorted(set(res["property_name"] for res in reservations if res["property_name"]))
+
+    # Select property
+    selected_property = st.selectbox("Select Property", [""] + properties, key="property_select")
+
+    if not selected_property:
+        return
+
+    # Get days in month
+    _, num_days = calendar.monthrange(year, month)
+    days = [f"{day:02d}-{calendar.month_abbr[month]}-{year}" for day in range(1, num_days + 1)]
+
+    selected_day_str = st.selectbox("Select Day", days, key="day_select")
+    selected_day = int(selected_day_str.split("-")[0])
+    selected_date = date(year, month, selected_day)
+
+    # Filter reservations occupying that date
+    filtered = [
+        res for res in reservations
+        if res["property_name"] == selected_property
+        and res["check_in"] and res["check_out"]
+        and res["check_in"] <= selected_date < res["check_out"]
     ]
-    
-    if not daily_reservations:
-        st.info(f"No check-ins found for {selected_date.strftime('%B %d, %Y')}")
-        return
-    
-    # Show overall summary
-    total_bookings = len(daily_reservations)
-    total_revenue = sum(res["total_tariff"] for res in daily_reservations)
-    total_advance = sum(res["advance_amount"] for res in daily_reservations)
-    total_overbooked = sum(1 for res in daily_reservations if res["inventory_no"] == "Overbooked")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Check-ins", total_bookings)
-    with col2:
-        st.metric("Total Revenue", f"₹{total_revenue:,.2f}")
-    with col3:
-        st.metric("Advance Collected", f"₹{total_advance:,.2f}")
-    with col4:
-        if total_overbooked > 0:
-            st.metric("🚨 Total Overbookings", total_overbooked, delta=total_overbooked, delta_color="inverse")
-        else:
-            st.metric("✅ Overbookings", 0)
-    
-    # Group by property
-    properties = {}
-    for res in daily_reservations:
-        prop_name = res["property_name"]
-        if prop_name not in properties:
-            properties[prop_name] = []
-        properties[prop_name].append(res)
-    
-    # Display each property
-    for prop_name, prop_reservations in properties.items():
-        with st.expander(f"🏨 {prop_name} ({len(prop_reservations)} bookings)", expanded=True):
-            show_property_booking_table(prop_name, prop_reservations, selected_date)
 
-def show_property_booking_table(property_name, reservations, selected_date):
-    """Show booking table for a specific property."""
-    if not reservations:
-        st.info("No bookings for this property.")
+    if not filtered:
+        st.info(f"No bookings for {selected_property} on {selected_date.strftime('%d-%b-%Y')}")
         return
-    
-    # Create DataFrame
-    df_data = []
-    total_tariff = 0
-    total_advance = 0
-    total_balance = 0
-    overbooked_count = 0
-    
-    for res in reservations:
-        is_overbooked = res["inventory_no"] == "Overbooked"
-        if is_overbooked:
-            overbooked_count += 1
-        
-        total_tariff += res["total_tariff"]
-        total_advance += res["advance_amount"]
-        total_balance += res["balance_amount"]
-        
-        df_data.append({
-            "Inventory No": res["inventory_no"],
-            "Room No": res["room_no"],
-            "Booking ID": res["booking_id"],
-            "Guest Name": res["guest_name"],
-            "Mobile No": res["mobile_no"],
-            "Total Pax": res["total_pax"],
-            "Check-in": res["check_in"].strftime("%Y-%m-%d") if res["check_in"] else "",
-            "Check-out": res["check_out"].strftime("%Y-%m-%d") if res["check_out"] else "",
-            "Days": res["no_of_days"],
-            "Booking Status": res["booking_status"],
-            "Payment Status": res["payment_status"],
-            "Remarks": res["remarks"],
-            "Source": res["source"],
-            "Total Tariff": res["total_tariff"],
-            "Advance": res["advance_amount"],
-            "Balance": res["balance_amount"],
-            "Overbooked": is_overbooked
-        })
-    
-    if df_data:
-        df = pd.DataFrame(df_data)
-        
-        # Summary metrics
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Bookings", len(df))
-        with col2:
-            st.metric("Total Revenue", f"₹{total_tariff:,.2f}")
-        with col3:
-            st.metric("Advance Collected", f"₹{total_advance:,.2f}")
-        with col4:
-            if overbooked_count > 0:
-                st.metric("🚨 Overbookings", overbooked_count, delta=overbooked_count, delta_color="inverse")
-            else:
-                st.metric("✅ Overbookings", 0)
-        
-        # Inventory reassignment section
-        st.subheader("🔄 Inventory Management")
-        
-        # Get available inventory numbers for this property
-        inventory_map = get_inventory_mapping()
-        property_map = inventory_map.get(property_name, {})
-        available_inventories = list(property_map.get("room_mapping", {}).keys())
-        available_inventories.extend(property_map.get("day_use", []))
-        available_inventories.append(property_map.get("no_show", "No Show"))
-        available_inventories.append("Overbooked")
-        
-        # Reassignment interface
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            booking_to_move = st.selectbox("Select Booking to Reassign", df["Booking ID"].tolist(), key=f"move_booking_{property_name}")
-        with col2:
-            new_inventory = st.selectbox("Assign to Inventory", available_inventories, key=f"new_inventory_{property_name}")
-        with col3:
-            if st.button("🔄 Reassign", key=f"reassign_{property_name}"):
-                # Find the booking
-                booking_data = df[df["Booking ID"] == booking_to_move].iloc[0]
-                source = booking_data["Source"]
-                
-                # Check for conflicts
-                existing_booking = df[df["Inventory No"] == new_inventory]
-                if not existing_booking.empty and new_inventory not in ["Day Use 1", "Day Use 2", "Overbooked", "No Show"]:
-                    st.warning(f"⚠️ Inventory {new_inventory} is already assigned to Booking ID: {existing_booking.iloc[0]['Booking ID']}")
-                    if st.button("⚠️ Confirm Overbooking", key=f"confirm_overbook_{property_name}"):
-                        if update_inventory_assignment(booking_to_move, source, new_inventory):
-                            st.success(f"✅ Booking {booking_to_move} reassigned to {new_inventory}")
-                            del st.session_state.all_reservations
-                            st.rerun()
-                else:
-                    if update_inventory_assignment(booking_to_move, source, new_inventory):
-                        st.success(f"✅ Booking {booking_to_move} reassigned to {new_inventory}")
-                        del st.session_state.all_reservations
-                        st.rerun()
-        
-        # Display bookings table with color coding
-        st.subheader("📋 Booking Details")
-        
-        # Create clickable booking IDs
-        def make_clickable_booking_id(booking_id, source):
-            return f'<a href="#" onclick="editBooking(\'{booking_id}\', \'{source}\')" style="color: #1f77b4; text-decoration: underline;">{booking_id}</a>'
-        
-        # Style function for overbooked rows
-        def highlight_overbooked(row):
-            if row["Overbooked"]:
-                return ['background-color: #ffebee; color: #c62828; font-weight: bold'] * len(row)
-            elif row["Booking Status"] == "Cancelled":
-                return ['background-color: #fff3e0; color: #ef6c00'] * len(row)
-            elif row["Payment Status"] == "Paid":
-                return ['background-color: #e8f5e8; color: #2e7d32'] * len(row)
-            return [''] * len(row)
-        
-        # Prepare display dataframe
-        display_df = df[["Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No", 
-                        "Total Pax", "Check-in", "Check-out", "Days", "Booking Status", 
-                        "Payment Status", "Total Tariff", "Advance", "Balance", "Remarks"]].copy()
-        
-        # Add edit links
-        for index, row in display_df.iterrows():
-            booking_id = row["Booking ID"]
-            source = df.loc[index, "Source"]
-            if st.button(f"✏️ Edit", key=f"edit_{booking_id}_{property_name}"):
-                st.session_state.edit_booking_id = booking_id
-                st.session_state.edit_booking_source = source
+
+    st.subheader(f"Booking Details for {selected_property} on {selected_date.strftime('%d-%b-%Y')}")
+
+    # Display table header
+    headers = ["Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No", "Total Pax", "Check-in", "Check-out", "Days", "Booking Status", "Payment Status", "Remarks"]
+    header_cols = st.columns(len(headers))
+    for col, header in zip(header_cols, headers):
+        col.write(f"**{header}**")
+
+    # Display rows
+    for res in sorted(filtered, key=lambda x: str(x.get("inventory_no", ""))):
+        row_cols = st.columns(len(headers))
+        row_cols[0].write(res.get("inventory_no", ""))
+        row_cols[1].write(res.get("room_no", ""))
+        with row_cols[2]:
+            unique_key = f"edit_{res['booking_id']}_{res['source']}_{selected_date}_{id(res)}"
+            if st.button(str(res["booking_id"]), key=unique_key):
+                st.session_state.edit_booking_id = res["booking_id"]
+                st.session_state.edit_booking_source = res["source"]
                 st.rerun()
-        
-        # Apply styling and display
-        styled_df = display_df.style.apply(highlight_overbooked, axis=1)
-        st.dataframe(styled_df, use_container_width=True, height=400)
-        
-        # Show totals
-        st.subheader("💰 Summary")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Tariff", f"₹{total_tariff:,.2f}")
-        with col2:
-            st.metric("Total Advance", f"₹{total_advance:,.2f}")
-        with col3:
-            st.metric("Total Balance", f"₹{total_balance:,.2f}")
-        with col4:
-            collection_percentage = (total_advance / total_tariff * 100) if total_tariff > 0 else 0
-            st.metric("Collection %", f"{collection_percentage:.1f}%")
-        
-        # Show overbooking details if any
-        if overbooked_count > 0:
-            st.error("🚨 **OVERBOOKING ALERT**")
-            overbooked_df = df[df["Overbooked"] == True]
-            st.write(f"⚠️ **{overbooked_count} booking(s) are overbooked and need immediate attention:**")
-            
-            overbooked_display = overbooked_df[["Booking ID", "Guest Name", "Room No", "Mobile No", "Total Tariff", "Remarks"]].copy()
-            st.dataframe(overbooked_display, use_container_width=True)
-            
-            # Quick fix suggestions
-            st.write("**💡 Quick Fix Options:**")
-            st.write("- Reassign to available Day Use inventory")
-            st.write("- Contact guest to reschedule")
-            st.write("- Upgrade to sister property if available")
+        row_cols[3].write(res.get("guest_name", ""))
+        row_cols[4].write(res.get("mobile_no", ""))
+        row_cols[5].write(res.get("total_pax", ""))
+        row_cols[6].write(res["check_in"].strftime("%d-%b-%Y") if res["check_in"] else "")
+        row_cols[7].write(res["check_out"].strftime("%d-%b-%Y") if res["check_out"] else "")
+        row_cols[8].write(res.get("no_of_days", ""))
+        row_cols[9].write(res.get("booking_status", ""))
+        row_cols[10].write(res.get("payment_status", ""))
+        row_cols[11].write(res.get("remarks", ""))
 
-def show_booking_edit_form(booking_id, source):
-    """Show edit form for a selected booking."""
-    st.subheader(f"✏️ Edit Booking: {booking_id}")
-    
-    # Load booking details
-    reservations = st.session_state.get('all_reservations', [])
-    booking = next((res for res in reservations if res["booking_id"] == booking_id and res["source"] == source), None)
-    
-    if not booking:
-        st.error("Booking not found!")
-        return
-    
-    # Edit form
-    with st.form(f"edit_booking_{booking_id}"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            new_guest_name = st.text_input("Guest Name", value=booking["guest_name"])
-            new_mobile_no = st.text_input("Mobile No", value=booking["mobile_no"])
-            new_total_pax = st.number_input("Total Pax", value=booking["total_pax"], min_value=1)
-            new_room_no = st.text_input("Room No", value=booking["room_no"])
-            new_room_type = st.text_input("Room Type", value=booking["room_type"])
-        
-        with col2:
-            new_check_in = st.date_input("Check-in Date", value=booking["check_in"])
-            new_check_out = st.date_input("Check-out Date", value=booking["check_out"])
-            new_booking_status = st.selectbox("Booking Status", 
-                                            ["Confirmed", "Pending", "Cancelled", "No Show"], 
-                                            index=["Confirmed", "Pending", "Cancelled", "No Show"].index(booking["booking_status"]) if booking["booking_status"] in ["Confirmed", "Pending", "Cancelled", "No Show"] else 0)
-            new_payment_status = st.selectbox("Payment Status", 
-                                            ["Paid", "Pending", "Advance Paid", "Not Paid"], 
-                                            index=["Paid", "Pending", "Advance Paid", "Not Paid"].index(booking["payment_status"]) if booking["payment_status"] in ["Paid", "Pending", "Advance Paid", "Not Paid"] else 0)
-            new_remarks = st.text_area("Remarks", value=booking["remarks"])
-        
-        # Financial details
-        st.subheader("💰 Financial Details")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            new_total_tariff = st.number_input("Total Tariff", value=float(booking["total_tariff"]), min_value=0.0, step=100.0)
-        with col2:
-            new_advance = st.number_input("Advance Amount", value=float(booking["advance_amount"]), min_value=0.0, step=100.0)
-        with col3:
-            new_balance = st.number_input("Balance Amount", value=float(booking["balance_amount"]), min_value=0.0, step=100.0)
-        
-        # Submit buttons
-        col1, col2 = st.columns(2)
-        with col1:
-            submitted = st.form_submit_button("💾 Save Changes", use_container_width=True)
-        with col2:
-            cancelled = st.form_submit_button("❌ Cancel", use_container_width=True)
-        
-        if submitted:
-            # Calculate days
-            new_days = (new_check_out - new_check_in).days if new_check_out > new_check_in else 1
-            
-            # Update booking
-            success = update_booking_details(booking_id, source, {
-                "guest_name": new_guest_name,
-                "mobile_no": new_mobile_no,
-                "total_pax": new_total_pax,
-                "room_no": new_room_no,
-                "room_type": new_room_type,
-                "check_in": new_check_in.strftime("%Y-%m-%d"),
-                "check_out": new_check_out.strftime("%Y-%m-%d"),
-                "no_of_days": new_days,
-                "booking_status": new_booking_status,
-                "payment_status": new_payment_status,
-                "total_tariff": new_total_tariff,
-                "advance_amount": new_advance,
-                "balance_amount": new_balance,
-                "remarks": new_remarks
-            })
-            
-            if success:
-                st.success("✅ Booking updated successfully!")
-                # Clear cache and return to main view
-                if 'all_reservations' in st.session_state:
-                    del st.session_state.all_reservations
-                if 'edit_booking_id' in st.session_state:
-                    del st.session_state.edit_booking_id
-                st.rerun()
-            else:
-                st.error("❌ Failed to update booking. Please try again.")
-        
-        if cancelled:
-            if 'edit_booking_id' in st.session_state:
-                del st.session_state.edit_booking_id
-            st.rerun()
-
-def update_booking_details(booking_id, source, updates):
-    """Update booking details in the database."""
+def update_inventory_assignment(booking_id, source, new_inventory_no):
+    """Update inventory assignment for a booking."""
     try:
         table_name = "reservations" if source == "direct" else "online_reservations"
         
-        # Map field names for online reservations
-        if source == "online":
-            field_mapping = {
-                "guest_name": "guest_name",
-                "mobile_no": "guest_phone",
-                "total_pax": "total_pax",
-                "room_no": "room_no",
-                "room_type": "room_type",
-                "check_in": "check_in",
-                "check_out": "check_out",
-                "booking_status": "booking_status",
-                "payment_status": "payment_status",
-                "total_tariff": "booking_amount",
-                "advance_amount": "total_payment_made",
-                "balance_amount": "balance_due",
-                "remarks": "remarks"
-            }
-            mapped_updates = {field_mapping.get(k, k): v for k, v in updates.items() if k in field_mapping}
-        else:
-            # For direct reservations, map plan_status
-            mapped_updates = updates.copy()
-            if "booking_status" in mapped_updates:
-                mapped_updates["plan_status"] = mapped_updates.pop("booking_status")
+        response = supabase.table(table_name).update({"inventory_no": new_inventory_no}).eq("booking_id", booking_id).execute()
         
-        response = supabase.table(table_name).update(mapped_updates).eq("booking_id", booking_id).execute()
         return bool(response.data)
-    
     except Exception as e:
-        st.error(f"Error updating booking: {e}")
+        st.error(f"Error updating inventory assignment: {e}")
         return False
-
-def show_inventory_analytics():
-    """Show inventory utilization analytics."""
-    st.subheader("📊 Inventory Analytics")
-    
-    # Date range selector
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        start_date = st.date_input("Start Date", value=date.today() - timedelta(days=30))
-    with col2:
-        end_date = st.date_input("End Date", value=date.today() + timedelta(days=30))
-    with col3:
-        analysis_type = st.selectbox("Analysis Type", ["Utilization", "Revenue", "Overbookings"])
-    
-    if start_date > end_date:
-        st.error("Start date must be before end date")
-        return
-    
-    # Load reservations
-    if 'all_reservations' not in st.session_state:
-        st.session_state.all_reservations = load_all_reservations()
-    
-    reservations = st.session_state.all_reservations
-    
-    # Filter by date range
-    filtered_reservations = [
-        res for res in reservations
-        if res["check_in"] and start_date <= res["check_in"] <= end_date
-    ]
-    
-    if not filtered_reservations:
-        st.info("No reservations found for the selected date range.")
-        return
-    
-    # Create analytics DataFrame
-    df = pd.DataFrame(filtered_reservations)
-    
-    # Property-wise analytics
-    if analysis_type == "Utilization":
-        show_utilization_analytics(df, start_date, end_date)
-    elif analysis_type == "Revenue":
-        show_revenue_analytics(df, start_date, end_date)
-    else:
-        show_overbooking_analytics(df, start_date, end_date)
-
-def show_utilization_analytics(df, start_date, end_date):
-    """Show inventory utilization analytics."""
-    st.subheader("🏨 Inventory Utilization Analysis")
-    
-    # Property-wise utilization
-    property_stats = []
-    inventory_map = get_inventory_mapping()
-    
-    for prop_name in df["property_name"].unique():
-        prop_df = df[df["property_name"] == prop_name]
-        prop_mapping = inventory_map.get(prop_name, {})
-        total_inventory = len(prop_mapping.get("room_mapping", {}))
-        
-        # Calculate utilization metrics
-        total_bookings = len(prop_df)
-        unique_dates = prop_df["check_in"].nunique()
-        avg_occupancy = total_bookings / (total_inventory * unique_dates) * 100 if unique_dates > 0 and total_inventory > 0 else 0
-        overbooked_count = len(prop_df[prop_df["inventory_no"] == "Overbooked"])
-        
-        property_stats.append({
-            "Property": prop_name,
-            "Total Inventory": total_inventory,
-            "Total Bookings": total_bookings,
-            "Unique Dates": unique_dates,
-            "Avg Occupancy %": round(avg_occupancy, 2),
-            "Overbookings": overbooked_count,
-            "Revenue": prop_df["total_tariff"].sum()
-        })
-    
-    stats_df = pd.DataFrame(property_stats)
-    
-    # Display metrics
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Properties", len(stats_df))
-    with col2:
-        avg_utilization = stats_df["Avg Occupancy %"].mean()
-        st.metric("Avg Utilization", f"{avg_utilization:.1f}%")
-    with col3:
-        total_overbookings = stats_df["Overbookings"].sum()
-        st.metric("Total Overbookings", total_overbookings)
-    with col4:
-        total_revenue = stats_df["Revenue"].sum()
-        st.metric("Total Revenue", f"₹{total_revenue:,.2f}")
-    
-    # Utilization chart
-    fig = px.bar(stats_df, x="Property", y="Avg Occupancy %", 
-                 title="Property-wise Average Occupancy",
-                 color="Avg Occupancy %",
-                 color_continuous_scale="RdYlGn")
-    fig.update_layout(xaxis_tickangle=-45)
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Detailed table
-    st.dataframe(stats_df, use_container_width=True)
-    
-    # Daily utilization trend
-    daily_stats = df.groupby(["check_in", "property_name"]).agg({
-        "booking_id": "count",
-        "total_tariff": "sum"
-    }).reset_index()
-    daily_stats.columns = ["Date", "Property", "Bookings", "Revenue"]
-    
-    fig2 = px.line(daily_stats, x="Date", y="Bookings", color="Property",
-                   title="Daily Booking Trends by Property")
-    st.plotly_chart(fig2, use_container_width=True)
-
-def show_revenue_analytics(df, start_date, end_date):
-    """Show revenue analytics."""
-    st.subheader("💰 Revenue Analysis")
-    
-    # Revenue metrics
-    total_revenue = df["total_tariff"].sum()
-    total_advance = df["advance_amount"].sum()
-    total_balance = df["balance_amount"].sum()
-    collection_rate = (total_advance / total_revenue * 100) if total_revenue > 0 else 0
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Revenue", f"₹{total_revenue:,.2f}")
-    with col2:
-        st.metric("Advance Collected", f"₹{total_advance:,.2f}")
-    with col3:
-        st.metric("Balance Due", f"₹{total_balance:,.2f}")
-    with col4:
-        st.metric("Collection Rate", f"{collection_rate:.1f}%")
-    
-    # Property-wise revenue
-    prop_revenue = df.groupby("property_name").agg({
-        "total_tariff": "sum",
-        "advance_amount": "sum",
-        "balance_amount": "sum",
-        "booking_id": "count"
-    }).reset_index()
-    prop_revenue.columns = ["Property", "Total Revenue", "Advance", "Balance", "Bookings"]
-    prop_revenue["Collection %"] = (prop_revenue["Advance"] / prop_revenue["Total Revenue"] * 100).round(2)
-    
-    # Revenue by property chart
-    fig = px.bar(prop_revenue, x="Property", y="Total Revenue",
-                 title="Revenue by Property",
-                 color="Collection %",
-                 color_continuous_scale="RdYlGn")
-    fig.update_layout(xaxis_tickangle=-45)
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Revenue table
-    st.dataframe(prop_revenue, use_container_width=True)
-    
-    # Daily revenue trend
-    daily_revenue = df.groupby("check_in").agg({
-        "total_tariff": "sum",
-        "advance_amount": "sum",
-        "booking_id": "count"
-    }).reset_index()
-    daily_revenue.columns = ["Date", "Revenue", "Advance", "Bookings"]
-    
-    fig2 = px.line(daily_revenue, x="Date", y="Revenue",
-                   title="Daily Revenue Trend")
-    st.plotly_chart(fig2, use_container_width=True)
-    
-    # Payment status distribution
-    payment_dist = df["payment_status"].value_counts()
-    fig3 = px.pie(values=payment_dist.values, names=payment_dist.index,
-                  title="Payment Status Distribution")
-    st.plotly_chart(fig3, use_container_width=True)
-
-def show_overbooking_analytics(df, start_date, end_date):
-    """Show overbooking analytics."""
-    st.subheader("🚨 Overbooking Analysis")
-    
-    # Overbooking metrics
-    total_bookings = len(df)
-    overbooked_bookings = len(df[df["inventory_no"] == "Overbooked"])
-    overbooking_rate = (overbooked_bookings / total_bookings * 100) if total_bookings > 0 else 0
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Bookings", total_bookings)
-    with col2:
-        st.metric("Overbooked", overbooked_bookings)
-    with col3:
-        st.metric("Overbooking Rate", f"{overbooking_rate:.2f}%")
-    with col4:
-        cancelled_bookings = len(df[df["booking_status"] == "Cancelled"])
-        st.metric("Cancelled", cancelled_bookings)
-    
-    if overbooked_bookings == 0:
-        st.success("🎉 **Excellent! No overbookings found in the selected period.**")
-        return
-    
-    # Overbooking by property
-    overbooked_df = df[df["inventory_no"] == "Overbooked"]
-    prop_overbooking = overbooked_df.groupby("property_name").agg({
-        "booking_id": "count",
-        "total_tariff": "sum"
-    }).reset_index()
-    prop_overbooking.columns = ["Property", "Overbookings", "Lost Revenue"]
-    
-    # Overbooking chart
-    fig = px.bar(prop_overbooking, x="Property", y="Overbookings",
-                 title="Overbookings by Property",
-                 color="Lost Revenue",
-                 color_continuous_scale="Reds")
-    fig.update_layout(xaxis_tickangle=-45)
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Detailed overbooking table
-    st.subheader("📋 Detailed Overbooking List")
-    overbooked_display = overbooked_df[["check_in", "property_name", "booking_id", "guest_name", 
-                                       "mobile_no", "room_no", "total_tariff", "remarks"]].copy()
-    overbooked_display.columns = ["Check-in", "Property", "Booking ID", "Guest", "Mobile", 
-                                 "Room No", "Revenue Impact", "Remarks"]
-    
-    st.dataframe(overbooked_display, use_container_width=True)
-    
-    # Daily overbooking trend
-    daily_overbook = overbooked_df.groupby("check_in").size().reset_index()
-    daily_overbook.columns = ["Date", "Overbookings"]
-    
-    if len(daily_overbook) > 0:
-        fig2 = px.line(daily_overbook, x="Date", y="Overbookings",
-                       title="Daily Overbooking Trend")
-        st.plotly_chart(fig2, use_container_width=True)
 
 def show_inventory_availability_matrix(selected_date):
     """Show inventory availability matrix for a specific date."""
