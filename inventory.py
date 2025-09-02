@@ -1,9 +1,11 @@
+# inventory.py
 import streamlit as st
 import pandas as pd
-from datetime import datetime, date, timedelta
-import calendar
+from datetime import date
+from dateutil.relativedelta import relativedelta
 from supabase import create_client, Client
-from utils import safe_int, safe_float
+from directreservation import load_reservations_from_supabase, load_property_room_map, parse_date as direct_parse_date, calculate_days
+from online_reservation import load_online_reservations_from_supabase, parse_date as online_parse_date
 
 # Initialize Supabase client
 try:
@@ -12,158 +14,164 @@ except KeyError as e:
     st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets configuration.")
     st.stop()
 
-def load_all_reservations():
-    """Load both direct and online reservations."""
-    try:
-        # Load direct reservations
-        direct_response = supabase.table("reservations").select("*").execute()
-        direct_reservations = []
-        
-        for record in direct_response.data:
-            reservation = {
-                "booking_id": record["booking_id"],
-                "guest_name": record["guest_name"] or "",
-                "mobile_no": record["mobile_no"] or "",
-                "enquiry_date": datetime.strptime(record["enquiry_date"], "%Y-%m-%d").date() if record["enquiry_date"] else None,
-                "room_no": record["room_no"] or "",
-                "mob": record["mob"] or "",
-                "check_in": datetime.strptime(record["check_in"], "%Y-%m-%d").date() if record["check_in"] else None,
-                "check_out": datetime.strptime(record["check_out"], "%Y-%m-%d").date() if record["check_out"] else None,
-                "booking_status": record["booking_status"] or "Pending",
-                "payment_status": record.get("payment_status", "Not Paid"),
-                "remarks": record.get("remarks", "")
-            }
-            direct_reservations.append(reservation)
-        
-        # Load online reservations
-        online_response = supabase.table("online_reservations").select("*").execute()
-        online_reservations = []
-        
-        for record in online_response.data:
-            reservation = {
-                "booking_id": record["booking_id"],
-                "guest_name": record["guest_name"] or "",
-                "mobile_no": record["guest_phone"] or "",
-                "enquiry_date": datetime.strptime(record["enquiry_date"], "%Y-%m-%d").date() if record["enquiry_date"] else None,
-                "room_no": record["room_no"] or "",
-                "mob": "Online" if record.get("source") == "online" else "Direct",
-                "check_in": datetime.strptime(record["check_in"], "%Y-%m-%d").date() if record["check_in"] else None,
-                "check_out": datetime.strptime(record["check_out"], "%Y-%m-%d").date() if record["check_out"] else None,
-                "booking_status": record["booking_status"] or "Pending",
-                "payment_status": record.get("payment_status", "Not Paid"),
-                "remarks": record.get("remarks", "")
-            }
-            online_reservations.append(reservation)
-        
-        return direct_reservations + online_reservations
-    
-    except Exception as e:
-        st.error(f"Error loading reservations: {e}")
-        return []
+def parse_room_no(room_no):
+    room_no = str(room_no).strip()
+    if 'to' in room_no:
+        parts = room_no.split('to')
+        if len(parts) == 2:
+            try:
+                start = int(parts[0])
+                end = int(parts[1])
+                return [str(i) for i in range(start, end + 1)]
+            except ValueError:
+                return [room_no]
+    if '&' in room_no:
+        parts = room_no.split('&')
+        return [p.strip() for p in parts]
+    if ',' in room_no:
+        parts = room_no.split(',')
+        return [p.strip() for p in parts]
+    return [room_no]
 
-def show_calendar_navigation():
-    """Show year and month calendar navigation."""
-    st.title("🏨 Daily Status Dashboard")
-    st.markdown("---")
-    
-    current_year = datetime.now().year
-    col1, col2 = st.columns([1, 3])
-    
-    with col1:
-        selected_year = st.selectbox("Year", [current_year - 1, current_year, current_year + 1], index=1)
-    
-    with col2:
-        st.write("### Select Month")
-        months = [
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
-        ]
-        
-        month_cols = st.columns(4)
-        selected_month = None
-        
-        for i, month in enumerate(months):
-            col_index = i % 4
-            with month_cols[col_index]:
-                if st.button(f"📆 {month}", key=f"month_{i}", use_container_width=True):
-                    selected_month = i + 1
-                    st.session_state.selected_month = selected_month
-                    st.session_state.selected_year = selected_year
-    
-    if hasattr(st.session_state, 'selected_month') and hasattr(st.session_state, 'selected_year'):
-        show_monthly_daily_status(st.session_state.selected_year, st.session_state.selected_month)
+def get_inventory_nos(property_name, room_no, room_type, booking_status):
+    if booking_status == "No Show":
+        return ['No Show']
+    if room_type in ["Other", "UNASSIGNED"] or not room_type:
+        return ['Day Use 1']
 
-def show_monthly_daily_status(year, month):
-    """Show daily status for the selected month."""
-    st.subheader(f"Daily Status for {calendar.month_name[month]} {year}")
+    # Property-specific special mappings
+    if property_name == "Le Poshe Luxury":
+        if room_no in ['D1', 'D2', 'D3', 'D4', 'D5']:
+            map_d = {'D1': '203', 'D2': '204', 'D3': '205', 'D4': '303', 'D5': '305'}
+            return [map_d[room_no]]
+    elif property_name == "Le Pondy Beach Side":
+        if room_no == "Singleroom":
+            return ['101']
+        elif room_no == "TwoRooms":
+            return ['101', '102']
+        elif room_no == "ThreeRooms":
+            return ['101', '102', '201']
+        elif room_no == "11":
+            return ['101']
+    elif property_name == "La Paradise Luxury":
+        if room_no == "sp":
+            return ['101']
+    elif property_name == "La Villa Heritage":
+        if room_no == "EVA":
+            return ['101']
+    # Add more special cases as needed for other properties
 
-    # Load reservations
-    if 'all_reservations' not in st.session_state:
-        st.session_state.all_reservations = load_all_reservations()
+    # Default to parsing the room_no
+    return parse_room_no(room_no)
 
-    reservations = st.session_state.all_reservations
+def show_daily_status():
+    st.title("📅 Daily Status")
 
-    # Get days in month
-    _, num_days = calendar.monthrange(year, month)
-    days = [date(year, month, day) for day in range(1, num_days + 1)]
+    # Show all 12 months in a calendar-like view (grid of buttons)
+    st.subheader("Select Month")
+    months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    cols = st.columns(3)
+    selected_month = st.session_state.get('selected_month', None)
+    for i, month in enumerate(months):
+        with cols[i % 3]:
+            if st.button(month):
+                st.session_state.selected_month = month
+                selected_month = month
 
-    selected_day = st.selectbox("Select Day", days, format_func=lambda x: x.strftime("%d-%b-%Y"), key="day_select")
+    if selected_month:
+        year = 2025  # Fixed year as per current date context
+        month_map = {m: i+1 for i, m in enumerate(months)}
+        month_num = month_map[selected_month]
+        month_start = date(year, month_num, 1)
+        next_month = month_start + relativedelta(months=1)
+        month_end = next_month - relativedelta(days=1)
 
-    # Filter reservations for the selected day
-    filtered = [
-        res for res in reservations
-        if res["check_in"] and res["check_out"] and res["check_in"] <= selected_day < res["check_out"]
-    ]
+        # Load reservations
+        direct_res = load_reservations_from_supabase()
+        online_res = load_online_reservations_from_supabase()
 
-    if not filtered:
-        st.info(f"No bookings for {selected_day.strftime('%d-%b-%Y')}")
-        return
+        # Normalize and filter bookings overlapping the month
+        bookings = []
+        for r in direct_res:
+            check_in = r["Check In"] if isinstance(r["Check In"], date) else direct_parse_date(r["Check In"])
+            check_out = r["Check Out"] if isinstance(r["Check Out"], date) else direct_parse_date(r["Check Out"])
+            if check_in is None or check_out is None or check_out <= month_start or check_in > month_end:
+                continue
+            bookings.append({
+                "type": "direct",
+                "property": r["Property Name"],
+                "booking_id": r["Booking ID"],
+                "guest_name": r["Guest Name"],
+                "mobile_no": r["Mobile No"],
+                "total_pax": r["Total Pax"],
+                "check_in": check_in,
+                "check_out": check_out,
+                "days": r["No of Days"],
+                "booking_status": r["Booking Status"],
+                "payment_status": r["Payment Status"],
+                "remarks": r["Remarks"],
+                "room_no": r["Room No"],
+                "room_type": r["Room Type"],
+            })
+        for r in online_res:
+            check_in = online_parse_date(r["check_in"])
+            check_out = online_parse_date(r["check_out"])
+            if check_in is None or check_out is None or check_out <= month_start or check_in > month_end:
+                continue
+            bookings.append({
+                "type": "online",
+                "property": r["property"],
+                "booking_id": r["booking_id"],
+                "guest_name": r["guest_name"],
+                "mobile_no": r["guest_phone"],
+                "total_pax": r["total_pax"],
+                "check_in": check_in,
+                "check_out": check_out,
+                "days": calculate_days(check_in, check_out),
+                "booking_status": r["booking_status"],
+                "payment_status": r["payment_status"],
+                "remarks": r["remarks"],
+                "room_no": r["room_no"],
+                "room_type": r["room_type"],
+            })
 
-    st.subheader(f"Booking Details for {selected_day.strftime('%d-%b-%Y')}")
+        # Get all properties
+        property_map = load_property_room_map()
+        properties = sorted(property_map.keys())
 
-    # Display table
-    headers = ["Booking ID", "Guest Name", "Mobile No", "Enquiry Date", "Room No", "MOB", "Check In", "Check Out", "Booking Status", "Payment Status", "Remarks"]
-    header_cols = st.columns(len(headers))
-    for col, header in zip(header_cols, headers):
-        col.write(f"**{header}**")
+        st.subheader(f"Properties for {selected_month} {year}")
+        for prop in properties:
+            with st.expander(prop):
+                property_bookings = [b for b in bookings if b["property"] == prop]
+                if not property_bookings:
+                    st.info("No bookings for this property in the selected month.")
+                    continue
 
-    for res in sorted(filtered, key=lambda x: x.get("booking_id", "")):
-        row_cols = st.columns(len(headers))
-        with row_cols[0]:
-            unique_key = f"edit_{res['booking_id']}_{selected_day}_{id(res)}"
-            if st.button(str(res["booking_id"]), key=unique_key):
-                st.session_state.edit_booking_id = res["booking_id"]
-                st.session_state.edit_booking_source = "direct"  # Adjust based on source if needed
-                st.rerun()
-        row_cols[1].write(res.get("guest_name", ""))
-        row_cols[2].write(res.get("mobile_no", ""))
-        row_cols[3].write(res["enquiry_date"].strftime("%d-%m-%Y") if res["enquiry_date"] else "")
-        row_cols[4].write(res.get("room_no", ""))
-        row_cols[5].write(res.get("mob", ""))
-        row_cols[6].write(res["check_in"].strftime("%d-%m-%Y") if res["check_in"] else "")
-        row_cols[7].write(res["check_out"].strftime("%d-%m-%Y") if res["check_out"] else "")
-        row_cols[8].write(res.get("booking_status", ""))
-        row_cols[9].write(res.get("payment_status", ""))
-        row_cols[10].write(res.get("remarks", ""))
+                table_data = []
+                for b in property_bookings:
+                    inventory_nos = get_inventory_nos(prop, b["room_no"], b["room_type"], b["booking_status"])
+                    inventory_str = ', '.join(inventory_nos)
 
-def main():
-    """Main function for daily status."""
-    st.set_page_config(
-        page_title="Hotel Daily Status",
-        page_icon="🏨",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-    
-    if hasattr(st.session_state, 'edit_booking_id'):
-        st.write("Edit Reservation screen would open here with pre-filled details.")
-        if st.button("Back to Daily Status"):
-            del st.session_state.edit_booking_id
-            del st.session_state.edit_booking_source
-            st.rerun()
-        return
-    
-    show_calendar_navigation()
+                    # Make Booking ID a hyperlink based on type
+                    if b["type"] == "direct":
+                        booking_id_html = f'<a href="/directreservation?booking_id={b["booking_id"]}">{b["booking_id"]}</a>'
+                    else:
+                        booking_id_html = f'<a href="/editOnline?booking_id={b["booking_id"]}">{b["booking_id"]}</a>'
 
-if __name__ == "__main__":
-    main()
+                    table_data.append({
+                        "Inventory No": inventory_str,
+                        "Room No": b["room_no"],
+                        "Booking ID": booking_id_html,
+                        "Guest Name": b["guest_name"],
+                        "Mobile No": b["mobile_no"],
+                        "Total Pax": b["total_pax"],
+                        "Check-in Date": b["check_in"],
+                        "Check-out Date": b["check_out"],
+                        "Days": b["days"],
+                        "Booking Status": b["booking_status"],
+                        "Payment Status": b["payment_status"],
+                        "Remarks": b["remarks"],
+                    })
+
+                df = pd.DataFrame(table_data)
+                st.markdown(df.to_html(escape=False, index=False), unsafe_allow_html=True)
