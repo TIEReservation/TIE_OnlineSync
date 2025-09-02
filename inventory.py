@@ -4,7 +4,26 @@ import pandas as pd
 from datetime import date
 from dateutil.relativedelta import relativedelta
 from supabase import create_client, Client
-from directreservation import load_reservations_from_supabase, load_property_room_map, parse_date as direct_parse_date, calculate_days
+
+# Attempt to import from directreservation, with fallback for missing functions
+try:
+    from directreservation import load_reservations_from_supabase, load_property_room_map, calculate_days
+    from directreservation import parse_date as direct_parse_date
+except ImportError as e:
+    st.warning(f"Some functions from directreservation could not be imported: {e}. Using fallback implementations.")
+    def load_reservations_from_supabase():
+        st.error("Fallback: load_reservations_from_supabase not available.")
+        return []
+    def load_property_room_map():
+        st.error("Fallback: load_property_room_map not available.")
+        return {}
+    def direct_parse_date(dt_str):
+        st.error("Fallback: direct_parse_date not available.")
+        return None
+    def calculate_days(check_in, check_out):
+        st.error("Fallback: calculate_days not available.")
+        return 0
+
 from online_reservation import load_online_reservations_from_supabase, parse_date as online_parse_date
 
 # Initialize Supabase client
