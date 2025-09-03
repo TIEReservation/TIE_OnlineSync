@@ -12,7 +12,9 @@ def load_full_room_map():
     """
     try:
         result = load_property_room_map()  # Assume it returns [{'property_name': '...', 'inventory_no': '...'}, ...]
-        st.write("Debug: load_full_room_map returned:", result)  # Debug to verify data
+        st.write("Debug: load_full_room_map returned type:", type(result), "value:", result)  # Enhanced debug
+        if not result:
+            st.warning("load_property_room_map returned no data.")
         return result if result else []
     except Exception as e:
         st.error(f"Error loading full inventory map: {e}")
@@ -28,10 +30,16 @@ def get_unique_rooms(property_name: str) -> list[str]:
         return []
     all_rooms = set()
     for record in room_map:
+        if not isinstance(record, dict):
+            st.warning(f"Invalid record format: {record}, skipping.")
+            continue
         if record.get("property_name") == property_name:
             inventory_no = record.get("inventory_no", "")
-            all_rooms.add(inventory_no)  # Use as-is, no parsing unless ranges are added
-    return sorted(list(all_rooms), key=lambda x: (0, int(x)) if x.isdigit() else (1, x))
+            all_rooms.add(inventory_no)
+            st.write(f"Debug: Added inventory_no for {property_name}: {inventory_no}")
+    sorted_rooms = sorted(list(all_rooms), key=lambda x: (0, int(x)) if x.isdigit() else (1, x))
+    st.write(f"Debug: Final unique rooms for {property_name}: {sorted_rooms}")
+    return sorted_rooms
 
 def show_daily_status():
     """
@@ -51,7 +59,7 @@ def show_daily_status():
 
     # List properties from the full map
     room_map = load_full_room_map()
-    properties = sorted(set(record.get("property_name") for record in room_map if record.get("property_name")) or [])
+    properties = sorted(set(record.get("property_name") for record in room_map if isinstance(record, dict) and record.get("property_name")) or [])
     property_name = st.selectbox("Select Property", [""] + properties)
 
     if not property_name:
@@ -61,7 +69,7 @@ def show_daily_status():
     # Fetch inventory numbers once
     inventory_nums = get_unique_rooms(property_name)
     if not inventory_nums:
-        st.warning(f"No inventory numbers found for {property_name}.")
+        st.warning(f"No inventory numbers found for {property_name}. Please check the Inventory table or load_property_room_map implementation.")
         return
 
     # Get days in month
