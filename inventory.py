@@ -108,8 +108,7 @@ def generate_daily_tables(property_name: str, date_range: List[date]):
             st.dataframe(
                 df, 
                 use_container_width=True,
-                hide_index=True,
-                column_config={i: None for i in range(COLUMN_COUNT)}  # Hide column labels
+                hide_index=True
             )
 
 def clear_cache():
