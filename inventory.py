@@ -13,16 +13,16 @@ def load_full_room_map():
     """
     try:
         result = load_property_room_map()  # Call without arguments
-        st.write("Debug: load_full_room_map returned:", result)  # Debug output
-        return result if result else {}
+        st.write("Debug: load_full_room_map returned:", result)  # Debug output to inspect data
+        return result if result else []
     except Exception as e:
         st.error(f"Error loading full inventory map: {e}")
-        return {}
+        return []
 
 def parse_room_string(room_str: str) -> list[str]:
     """
-    Parse a room string to a list of individual room numbers, handling ranges (e.g., '203to205').
-    Only processes 'to' ranges, ignoring '&' as a delimiter unless part of a valid range.
+    Parse a room string to a list of individual room numbers, handling only 'to' ranges.
+    Preserves original value if no valid range.
     """
     try:
         room_str = str(room_str).strip()
@@ -32,25 +32,25 @@ def parse_room_string(room_str: str) -> list[str]:
                 start, end = int(numbers[0]), int(numbers[1])
                 if start <= end:
                     return [str(i) for i in range(start, end + 1)]
-                else:
-                    return [room_str]  # Return original if invalid range
-        return [room_str]  # Return as-is if no 'to' range
+        return [room_str]  # Return original if no valid range or error
     except ValueError:
-        return [room_str]  # Return original string on error
+        return [room_str]  # Return original on error
 
 def get_unique_rooms(property_name: str) -> list[str]:
     """
     Get sorted list of unique inventory numbers for a property from the full room map.
     """
     room_map = load_full_room_map()
-    if not room_map or property_name not in room_map:
-        st.warning(f"No inventory numbers found for {property_name}")
+    if not room_map:
+        st.warning(f"No inventory data available for {property_name}")
         return []
     all_rooms = set()
-    # Assuming room_map is {property_name: [inventory_no_list, ...]}
-    for inventory_no in room_map.get(property_name, []):
-        parsed_rooms = parse_room_string(inventory_no)
-        all_rooms.update(parsed_rooms)
+    # Assuming room_map is a list of dicts: [{"property_name": "...", "inventory_no": "..."}, ...]
+    for record in room_map:
+        if record.get("property_name") == property_name:
+            inventory_no = record.get("inventory_no", "")
+            parsed_rooms = parse_room_string(inventory_no)
+            all_rooms.update(parsed_rooms)
     # Sort with tuple key: numerics first (sorted numerically), then non-numerics (alphabetically)
     return sorted(list(all_rooms), key=lambda x: (0, int(x)) if x.isdigit() else (1, x))
 
@@ -73,7 +73,7 @@ def show_daily_status():
 
     # List properties from the full map
     room_map = load_full_room_map()
-    properties = sorted(room_map.keys()) if room_map else []
+    properties = sorted(set(record.get("property_name") for record in room_map if record.get("property_name")) or [])
     property_name = st.selectbox("Select Property", [""] + properties)
 
     if not property_name:
