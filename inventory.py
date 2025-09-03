@@ -92,10 +92,9 @@ def generate_daily_tables(property_name: str, date_range: List[date]):
     inventory_nums = fetch_inventory_numbers(property_name)
     
     for target_date in date_range:
-        # Create expander for each date
+        # Create expander for each date - REMOVED expanded parameter
         with st.expander(
             f"{property_name} - {target_date.strftime('%Y-%m-%d')}", 
-            expanded=False,
             key=f"{property_name}_{target_date}"
         ):
             # Generate table data
@@ -133,15 +132,18 @@ def show_daily_status():
     
     for i, month in enumerate(months):
         with cols[i % 3]:
-            if st.button(month):
+            if st.button(month, key=f"month_{month}"):
                 st.session_state.selected_month = month
+                # Clear property selection when month changes
+                if 'selected_property' in st.session_state:
+                    del st.session_state.selected_property
                 selected_month = month
 
     # Cache clear button
     if st.button("Clear Cache"):
         clear_cache()
 
-    # Process selected month
+    # Process selected month - NEW TWO-STEP FLOW
     if selected_month:
         year = datetime.now().year  # Current year
         month_map = {m: i+1 for i, m in enumerate(months)}
@@ -150,7 +152,7 @@ def show_daily_status():
         start_date, end_date = validate_date_range(year, month_num)
         date_range = [start_date + timedelta(days=x) for x in range((end_date - start_date).days + 1)]
         
-        st.success(f"Showing daily tables for {selected_month} {year} ({len(date_range)} days)")
+        st.success(f"Selected {selected_month} {year} ({len(date_range)} days)")
 
         # Import or use fallback for load_property_room_map
         try:
@@ -166,11 +168,23 @@ def show_daily_status():
 
         property_map = load_property_room_map()
         
-        # Generate tables for each property
-        for prop in sorted(property_map.keys()):
-            with st.expander(f"🏨 {prop}", expanded=True, key=f"prop_{prop}"):
-                st.write(f"Generating {len(date_range)} daily tables for {prop}")
-                generate_daily_tables(prop, date_range)
+        # STEP 2: Show property selection
+        st.subheader("Select Property")
+        selected_property = st.session_state.get('selected_property', None)
+        
+        # Create property selection buttons
+        property_cols = st.columns(2)  # Adjust based on number of properties
+        for i, prop in enumerate(sorted(property_map.keys())):
+            with property_cols[i % 2]:
+                if st.button(f"🏨 {prop}", key=f"select_{prop}"):
+                    st.session_state.selected_property = prop
+                    selected_property = prop
+        
+        # STEP 3: Show daily tables for selected property
+        if selected_property:
+            st.subheader(f"Daily Tables - {selected_property}")
+            st.info(f"Showing {len(date_range)} daily tables for {selected_property} in {selected_month} {year}")
+            generate_daily_tables(selected_property, date_range)
 
 if __name__ == "__main__":
     show_daily_status()
