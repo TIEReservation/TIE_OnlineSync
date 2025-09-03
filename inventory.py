@@ -3,45 +3,35 @@ import streamlit as st
 import pandas as pd
 from datetime import date, datetime
 import calendar
-import psycopg2
-from psycopg2 import Error
-
-# Database connection configuration (replace with your credentials)
-DB_CONFIG = {
-    "dbname": "your_database",
-    "user": "your_username",
-    "password": "your_password",
-    "host": "your_host",
-    "port": "your_port"
-}
+from directreservation import load_property_room_map
 
 @st.cache_data
-def get_inventory_data():
+def load_full_room_map():
     """
-    Fetch all inventory data from the Inventory table.
+    Cached load of the full property inventory map from the database via load_property_room_map.
     """
-    conn = None
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute("SELECT property_name, inventory_no FROM Inventory")
-        rows = cursor.fetchall()
-        return {row[0]: list(set(row[1] for row in rows if row[0] == row[0])) for row in rows}  # Group by property
-    except Error as e:
-        st.error(f"Database error: {e}")
-        return {}
-    finally:
-        if conn:
-            cursor.close()
-            conn.close()
+        result = load_property_room_map()  # Assume it returns [{'property_name': '...', 'inventory_no': '...'}, ...]
+        st.write("Debug: load_full_room_map returned:", result)  # Debug to verify data
+        return result if result else []
+    except Exception as e:
+        st.error(f"Error loading full inventory map: {e}")
+        return []
 
 def get_unique_rooms(property_name: str) -> list[str]:
     """
     Get sorted list of unique inventory_no values for a property.
     """
-    inventory_data = get_inventory_data()
-    rooms = inventory_data.get(property_name, [])
-    return sorted(rooms, key=lambda x: (0, int(x)) if x.isdigit() else (1, x))
+    room_map = load_full_room_map()
+    if not room_map:
+        st.warning(f"No inventory data available for {property_name}")
+        return []
+    all_rooms = set()
+    for record in room_map:
+        if record.get("property_name") == property_name:
+            inventory_no = record.get("inventory_no", "")
+            all_rooms.add(inventory_no)  # Use as-is, no parsing unless ranges are added
+    return sorted(list(all_rooms), key=lambda x: (0, int(x)) if x.isdigit() else (1, x))
 
 def show_daily_status():
     """
@@ -59,9 +49,9 @@ def show_daily_status():
     month_index = st.selectbox("Select Month", range(len(month_names)), format_func=lambda x: month_names[x])
     month = months[month_index]
 
-    # List properties from inventory data
-    inventory_data = get_inventory_data()
-    properties = sorted(inventory_data.keys())
+    # List properties from the full map
+    room_map = load_full_room_map()
+    properties = sorted(set(record.get("property_name") for record in room_map if record.get("property_name")) or [])
     property_name = st.selectbox("Select Property", [""] + properties)
 
     if not property_name:
