@@ -11,8 +11,8 @@ def parse_room_string(room_str: str) -> list[str]:
     Parse a room string to a list of individual room numbers, handling ranges (e.g., '203to205') and splits (e.g., '101&102').
     """
     try:
-        if 'to' in room_str:
-            numbers = re.findall(r'\d+', room_str)
+        if 'to' in str(room_str):  # Ensure room_str is treated as string
+            numbers = re.findall(r'\d+', str(room_str))
             if len(numbers) == 2:
                 start, end = int(numbers[0]), int(numbers[1])
                 if start <= end:
@@ -20,7 +20,7 @@ def parse_room_string(room_str: str) -> list[str]:
                 else:
                     return []
         else:
-            parts = re.split(r'[& ,]+', room_str)
+            parts = re.split(r'[& ,]+', str(room_str))
             return [p.strip() for p in parts if p.strip().isdigit()]
     except ValueError:
         return []
@@ -30,20 +30,20 @@ def get_unique_rooms(property_name: str) -> list[str]:
     Fetch and return a sorted list of unique inventory numbers for a property from the database.
     """
     try:
-        # Assuming load_property_room_map returns a response object with inventory data
+        # Fetch data from the database
         response = load_property_room_map(property_name)
-        if not response.data:
+        if not response or not hasattr(response, 'data') or not response.data:
             st.warning(f"No inventory numbers found for {property_name}")
             return []
         all_rooms = set()
         for record in response.data:
-            inventory_no = record["inventory_no"]
-            all_rooms.update(parse_room_string(inventory_no) if 'to' in str(inventory_no) else [str(inventory_no)])
-        # Sort numerically for digit-only strings, alphabetically for others
-        return sorted(list(all_rooms), key=lambda x: (x.isdigit() and int(x) or x))
+            inventory_no = str(record.get("inventory_no", ""))  # Convert to string and handle missing keys
+            all_rooms.update(parse_room_string(inventory_no) if 'to' in inventory_no else [inventory_no])
+        # Sort all values as strings to avoid type mismatches
+        return sorted(list(all_rooms))
     except Exception as e:
         st.error(f"Error fetching inventory for {property_name}: {e}")
-        return []
+        return []  # Return empty list to allow table display
 
 def show_daily_status():
     """
@@ -62,7 +62,7 @@ def show_daily_status():
     month_index = st.selectbox("Select Month", range(len(month_names)), format_func=lambda x: month_names[x])
     month = months[month_index]
 
-    # List properties (assuming properties are fetched or hardcoded based on DB)
+    # List properties (assuming these are available in the database)
     properties = sorted(["Eden Beach Resort", "La Antilia", "La Millionare Resort", "La Paradise Luxury", "La Paradise Residency", "La Tamara Luxury"])
     property_name = st.selectbox("Select Property", [""] + properties)
 
@@ -78,12 +78,9 @@ def show_daily_status():
     for day in days:
         with st.expander(f"{property_name} - {day.strftime('%B %d, %Y')}"):
             inventory_nums = get_unique_rooms(property_name)
-            if not inventory_nums:
-                st.warning("No inventory numbers found for this property.")
-                continue
-            num_inventory = len(inventory_nums)
+            num_inventory = len(inventory_nums) if inventory_nums else 1  # Ensure at least one row
             data = {
-                "Inventory No": inventory_nums,  # Use fetched inventory numbers
+                "Inventory No": inventory_nums if inventory_nums else ["No data available"],
                 "Room No": [""] * num_inventory,  # Leave Room No blank
                 "Guest Name": [""] * num_inventory,
                 "Mobile No": [""] * num_inventory,
