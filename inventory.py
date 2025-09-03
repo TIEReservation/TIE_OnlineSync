@@ -138,7 +138,7 @@ except ImportError as e:
                 "Villa": ["101to104", "101", "102", "103", "104"]
             },
             "Le Royce Villa": {
-                "Villa": ["101to102&201to202", "101", "102", "202", "202"]
+                "Villa": ["101to102&201to202", "101", "102", "201", "202"]
             },
             "La Tamara Luxury": {
                 "3BHA": ["101to103", "101", "102", "103", "104to106", "104", "105", "106", "201to203", "201", "202", "203", "204to206", "204", "205", "206", "301to303", "301", "302", "303", "304to306", "304", "305", "306"],
@@ -176,7 +176,26 @@ except ImportError as e:
             }
         }
 
-from online_reservation import load_online_reservations_from_supabase, parse_date as online_parse_date
+# Import online_reservation functions
+try:
+    from online_reservation import load_online_reservations_from_supabase, parse_date as online_parse_date
+except ImportError as e:
+    st.warning(f"Import from online_reservation failed: {e}. Using placeholder implementations.")
+    def load_online_reservations_from_supabase():
+        """Placeholder for loading online reservations."""
+        st.error(f"Error loading online reservations: {e}")
+        return []
+    def online_parse_date(dt_str):
+        """Placeholder for parsing online reservation dates."""
+        if not dt_str or pd.isna(dt_str):
+            return None
+        try:
+            return datetime.strptime(dt_str, "%Y-%m-%d").date()
+        except ValueError:
+            try:
+                return datetime.strptime(dt_str, "%d/%m/%Y").date()
+            except ValueError:
+                return None
 
 def parse_room_no(room_no):
     """Parse room number string into a list of individual room numbers."""
@@ -204,7 +223,6 @@ def get_inventory_nos(property_name, room_no, room_type, booking_status):
         return ['No Show']
     if room_type in ["Other", "UNASSIGNED"] or not room_type:
         return ['Day Use 1']
-
     # Property-specific special mappings
     if property_name == "Le Poshe Luxury":
         if room_no in ['D1', 'D2', 'D3', 'D4', 'D5']:
@@ -266,7 +284,7 @@ def show_daily_status():
                 selected_month = month
 
     if selected_month:
-        year = 2025
+        year = datetime.now().year  # Dynamic year
         month_map = {m: i+1 for i, m in enumerate(months)}
         month_num = month_map[selected_month]
         month_start = date(year, month_num, 1)
@@ -347,10 +365,11 @@ def show_daily_status():
                         for room in rooms:
                             if room not in all_rooms:
                                 all_rooms.append(room)
+                    all_rooms = sorted(all_rooms)
 
                 # Build availability table
                 availability_data = []
-                for room in sorted(all_rooms):
+                for room in all_rooms:
                     row = {"Room No": room}
                     for d in date_range:
                         status = "Available"
@@ -373,32 +392,29 @@ def show_daily_status():
                     booking_counts.append({"Date": d, "Booked Rooms": count})
 
                 st.subheader(f"Booking Density for {prop}")
-                ```chartjs
-                {
-                    "type": "line",
-                    "data": {
-                        "labels": [d.strftime("%Y-%m-%d") for d in date_range],
-                        "datasets": [{
-                            "label": "Booked Rooms",
-                            "data": [row["Booked Rooms"] for row in booking_counts],
-                            "borderColor": "#1f77b4",
-                            "backgroundColor": "rgba(31, 119, 180, 0.2)",
-                            "fill": true
-                        }]
-                    },
-                    "options": {
-                        "responsive": true,
-                        "scales": {
-                            "y": {
-                                "beginAtZero": true,
-                                "title": {"display": true, "text": "Number of Rooms Booked"}
-                            },
-                            "x": {
-                                "title": {"display": true, "text": "Date"}
-                            }
-                        },
-                        "plugins": {
-                            "title": {"display": true, "text": f"Booking Density for {prop} - {selected_month} {year}"}
-                        }
-                    }
-                }
+                df_chart = pd.DataFrame(booking_counts).set_index("Date")
+                st.line_chart(df_chart, use_container_width=True)
+
+                # Existing booking table
+                table_data = []
+                for b in property_bookings:
+                    inventory_nos = get_inventory_nos(prop, b["room_no"], b["room_type"], b["booking_status"])
+                    inventory_str = ', '.join(inventory_nos)
+                    booking_id_html = f'<a href="/{"directreservation" if b["type"] == "direct" else "editOnline"}?booking_id={b["booking_id"]}">{b["booking_id"]}</a>'
+                    table_data.append({
+                        "Inventory No": inventory_str,
+                        "Room No": b["room_no"],
+                        "Booking ID": booking_id_html,
+                        "Guest Name": b["guest_name"],
+                        "Mobile No": b["mobile_no"],
+                        "Total Pax": b["total_pax"],
+                        "Check-in Date": b["check_in"],
+                        "Check-out Date": b["check_out"],
+                        "Days": b["days"],
+                        "Booking Status": b["booking_status"],
+                        "Payment Status": b["payment_status"],
+                        "Remarks": b["remarks"],
+                    })
+
+                st.subheader("Bookings")
+                st.markdown(pd.DataFrame(table_data).to_html(escape=False, index=False), unsafe_allow_html=True)
