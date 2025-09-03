@@ -87,15 +87,30 @@ def create_daily_table_data(property_name: str, target_date: date, inventory_num
     table_data = [metadata_row, header_row] + data_rows
     return table_data
 
+def update_expander_state(property_name: str, target_date: date, is_expanded: bool):
+    """Update the expander state in session_state."""
+    state_key = f"expander_{property_name}_{target_date.strftime('%Y-%m-%d')}"
+    st.session_state[state_key] = is_expanded
+
 def generate_daily_tables(property_name: str, date_range: List[date]):
-    """Generate daily tables for a property with inventory numbers for each date."""
+    """Generate daily tables for a property with inventory numbers for each date.
+    
+    Uses st.session_state to manage expander states for compatibility with older
+    Streamlit versions. Note: Streamlit does not provide an on_change callback for
+    st.expander, so states are set initially but not updated dynamically.
+    """
     inventory_nums = fetch_inventory_numbers(property_name)
     
     for target_date in date_range:
-        # Create expander for each date - REMOVED expanded parameter
+        # Initialize expander state in session_state if not set
+        state_key = f"expander_{property_name}_{target_date.strftime('%Y-%m-%d')}"
+        if state_key not in st.session_state:
+            st.session_state[state_key] = False  # Default to collapsed
+        
+        # Create expander with expanded state from session_state
         with st.expander(
-            f"{property_name} - {target_date.strftime('%Y-%m-%d')}", 
-            key=f"{property_name}_{target_date}"
+            f"{property_name} - {target_date.strftime('%Y-%m-%d')}",
+            expanded=st.session_state[state_key]
         ):
             # Generate table data
             table_data = create_daily_table_data(property_name, target_date, inventory_nums)
