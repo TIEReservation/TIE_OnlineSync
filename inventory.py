@@ -12,10 +12,12 @@ def load_full_room_map():
     Cached load of the full property inventory map from the database.
     """
     try:
-        return load_property_room_map()  # Call without arguments, expecting all records
+        result = load_property_room_map()  # Call without arguments
+        st.write("Debug: load_full_room_map returned:", result)  # Debug output
+        return result if result else {}
     except Exception as e:
         st.error(f"Error loading full inventory map: {e}")
-        return []
+        return {}
 
 def parse_room_string(room_str: str) -> list[str]:
     """
@@ -41,16 +43,14 @@ def get_unique_rooms(property_name: str) -> list[str]:
     Get sorted list of unique inventory numbers for a property from the full room map.
     """
     room_map = load_full_room_map()
-    if not room_map:
-        st.warning(f"No inventory data available for {property_name}")
+    if not room_map or property_name not in room_map:
+        st.warning(f"No inventory numbers found for {property_name}")
         return []
     all_rooms = set()
-    # Filter records by property_name, assuming room_map is a list of dicts
-    for record in room_map:
-        if record.get("property_name") == property_name:
-            inventory_no = record.get("inventory_no", "")
-            parsed_rooms = parse_room_string(inventory_no)
-            all_rooms.update(parsed_rooms)
+    # Assuming room_map is {property_name: [inventory_no_list, ...]}
+    for inventory_no in room_map.get(property_name, []):
+        parsed_rooms = parse_room_string(inventory_no)
+        all_rooms.update(parsed_rooms)
     # Sort with tuple key: numerics first (sorted numerically), then non-numerics (alphabetically)
     return sorted(list(all_rooms), key=lambda x: (0, int(x)) if x.isdigit() else (1, x))
 
@@ -73,7 +73,7 @@ def show_daily_status():
 
     # List properties from the full map
     room_map = load_full_room_map()
-    properties = sorted(set(record.get("property_name") for record in room_map) if room_map else [])
+    properties = sorted(room_map.keys()) if room_map else []
     property_name = st.selectbox("Select Property", [""] + properties)
 
     if not property_name:
