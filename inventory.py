@@ -1,4 +1,3 @@
-# inventory.py
 import streamlit as st
 import pandas as pd
 from datetime import date, timedelta, datetime
@@ -51,11 +50,8 @@ def validate_date_range(year, month_num):
     return start_date, end_date
 
 def generate_daily_tables(property_name, date_range):
-    """Generate daily tables for a property with inventory numbers."""
+    """Generate daily tables for a property with inventory numbers, always visible."""
     inventory_nums = fetch_inventory_numbers(property_name)
-    if not inventory_nums:
-        st.warning(f"No inventory data available for {property_name}")
-        return
     for date in date_range:
         with st.expander(f"{property_name} - {date.strftime('%Y-%m-%d')}", key=f"{property_name}_{date}"):
             headers = ["Inventory No", "Room No", "Guest Name", "Mobile No", "Total Pax", "Check-in Date", "Check-out Date", "Days", "Booking Status", "Payment Status", "Remarks"]
@@ -92,7 +88,7 @@ def show_daily_status():
         clear_cache()
 
     if selected_month:
-        year = datetime.now().year  # Current year: 2025
+        year = datetime.now().year  # 2025 as of September 03, 2025
         month_map = {m: i+1 for i, m in enumerate(months)}
         month_num = month_map[selected_month]
         start_date, end_date = validate_date_range(year, month_num)
