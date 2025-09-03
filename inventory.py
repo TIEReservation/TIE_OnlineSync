@@ -44,11 +44,8 @@ def get_unique_rooms(property_name: str) -> list[str]:
     all_rooms = set()
     for room in INVENTORY_DATA[property_name]:
         all_rooms.update(parse_room_string(room) if 'to' in room else [room])
-    # Sort numerically if possible, else alphabetically
-    try:
-        return sorted(list(all_rooms), key=lambda x: int(x) if x.isdigit() else x)
-    except ValueError:
-        return sorted(list(all_rooms))
+    # Sort numerically for digit-only strings, alphabetically for others
+    return sorted(list(all_rooms), key=lambda x: (x.isdigit() and int(x) or x))
 
 def show_daily_status():
     """
