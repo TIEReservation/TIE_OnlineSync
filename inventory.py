@@ -3,61 +3,49 @@ import streamlit as st
 import pandas as pd
 from datetime import date, datetime
 import calendar
-import re
-from directreservation import load_property_room_map
+import psycopg2
+from psycopg2 import Error
+
+# Database connection configuration (replace with your credentials)
+DB_CONFIG = {
+    "dbname": "your_database",
+    "user": "your_username",
+    "password": "your_password",
+    "host": "your_host",
+    "port": "your_port"
+}
 
 @st.cache_data
-def load_full_room_map():
+def get_inventory_data():
     """
-    Cached load of the full property inventory map from the database.
+    Fetch all inventory data from the Inventory table.
     """
+    conn = None
     try:
-        result = load_property_room_map()  # Call without arguments
-        st.write("Debug: load_full_room_map returned:", result)  # Debug output to inspect data
-        return result if result else []
-    except Exception as e:
-        st.error(f"Error loading full inventory map: {e}")
-        return []
-
-def parse_room_string(room_str: str) -> list[str]:
-    """
-    Parse a room string to a list of individual room numbers, handling only 'to' ranges.
-    Preserves original value if no valid range.
-    """
-    try:
-        room_str = str(room_str).strip()
-        if 'to' in room_str.lower():  # Only handle 'to' ranges
-            numbers = re.findall(r'\d+', room_str)
-            if len(numbers) == 2:
-                start, end = int(numbers[0]), int(numbers[1])
-                if start <= end:
-                    return [str(i) for i in range(start, end + 1)]
-        return [room_str]  # Return original if no valid range or error
-    except ValueError:
-        return [room_str]  # Return original on error
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        cursor.execute("SELECT property_name, inventory_no FROM Inventory")
+        rows = cursor.fetchall()
+        return {row[0]: list(set(row[1] for row in rows if row[0] == row[0])) for row in rows}  # Group by property
+    except Error as e:
+        st.error(f"Database error: {e}")
+        return {}
+    finally:
+        if conn:
+            cursor.close()
+            conn.close()
 
 def get_unique_rooms(property_name: str) -> list[str]:
     """
-    Get sorted list of unique inventory numbers for a property from the full room map.
+    Get sorted list of unique inventory_no values for a property.
     """
-    room_map = load_full_room_map()
-    if not room_map:
-        st.warning(f"No inventory data available for {property_name}")
-        return []
-    all_rooms = set()
-    # Assuming room_map is a list of dicts: [{"property_name": "...", "inventory_no": "..."}, ...]
-    for record in room_map:
-        if record.get("property_name") == property_name:
-            inventory_no = record.get("inventory_no", "")
-            parsed_rooms = parse_room_string(inventory_no)
-            all_rooms.update(parsed_rooms)
-    # Sort with tuple key: numerics first (sorted numerically), then non-numerics (alphabetically)
-    return sorted(list(all_rooms), key=lambda x: (0, int(x)) if x.isdigit() else (1, x))
+    inventory_data = get_inventory_data()
+    rooms = inventory_data.get(property_name, [])
+    return sorted(rooms, key=lambda x: (0, int(x)) if x.isdigit() else (1, x))
 
 def show_daily_status():
     """
-    Display the Daily Status screen in Streamlit, showing tables for each day in the selected month and property.
-    Populate with inventory numbers fetched once and displayed for all dates.
+    Display the Daily Status screen in Streamlit, showing tables for each day with inventory_no.
     """
     st.title("📅 Daily Status")
 
@@ -71,9 +59,9 @@ def show_daily_status():
     month_index = st.selectbox("Select Month", range(len(month_names)), format_func=lambda x: month_names[x])
     month = months[month_index]
 
-    # List properties from the full map
-    room_map = load_full_room_map()
-    properties = sorted(set(record.get("property_name") for record in room_map if record.get("property_name")) or [])
+    # List properties from inventory data
+    inventory_data = get_inventory_data()
+    properties = sorted(inventory_data.keys())
     property_name = st.selectbox("Select Property", [""] + properties)
 
     if not property_name:
@@ -111,3 +99,6 @@ def show_daily_status():
     for day in days:
         with st.expander(f"{property_name} - {day.strftime('%B %d, %Y')}"):
             st.dataframe(df, use_container_width=True)
+
+if __name__ == "__main__":
+    show_daily_status()
