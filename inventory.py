@@ -6,16 +6,6 @@ import calendar
 import re
 from directreservation import load_property_room_map
 
-# Static inventory data
-INVENTORY_DATA = {
-    "Eden Beach Resort": ["101", "102", "103", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
-    "La Antilia": ["101", "201", "202", "203", "204", "301", "302", "303", "304", "401", "404", "Day Use 1", "Day Use 2", "No Show"],
-    "La Millionare Resort": ["101", "102", "103", "105", "201", "202", "203", "204", "205", "206", "207", "208", "301", "302", "303", "304", "305", "306", "307", "308", "401", "402", "day use1", "day use2", "day use3", "day use4", "No-Show5"],
-    "La Paradise Luxury": ["101", "101to103", "102", "103", "201", "201to203", "202", "203", "Day Use 1", "Day Use 2", "No Show"],
-    "La Paradise Residency": ["101", "102", "103", "201", "202", "203", "301", "302", "303", "304", "Day Use 1", "Day Use 2", "No Show"],
-    "La Tamara Luxury": ["101", "101to103", "102", "103", "104", "104to106", "105", "106", "201", "201to203", "202", "203", "204", "204to206", "205", "206", "301", "301to303", "302", "303", "304", "304to306", "305", "306", "401", "401to404", "402"]
-}
-
 def parse_room_string(room_str: str) -> list[str]:
     """
     Parse a room string to a list of individual room numbers, handling ranges (e.g., '203to205') and splits (e.g., '101&102').
@@ -37,20 +27,28 @@ def parse_room_string(room_str: str) -> list[str]:
 
 def get_unique_rooms(property_name: str) -> list[str]:
     """
-    Get sorted list of unique inventory numbers for a property from the static INVENTORY_DATA.
+    Fetch and return a sorted list of unique inventory numbers for a property from the database.
     """
-    if property_name not in INVENTORY_DATA:
+    try:
+        # Assuming load_property_room_map returns a response object with inventory data
+        response = load_property_room_map(property_name)
+        if not response.data:
+            st.warning(f"No inventory numbers found for {property_name}")
+            return []
+        all_rooms = set()
+        for record in response.data:
+            inventory_no = record["inventory_no"]
+            all_rooms.update(parse_room_string(inventory_no) if 'to' in str(inventory_no) else [str(inventory_no)])
+        # Sort numerically for digit-only strings, alphabetically for others
+        return sorted(list(all_rooms), key=lambda x: (x.isdigit() and int(x) or x))
+    except Exception as e:
+        st.error(f"Error fetching inventory for {property_name}: {e}")
         return []
-    all_rooms = set()
-    for room in INVENTORY_DATA[property_name]:
-        all_rooms.update(parse_room_string(room) if 'to' in room else [room])
-    # Sort numerically for digit-only strings, alphabetically for others
-    return sorted(list(all_rooms), key=lambda x: (x.isdigit() and int(x) or x))
 
 def show_daily_status():
     """
     Display the Daily Status screen in Streamlit, showing tables for each day in the selected month and property.
-    Populate with static inventory numbers in Inventory No and leave Room No blank.
+    Populate with inventory numbers fetched from the database and leave Room No blank.
     """
     st.title("📅 Daily Status")
 
@@ -64,8 +62,8 @@ def show_daily_status():
     month_index = st.selectbox("Select Month", range(len(month_names)), format_func=lambda x: month_names[x])
     month = months[month_index]
 
-    # List properties
-    properties = sorted(INVENTORY_DATA.keys())
+    # List properties (assuming properties are fetched or hardcoded based on DB)
+    properties = sorted(["Eden Beach Resort", "La Antilia", "La Millionare Resort", "La Paradise Luxury", "La Paradise Residency", "La Tamara Luxury"])
     property_name = st.selectbox("Select Property", [""] + properties)
 
     if not property_name:
@@ -85,7 +83,7 @@ def show_daily_status():
                 continue
             num_inventory = len(inventory_nums)
             data = {
-                "Inventory No": inventory_nums,  # Use inventory numbers directly
+                "Inventory No": inventory_nums,  # Use fetched inventory numbers
                 "Room No": [""] * num_inventory,  # Leave Room No blank
                 "Guest Name": [""] * num_inventory,
                 "Mobile No": [""] * num_inventory,
