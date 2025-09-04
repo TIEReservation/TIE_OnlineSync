@@ -8,6 +8,11 @@ from directreservation import load_property_room_map
 from supabase import create_client, Client
 import toml
 import os
+import logging
+
+# Set up logging for debugging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Load Supabase credentials
 try:
@@ -15,7 +20,7 @@ try:
     SUPABASE_URL = st.secrets["supabase"]["SUPABASE_URL"]
     SUPABASE_KEY = st.secrets["supabase"]["SUPABASE_KEY"]
 except (KeyError, AttributeError):
-    # Fallback to config.toml if secrets are not available
+    # Fallback to config.toml
     try:
         config_path = "config.toml"
         if os.path.exists(config_path):
@@ -24,18 +29,22 @@ except (KeyError, AttributeError):
             SUPABASE_KEY = config["supabase"]["key"]
         else:
             st.error("Supabase credentials not found in secrets or config.toml.")
+            logger.error("Supabase credentials not found in config.toml")
             SUPABASE_URL, SUPABASE_KEY = None, None
     except Exception as e:
         st.error(f"Failed to load config.toml: {str(e)}")
+        logger.error(f"Failed to load config.toml: {str(e)}")
         SUPABASE_URL, SUPABASE_KEY = None, None
 
-# Initialize Supabase client if credentials are available
+# Initialize Supabase client
 supabase = None
 if SUPABASE_URL and SUPABASE_KEY:
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        logger.info("Supabase client initialized successfully")
     except Exception as e:
         st.error(f"Failed to initialize Supabase client: {str(e)}")
+        logger.error(f"Failed to initialize Supabase client: {str(e)}")
 
 def parse_room_string(room_str: str) -> list[str]:
     """
@@ -106,10 +115,24 @@ def show_daily_status():
     inventory_nos = []
     if supabase:
         try:
+            # Basic query to fetch inventory_no
             response = supabase.table("inventory").select("inventory_no").execute()
-            inventory_nos = [str(row["inventory_no"]) for row in response.data]
+            logger.debug(f"Supabase response: {response}")
+            if response.data:
+                inventory_nos = [str(row["inventory_no"]) for row in response.data]
+                logger.info(f"Fetched {len(inventory_nos)} inventory numbers: {inventory_nos[:5]}")
+            else:
+                st.warning("No data returned from inventory table. Check RLS policies or table contents.")
+                logger.warning("Supabase query returned empty data")
+            # Optional: Filter by property_name if table has a property_name column
+            # response = supabase.table("inventory").select("inventory_no").eq("property_name", property_name).execute()
+            # inventory_nos = [str(row["inventory_no"]) for row in response.data]
         except Exception as e:
             st.error(f"Failed to fetch inventory numbers from Supabase: {str(e)}")
+            logger.error(f"Supabase query error: {str(e)}")
+    else:
+        st.error("Supabase client not initialized. Check credentials.")
+        logger.error("Supabase client not initialized")
 
     # For each day, create an expander with a table
     for day in days:
