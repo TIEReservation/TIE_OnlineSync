@@ -3,47 +3,49 @@ import streamlit as st
 import pandas as pd
 from datetime import date, datetime
 import calendar
+import re
 from directreservation import load_property_room_map
 
-@st.cache_data
-def load_full_room_map():
+def parse_room_string(room_str: str) -> list[str]:
     """
-    Cached load of the full property inventory map from the database via load_property_room_map.
+    Parse a room string to a list of individual room numbers, handling ranges (e.g., '203to205') and splits (e.g., '101&102').
     """
     try:
-        result = load_property_room_map()  # Assume it returns [{'property_name': '...', 'inventory_no': '...'}, ...]
-        st.write("Debug: load_full_room_map returned type:", type(result), "value:", result)  # Enhanced debug
-        if not result:
-            st.warning("load_property_room_map returned no data.")
-        return result if result else []
-    except Exception as e:
-        st.error(f"Error loading full inventory map: {e}")
+        if 'to' in room_str:
+            numbers = re.findall(r'\d+', room_str)
+            if len(numbers) == 2:
+                start, end = int(numbers[0]), int(numbers[1])
+                if start <= end:
+                    return [str(i) for i in range(start, end + 1)]
+                else:
+                    return []
+        else:
+            parts = re.split(r'[& ,]+', room_str)
+            return [p.strip() for p in parts if p.strip().isdigit()]
+    except ValueError:
         return []
 
 def get_unique_rooms(property_name: str) -> list[str]:
     """
-    Get sorted list of unique inventory_no values for a property.
+    Get sorted list of unique room numbers for a property from the room map.
     """
-    room_map = load_full_room_map()
-    if not room_map:
-        st.warning(f"No inventory data available for {property_name}")
+    room_map = load_property_room_map()
+    if property_name not in room_map:
         return []
     all_rooms = set()
-    for record in room_map:
-        if not isinstance(record, dict):
-            st.warning(f"Invalid record format: {record}, skipping.")
-            continue
-        if record.get("property_name") == property_name:
-            inventory_no = record.get("inventory_no", "")
-            all_rooms.add(inventory_no)
-            st.write(f"Debug: Added inventory_no for {property_name}: {inventory_no}")
-    sorted_rooms = sorted(list(all_rooms), key=lambda x: (0, int(x)) if x.isdigit() else (1, x))
-    st.write(f"Debug: Final unique rooms for {property_name}: {sorted_rooms}")
-    return sorted_rooms
+    for room_types in room_map[property_name].values():
+        for room in room_types:
+            all_rooms.update(parse_room_string(room))
+    # Sort numerically if possible, else alphabetically
+    try:
+        return sorted(list(all_rooms), key=lambda x: int(x))
+    except ValueError:
+        return sorted(list(all_rooms))
 
 def show_daily_status():
     """
-    Display the Daily Status screen in Streamlit, showing tables for each day with inventory_no.
+    Display the Daily Status screen in Streamlit, showing tables for each day in the selected month and property.
+    For now, populate with room inventory and blanks for other details.
     """
     st.title("📅 Daily Status")
 
@@ -57,46 +59,38 @@ def show_daily_status():
     month_index = st.selectbox("Select Month", range(len(month_names)), format_func=lambda x: month_names[x])
     month = months[month_index]
 
-    # List properties from the full map
-    room_map = load_full_room_map()
-    properties = sorted(set(record.get("property_name") for record in room_map if isinstance(record, dict) and record.get("property_name")) or [])
+    # List properties
+    properties = sorted(load_property_room_map().keys())
     property_name = st.selectbox("Select Property", [""] + properties)
 
     if not property_name:
         st.info("Please select a property to view daily status.")
         return
 
-    # Fetch inventory numbers once
-    inventory_nums = get_unique_rooms(property_name)
-    if not inventory_nums:
-        st.warning(f"No inventory numbers found for {property_name}. Please check the Inventory table or load_property_room_map implementation.")
-        return
-
     # Get days in month
     _, num_days = calendar.monthrange(year, month)
     days = [date(year, month, d) for d in range(1, num_days + 1)]
 
-    # Create DataFrame once
-    num_inventory = len(inventory_nums)
-    data = {
-        "Inventory No": inventory_nums,
-        "Room No": [""] * num_inventory,  # Blank as required
-        "Guest Name": [""] * num_inventory,
-        "Mobile No": [""] * num_inventory,
-        "Total Pax": [""] * num_inventory,
-        "Check-in Date": [""] * num_inventory,
-        "Check-out Date": [""] * num_inventory,
-        "Days": [""] * num_inventory,
-        "Booking Status": [""] * num_inventory,
-        "Payment Status": [""] * num_inventory,
-        "Remarks": [""] * num_inventory
-    }
-    df = pd.DataFrame(data)
-
-    # Display the same table for each day
+    # For each day, create an expander with a table
     for day in days:
         with st.expander(f"{property_name} - {day.strftime('%B %d, %Y')}"):
+            rooms = get_unique_rooms(property_name)
+            if not rooms:
+                st.warning("No rooms found for this property.")
+                continue
+            num_rooms = len(rooms)
+            data = {
+                "Inventory No": list(range(1, num_rooms + 1)),
+                "Room No": rooms,
+                "Guest Name": [""] * num_rooms,
+                "Mobile No": [""] * num_rooms,
+                "Total Pax": [""] * num_rooms,
+                "Check-in Date": [""] * num_rooms,
+                "Check-out Date": [""] * num_rooms,
+                "Days": [""] * num_rooms,
+                "Booking Status": [""] * num_rooms,
+                "Payment Status": [""] * num_rooms,
+                "Remarks": [""] * num_rooms
+            }
+            df = pd.DataFrame(data)
             st.dataframe(df, use_container_width=True)
-
-if __name__ == "__main__":
-    show_daily_status()
