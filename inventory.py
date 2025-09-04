@@ -6,11 +6,36 @@ import calendar
 import re
 from directreservation import load_property_room_map
 from supabase import create_client, Client
+import toml
+import os
 
-# Initialize Supabase client (replace with your Supabase URL and anon key)
-SUPABASE_URL = "your-supabase-url"  # e.g., "https://xyz.supabase.co"
-SUPABASE_KEY = "your-supabase-anon-key"  # From Supabase Dashboard > Settings > API
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Load Supabase credentials
+try:
+    # Attempt to load from Streamlit secrets
+    SUPABASE_URL = st.secrets["supabase"]["SUPABASE_URL"]
+    SUPABASE_KEY = st.secrets["supabase"]["SUPABASE_KEY"]
+except (KeyError, AttributeError):
+    # Fallback to config.toml if secrets are not available
+    try:
+        config_path = "config.toml"
+        if os.path.exists(config_path):
+            config = toml.load(config_path)
+            SUPABASE_URL = config["supabase"]["url"]
+            SUPABASE_KEY = config["supabase"]["key"]
+        else:
+            st.error("Supabase credentials not found in secrets or config.toml.")
+            SUPABASE_URL, SUPABASE_KEY = None, None
+    except Exception as e:
+        st.error(f"Failed to load config.toml: {str(e)}")
+        SUPABASE_URL, SUPABASE_KEY = None, None
+
+# Initialize Supabase client if credentials are available
+supabase = None
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        st.error(f"Failed to initialize Supabase client: {str(e)}")
 
 def parse_room_string(room_str: str) -> list[str]:
     """
@@ -57,7 +82,7 @@ def show_daily_status():
 
     # Get current year for default
     current_year = datetime.now().year
-    years = list(range(current_year - 5, current_year + 6))  # Updated to include one more year
+    years = list(range(current_year - 5, current_year + 6))
     year = st.selectbox("Select Year", years, index=5)  # Default to current
 
     months = list(range(1, 13))
@@ -78,12 +103,13 @@ def show_daily_status():
     days = [date(year, month, d) for d in range(1, num_days + 1)]
 
     # Fetch inventory numbers from Supabase
-    try:
-        response = supabase.table("inventory").select("inventory_no").execute()
-        inventory_nos = [str(row["inventory_no"]) for row in response.data]
-    except Exception as e:
-        st.error(f"Failed to fetch inventory numbers from Supabase: {str(e)}")
-        inventory_nos = []
+    inventory_nos = []
+    if supabase:
+        try:
+            response = supabase.table("inventory").select("inventory_no").execute()
+            inventory_nos = [str(row["inventory_no"]) for row in response.data]
+        except Exception as e:
+            st.error(f"Failed to fetch inventory numbers from Supabase: {str(e)}")
 
     # For each day, create an expander with a table
     for day in days:
@@ -94,11 +120,7 @@ def show_daily_status():
                 continue
             num_rooms = len(rooms)
             # Use inventory numbers from Supabase, or fallback to empty strings
-            if inventory_nos:
-                # Truncate or pad inventory_nos to match num_rooms
-                inventory_display = inventory_nos[:num_rooms] + [""] * (num_rooms - len(inventory_nos))
-            else:
-                inventory_display = [""] * num_rooms
+            inventory_display = inventory_nos[:num_rooms] + [""] * (num_rooms - len(inventory_nos)) if inventory_nos else [""] * num_rooms
             data = {
                 "Inventory No": inventory_display,  # Use fetched inventory numbers
                 "Room No": [""] * num_rooms,  # Keep Room No column blank
