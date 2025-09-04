@@ -5,6 +5,12 @@ from datetime import date, datetime
 import calendar
 import re
 from directreservation import load_property_room_map
+from supabase import create_client, Client
+
+# Initialize Supabase client (replace with your Supabase URL and anon key)
+SUPABASE_URL = "your-supabase-url"  # e.g., "https://xyz.supabase.co"
+SUPABASE_KEY = "your-supabase-anon-key"  # From Supabase Dashboard > Settings > API
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def parse_room_string(room_str: str) -> list[str]:
     """
@@ -45,13 +51,13 @@ def get_unique_rooms(property_name: str) -> list[str]:
 def show_daily_status():
     """
     Display the Daily Status screen in Streamlit, showing tables for each day in the selected month and property.
-    For now, populate with blank inventory and room numbers, and blanks for other details.
+    Fetch inventory numbers from Supabase inventory table, keep room numbers blank, and blanks for other details.
     """
     st.title("📅 Daily Status")
 
     # Get current year for default
     current_year = datetime.now().year
-    years = list(range(current_year - 5, current_year + 5))
+    years = list(range(current_year - 5, current_year + 6))  # Updated to include one more year
     year = st.selectbox("Select Year", years, index=5)  # Default to current
 
     months = list(range(1, 13))
@@ -71,6 +77,14 @@ def show_daily_status():
     _, num_days = calendar.monthrange(year, month)
     days = [date(year, month, d) for d in range(1, num_days + 1)]
 
+    # Fetch inventory numbers from Supabase
+    try:
+        response = supabase.table("inventory").select("inventory_no").execute()
+        inventory_nos = [str(row["inventory_no"]) for row in response.data]
+    except Exception as e:
+        st.error(f"Failed to fetch inventory numbers from Supabase: {str(e)}")
+        inventory_nos = []
+
     # For each day, create an expander with a table
     for day in days:
         with st.expander(f"{property_name} - {day.strftime('%B %d, %Y')}"):
@@ -79,9 +93,15 @@ def show_daily_status():
                 st.warning("No rooms found for this property.")
                 continue
             num_rooms = len(rooms)
+            # Use inventory numbers from Supabase, or fallback to empty strings
+            if inventory_nos:
+                # Truncate or pad inventory_nos to match num_rooms
+                inventory_display = inventory_nos[:num_rooms] + [""] * (num_rooms - len(inventory_nos))
+            else:
+                inventory_display = [""] * num_rooms
             data = {
-                "Inventory No": [""] * num_rooms,  # Set Inventory No column to blank
-                "Room No": [""] * num_rooms,  # Set Room No column to blank
+                "Inventory No": inventory_display,  # Use fetched inventory numbers
+                "Room No": [""] * num_rooms,  # Keep Room No column blank
                 "Guest Name": [""] * num_rooms,
                 "Mobile No": [""] * num_rooms,
                 "Total Pax": [""] * num_rooms,
