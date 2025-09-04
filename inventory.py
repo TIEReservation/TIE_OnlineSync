@@ -45,7 +45,7 @@ def get_unique_rooms(property_name: str) -> list[str]:
 def show_daily_status():
     """
     Display the Daily Status screen in Streamlit, showing tables for each day in the selected month and property.
-    For now, populate with room inventory and blanks for other details, including Room No.
+    For now, populate with blank inventory and room numbers, and blanks for other details.
     """
     st.title("📅 Daily Status")
 
@@ -80,7 +80,7 @@ def show_daily_status():
                 continue
             num_rooms = len(rooms)
             data = {
-                "Inventory No": list(range(1, num_rooms + 1)),
+                "Inventory No": [""] * num_rooms,  # Set Inventory No column to blank
                 "Room No": [""] * num_rooms,  # Set Room No column to blank
                 "Guest Name": [""] * num_rooms,
                 "Mobile No": [""] * num_rooms,
