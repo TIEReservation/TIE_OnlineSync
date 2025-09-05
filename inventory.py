@@ -21,6 +21,9 @@ def load_properties() -> list[str]:
 def normalize_booking(booking: dict, is_online: bool) -> dict:
     """Normalize booking dict to common schema."""
     if is_online:
+        payment_status = booking.get('payment_status', '').title()
+        if payment_status not in ["Fully Paid", "Partially Paid"]:
+            return None
         return {
             'booking_id': booking.get('booking_id'),
             'room_no': booking.get('room_no'),
@@ -30,10 +33,13 @@ def normalize_booking(booking: dict, is_online: bool) -> dict:
             'check_in': date.fromisoformat(booking.get('check_in')) if booking.get('check_in') else None,
             'check_out': date.fromisoformat(booking.get('check_out')) if booking.get('check_out') else None,
             'booking_status': booking.get('booking_status'),
-            'payment_status': booking.get('payment_status'),
+            'payment_status': payment_status,
             'remarks': booking.get('remarks')
         }
     else:
+        payment_status = booking.get('payment_status', '').title()
+        if payment_status not in ["Fully Paid", "Partially Paid"]:
+            return None
         return {
             'booking_id': booking.get('booking_id'),
             'room_no': booking.get('room_no'),
@@ -43,23 +49,27 @@ def normalize_booking(booking: dict, is_online: bool) -> dict:
             'check_in': date.fromisoformat(booking.get('check_in')) if booking.get('check_in') else None,
             'check_out': date.fromisoformat(booking.get('check_out')) if booking.get('check_out') else None,
             'booking_status': booking.get('booking_status'),
-            'payment_status': booking.get('payment_status'),
+            'payment_status': payment_status,
             'remarks': booking.get('remarks')
         }
 
 def load_combined_bookings(property: str, start_date: date, end_date: date) -> list[dict]:
-    """Load bookings overlapping the date range for the property."""
+    """Load bookings overlapping the date range for the property with paid statuses."""
     try:
         start_str = start_date.isoformat()
         end_str = end_date.isoformat()
         # Fetch direct
         direct = supabase.table("reservations").select("*").eq("property_name", property)\
-            .lte("check_in", end_str).gt("check_out", start_str).execute().data
+            .lte("check_in", end_str).gt("check_out", start_str)\
+            .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
         # Fetch online
         online = supabase.table("online_reservations").select("*").eq("property", property)\
-            .lte("check_in", end_str).gt("check_out", start_str).execute().data
-        # Normalize
-        normalized = [normalize_booking(b, False) for b in direct] + [normalize_booking(b, True) for b in online]
+            .lte("check_in", end_str).gt("check_out", start_str)\
+            .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
+        # Normalize and filter
+        normalized = [b for b in [normalize_booking(b, False) for b in direct] + [normalize_booking(b, True) for b in online] if b]
+        if len(normalized) < len(direct) + len(online):
+            st.warning(f"Skipped {len(direct) + len(online) - len(normalized)} bookings with invalid payment status for {property} from {start_str} to {end_str}")
         return normalized
     except Exception as e:
         st.error(f"Error loading bookings: {e}")
@@ -134,6 +144,3 @@ def show_daily_status():
                 else:
                     st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
                     st.info("No active bookings on this day.")
-
-# Call in app.py or main
-# show_daily_status()
