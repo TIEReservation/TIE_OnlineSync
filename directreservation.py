@@ -23,7 +23,7 @@ def load_property_room_map():
             "Standard Room": ["201"],
             "Deluex Double Room Seaview": ["301", "302", "303", "304"]
         },
-        "La Millionare Resort": {
+        "La Millionare Luxury Resort": {
             "Double Room": ["101", "102", "103", "105"],
             "Deluex Double Room with Balcony": ["205", "304", "305"],
             "Deluex Triple Room with Balcony": ["201", "202", "203", "204", "301", "302", "303"],
