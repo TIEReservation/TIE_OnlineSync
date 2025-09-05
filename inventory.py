@@ -8,12 +8,19 @@ import pandas as pd
 supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
 
 def load_properties() -> list[str]:
-    """Load unique properties from both tables."""
+    """Load unique properties from both tables, merging similar names."""
     try:
         res_direct = supabase.table("reservations").select("property_name").execute().data
         res_online = supabase.table("online_reservations").select("property").execute().data
         properties = set(r['property_name'] for r in res_direct) | set(r['property'] for r in res_online)
-        return sorted(properties)
+        # Merge "La Millionare Resort" and "La Millionaire Luxury Resort" as "La Millionare Resort"
+        merged_properties = set()
+        for prop in properties:
+            if prop in ["La Millionare Resort", "La Millionaire Luxury Resort"]:
+                merged_properties.add("La Millionare Resort")
+            else:
+                merged_properties.add(prop)
+        return sorted(merged_properties)
     except Exception as e:
         st.error(f"Error loading properties: {e}")
         return []
@@ -58,12 +65,14 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> l
     try:
         start_str = start_date.isoformat()
         end_str = end_date.isoformat()
+        # Adjust property name for merged case
+        query_property = "La Millionare Resort" if property == "La Millionare Resort" else property
         # Fetch direct
-        direct = supabase.table("reservations").select("*").eq("property_name", property)\
+        direct = supabase.table("reservations").select("*").eq("property_name", query_property)\
             .lte("check_in", end_str).gt("check_out", start_str)\
             .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
         # Fetch online
-        online = supabase.table("online_reservations").select("*").eq("property", property)\
+        online = supabase.table("online_reservations").select("*").eq("property", query_property)\
             .lte("check_in", end_str).gt("check_out", start_str)\
             .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
         # Normalize and filter
@@ -144,3 +153,6 @@ def show_daily_status():
                 else:
                     st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
                     st.info("No active bookings on this day.")
+
+# Call in app.py or main
+# show_daily_status()
