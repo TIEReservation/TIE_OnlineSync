@@ -8,7 +8,7 @@ import pandas as pd
 supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
 
 def load_properties() -> list[str]:
-    """Load unique properties from both tables without merging variations."""
+    """Load unique properties from both tables."""
     try:
         res_direct = supabase.table("reservations").select("property_name").execute().data
         res_online = supabase.table("online_reservations").select("property").execute().data
@@ -95,12 +95,6 @@ def cached_load_bookings(property, start_date, end_date):
 def show_daily_status():
     """Main function to display daily status screen."""
     st.title("📅 Daily Status")
-
-    # Cache-clearing button
-    if st.button("🔄 Refresh Property List"):
-        st.cache_data.clear()
-        st.success("Cache cleared! Refreshing properties...")
-        st.rerun()
 
     # Year and Month selection
     current_year = date.today().year
