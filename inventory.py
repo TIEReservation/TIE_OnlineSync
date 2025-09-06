@@ -9,8 +9,23 @@ supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supa
 
 def load_properties() -> list[str]:
     """Return only Eden Beach Resort as the property."""
-    return ["Eden Beach Resort"]
-
+  return sorted([
+        "Le Poshe Beach view",
+        "La Millionare Luxury Resort",
+        "Le Poshe Luxury",
+        "Le Poshe Suite",
+        "La Paradise Residency",
+        "La Paradise Luxury",
+        "La Villa Heritage",
+        "Le Pondy Beach Side",
+        "Le Royce Villa",
+        "La Tamara Luxury",
+        "La Antilia Luxury",
+        "La Tamara Suite",
+        "Le Park Resort",
+        "Villa Shakti",
+        "Eden Beach Resort"
+])
 def normalize_booking(booking: dict, is_online: bool) -> dict:
     """Normalize booking dict to common schema."""
     if is_online:
