@@ -8,23 +8,12 @@ import pandas as pd
 supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
 
 def load_properties() -> list[str]:
-    """Load unique properties from both tables, merging specified variations."""
+    """Load unique properties from both tables without merging variations."""
     try:
         res_direct = supabase.table("reservations").select("property_name").execute().data
         res_online = supabase.table("online_reservations").select("property").execute().data
         properties = set(r['property_name'] for r in res_direct if r['property_name']) | set(r['property'] for r in res_online if r['property'])
-        # Merge known variations
-        merged_properties = set()
-        for prop in properties:
-            if prop in ["La Millionare Resort", "La Millionaire Luxury Resort", "La Millionaire Luxury resort"]:
-                merged_properties.add("La Millionare Resort")
-            elif prop in ["Le Poshe Beach View", "Le Poshe Beachview"]:
-                merged_properties.add("Le Poshe Beach View")
-            elif prop in ["Le Pondy Beach Side", "Le Pondy Beachside"]:
-                merged_properties.add("Le Pondy Beach Side")
-            else:
-                merged_properties.add(prop)
-        return sorted(merged_properties)
+        return sorted(properties)
     except Exception as e:
         st.error(f"Error loading properties: {e}")
         return []
@@ -69,16 +58,12 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> l
     try:
         start_str = start_date.isoformat()
         end_str = end_date.isoformat()
-        # Adjust property name for merged case
-        query_property = "La Millionare Resort" if property == "La Millionare Resort" else property
-        query_property = "Le Poshe Beach View" if property == "Le Poshe Beach View" else property
-        query_property = "Le Pondy Beach Side" if property == "Le Pondy Beach Side" else property
         # Fetch direct
-        direct = supabase.table("reservations").select("*").eq("property_name", query_property)\
+        direct = supabase.table("reservations").select("*").eq("property_name", property)\
             .lte("check_in", end_str).gt("check_out", start_str)\
             .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
         # Fetch online
-        online = supabase.table("online_reservations").select("*").eq("property", query_property)\
+        online = supabase.table("online_reservations").select("*").eq("property", property)\
             .lte("check_in", end_str).gt("check_out", start_str)\
             .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
         # Normalize and filter
