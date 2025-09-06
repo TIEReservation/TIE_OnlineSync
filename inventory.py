@@ -8,15 +8,8 @@ import pandas as pd
 supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
 
 def load_properties() -> list[str]:
-    """Load unique properties from both tables."""
-    try:
-        res_direct = supabase.table("reservations").select("property_name").execute().data
-        res_online = supabase.table("online_reservations").select("property").execute().data
-        properties = set(r['property_name'] for r in res_direct if r['property_name']) | set(r['property'] for r in res_online if r['property'])
-        return sorted(properties)
-    except Exception as e:
-        st.error(f"Error loading properties: {e}")
-        return []
+    """Return only Eden Beach Resort as the property."""
+    return ["Eden Beach Resort"]
 
 def normalize_booking(booking: dict, is_online: bool) -> dict:
     """Normalize booking dict to common schema."""
