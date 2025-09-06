@@ -18,7 +18,7 @@ def load_property_room_map():
     Returns a nested dictionary: {"Property": {"Room Type": ["Room No", ...], ...}, ...}
     """
     return {
-        "Le Poshe Beachview": {
+        "Le Poshe Beach view": {
             "Double Room": ["101", "102", "202", "203", "204"],
             "Standard Room": ["201"],
             "Deluex Double Room Seaview": ["301", "302", "303", "304"]
@@ -64,7 +64,7 @@ def load_property_room_map():
             "3BHA": ["101to103", "101", "102", "103", "104to106", "104", "105", "106", "201to203", "201", "202", "203", "204to206", "204", "205", "206", "301to303", "301", "302", "303", "304to306", "304", "305", "306"],
             "4BHA": ["401to404", "401", "402", "403", "404"]  # Note: duplicate "404" as per data
         },
-        "La Antilia": {
+        "La Antilia Luxury": {
             "Deluex Suite Room": ["101"],
             "Deluex Double Room": ["203", "204", "303", "304"],
             "Family Room": ["201", "202", "301", "302"],
