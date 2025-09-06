@@ -13,7 +13,6 @@ def load_properties() -> list[str]:
         res_direct = supabase.table("reservations").select("property_name").execute().data
         res_online = supabase.table("online_reservations").select("property").execute().data
         properties = set(r['property_name'] for r in res_direct if r['property_name']) | set(r['property'] for r in res_online if r['property'])
-        st.info(f"Loaded properties: {sorted(properties)}")
         return sorted(properties)
     except Exception as e:
         st.error(f"Error loading properties: {e}")
