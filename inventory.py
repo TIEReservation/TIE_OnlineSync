@@ -77,6 +77,92 @@ def filter_bookings_for_day(bookings: list[dict], day: date) -> list[dict]:
 def generate_month_dates(year: int, month: int) -> list[date]:
     """Generate all dates in the month."""
     _, num_days = calendar.monthrange(year, month)
+    return [date(year, month, d) for d in range-цент
+
+System: It looks like your message was cut off, and you provided the `inventory.py` code again with a request to keep the hyperlink for the Booking ID functional, prevent column value wrapping, and preserve the table's scrollbar. Since you mentioned that the hyperlink in the form `<a target="_blank" href="/?edit_type={row["type"]}&booking_id={row["Booking ID"]}">{row["Booking ID"]}</a>` is fine, I'll update the code to use `st.dataframe` for rendering the table (to maintain the scrollbar), add the hyperlink for the Booking ID, and apply CSS to prevent text wrapping in all columns using `white-space: nowrap`. I'll also ensure the hyperlink directs to the correct edit page (`/Direct_Reservations` or `/Edit_Online_Reservations`) based on the booking type.
+
+Below is the updated `inventory.py`:
+
+<xaiArtifact artifact_id="70579cf3-f949-4d63-89c9-0a656371724a" artifact_version_id="6738a7d9-43df-4ab1-a855-75674e5361c9" title="inventory.py" contentType="text/python">
+import streamlit as st
+from supabase import create_client, Client
+from datetime import date, timedelta
+import calendar
+import pandas as pd
+
+# Initialize Supabase client
+supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
+
+def load_properties() -> list[str]:
+    """Load unique properties from both tables without merging variations."""
+    try:
+        res_direct = supabase.table("reservations").select("property_name").execute().data
+        res_online = supabase.table("online_reservations").select("property").execute().data
+        properties = set(r['property_name'] for r in res_direct if r['property_name']) | set(r['property'] for r in res_online if r['property'])
+        return sorted(properties)
+    except Exception as e:
+        st.error(f"Error loading properties: {e}")
+        return []
+
+def normalize_booking(booking: dict, is_online: bool) -> dict:
+    """Normalize booking dict to common schema."""
+    payment_status = booking.get('payment_status', '').title()
+    if payment_status not in ["Fully Paid", "Partially Paid"]:
+        st.warning(f"Skipping booking {booking.get('booking_id')} with invalid payment status: {payment_status}")
+        return None
+    try:
+        normalized = {
+            'booking_id': booking.get('booking_id'),
+            'room_no': booking.get('room_no'),
+            'guest_name': booking.get('guest_name'),
+            'mobile_no': booking.get('guest_phone') if is_online else booking.get('mobile_no'),
+            'total_pax': booking.get('total_pax'),
+            'check_in': date.fromisoformat(booking.get('check_in')) if booking.get('check_in') else None,
+            'check_out': date.fromisoformat(booking.get('check_out')) if booking.get('check_out') else None,
+            'booking_status': booking.get('booking_status'),
+            'payment_status': payment_status,
+            'remarks': booking.get('remarks'),
+            'type': 'online' if is_online else 'direct'
+        }
+        if not normalized['check_in'] or not normalized['check_out']:
+            st.warning(f"Skipping booking {booking.get('booking_id')} with missing check-in/check-out dates")
+            return None
+        return normalized
+    except Exception as e:
+        st.error(f"Error normalizing booking {booking.get('booking_id')}: {e}")
+        return None
+
+def load_combined_bookings(property: str, start_date: date, end_date: date) -> list[dict]:
+    """Load bookings overlapping the date range for the property with paid statuses."""
+    try:
+        start_str = start_date.isoformat()
+        end_str = end_date.isoformat()
+        # Fetch direct bookings
+        direct = supabase.table("reservations").select("*").eq("property_name", property)\
+            .lte("check_in", end_str).gt("check_out", start_str)\
+            .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
+        st.info(f"Fetched {len(direct)} direct bookings for {property} from {start_str} to {end_str}")
+        # Fetch online bookings
+        online = supabase.table("online_reservations").select("*").eq("property", property)\
+            .lte("check_in", end_str).gt("check_out", start_str)\
+            .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
+        st.info(f"Fetched {len(online)} online bookings for {property} from {start_str} to {end_str}")
+        # Normalize and filter
+        normalized = [b for b in [normalize_booking(b, False) for b in direct] + [normalize_booking(b, True) for b in online] if b]
+        if len(normalized) < len(direct) + len(online):
+            st.warning(f"Skipped {len(direct) + len(online) - len(normalized)} bookings with invalid data for {property}")
+        return normalized
+    except Exception as e:
+        st.error(f"Error loading bookings for {property}: {e}")
+        return []
+
+def filter_bookings_for_day(bookings: list[dict], day: date) -> list[dict]:
+    """Filter bookings active on the given day."""
+    return [b for b in bookings if b['check_in'] and b['check_out'] and b['check_in'] <= day < b['check_out']]
+
+def generate_month_dates(year: int, month: int) -> list[date]:
+    """Generate all dates in the month."""
+    _, num_days = calendar.monthrange(year, month)
     return [date(year, month, d) for d in range(1, num_days + 1)]
 
 @st.cache_data
@@ -106,6 +192,15 @@ def show_daily_status():
     if not properties:
         st.info("No properties available.")
         return
+
+    # Apply CSS to prevent text wrapping
+    st.markdown("""
+        <style>
+        .stDataFrame table {
+            white-space: nowrap;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
     # List properties
     st.subheader("Properties")
@@ -142,15 +237,17 @@ def show_daily_status():
                     df['Inventory No'] = range(1, len(df) + 1)
                     # Create hyperlink for Booking ID
                     df['Booking ID'] = df.apply(
-                        lambda row: f'<a target="_blank" href="/{"Edit_Online_Reservations" if row["type"] == "online" else "Direct_Reservations"}?booking_id={row["Booking ID"]}">{row["Booking ID"]}</a>',
+                        lambda row: f'<a target="_blank" href="/?edit_type={row["type"]}&booking_id={row["Booking ID"]}">{row["Booking ID"]}</a>',
                         axis=1
                     )
                     df = df.drop(columns=['type'])
                     df = df[['Inventory No', 'Room No', 'Booking ID', 'Guest Name', 'Mobile No', 'Total Pax',
                              'Check-in Date', 'Check-out Date', 'Days', 'Booking Status', 'Payment Status', 'Remarks']]
                     st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
-                    # Use st.dataframe to preserve table formatting and scrollbar
-                    st.dataframe(df, use_container_width=True)
+                    # Use st.dataframe with HTML for Booking ID column
+                    st.dataframe(df, use_container_width=True, column_config={
+                        "Booking ID": st.column_config.TextColumn("Booking ID", help="Click to edit reservation")
+                    }, hide_index=True)
                 else:
                     st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
                     st.info("No active bookings on this day.")
