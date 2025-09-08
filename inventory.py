@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date, timedelta
@@ -140,7 +141,7 @@ def show_daily_status():
                         })
                     df = pd.DataFrame(df_data).sort_values('Room No')
                     df['Inventory No'] = range(1, len(df) + 1)
-                    df['Booking ID'] = df.apply(lambda row: f'<a target="_blank" href="/?edit_type={row["type"]}&booking_id={row["Booking ID"]}" style="font-size: 12px;">{row["Booking ID"]}</a>', axis=1)
+                    df['Booking ID'] = df.apply(lambda row: f'<a target="_blank" href="/?edit_type={row["type"]}&booking_id={row["Booking ID"]}">{row["Booking ID"]}</a>', axis=1)
                     df = df.drop(columns=['type'])
                     df = df[['Inventory No', 'Room No', 'Booking ID', 'Guest Name', 'Mobile No', 'Total Pax',
                              'Check-in Date', 'Check-out Date', 'Days', 'Booking Status', 'Payment Status', 'Remarks']]
@@ -149,3 +150,4 @@ def show_daily_status():
                 else:
                     st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
                     st.info("No active bookings on this day.")
+```
