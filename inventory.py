@@ -35,8 +35,7 @@ def normalize_booking(booking: dict, is_online: bool) -> dict:
             'check_out': date.fromisoformat(booking.get('check_out')) if booking.get('check_out') else None,
             'booking_status': booking.get('booking_status'),
             'payment_status': payment_status,
-            'remarks': booking.get('remarks'),
-            'type': 'online' if is_online else 'direct'
+            'remarks': booking.get('remarks')
         }
         if not normalized['check_in'] or not normalized['check_out']:
             st.warning(f"Skipping booking {booking.get('booking_id')} with missing check-in/check-out dates")
@@ -135,17 +134,14 @@ def show_daily_status():
                             'Days': days,
                             'Booking Status': b['booking_status'],
                             'Payment Status': b['payment_status'],
-                            'Remarks': b['remarks'],
-                            'type': b['type']
+                            'Remarks': b['remarks']
                         })
                     df = pd.DataFrame(df_data).sort_values('Room No')
-                    df['Inventory No'] = range(1, len(df) + 1)
-                    df['Booking ID'] = df.apply(lambda row: f'<a target="_blank" href="/?edit_type={row["type"]}&booking_id={row["Booking ID"]}">{row["Booking ID"]}</a>', axis=1)
-                    df = df.drop(columns=['type'])
+                    df['Inventory No'] = range(len(df))  # Sequential index
                     df = df[['Inventory No', 'Room No', 'Booking ID', 'Guest Name', 'Mobile No', 'Total Pax',
                              'Check-in Date', 'Check-out Date', 'Days', 'Booking Status', 'Payment Status', 'Remarks']]
                     st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
-                    st.markdown(df.to_html(escape=False, index=False), unsafe_allow_html=True)
+                    st.dataframe(df, use_container_width=True)
                 else:
                     st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
                     st.info("No active bookings on this day.")
