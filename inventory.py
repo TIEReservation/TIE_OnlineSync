@@ -79,6 +79,60 @@ def generate_month_dates(year: int, month: int) -> list[date]:
     _, num_days = calendar.monthrange(year, month)
     return [date(year, month, d) for d in range(1, num_days + 1)]
 
+def render_table_with_styling(df: pd.DataFrame) -> str:
+    """Render DataFrame as HTML table with custom styling."""
+    table_style = """
+    <style>
+    .custom-table-container {
+        overflow-x: auto;
+        margin: 10px 0;
+        border: 1px solid #e0e0e0;
+        border-radius: 5px;
+    }
+    .custom-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        background-color: white;
+        min-width: 800px;
+    }
+    .custom-table th {
+        background-color: #f8f9fa;
+        color: #333;
+        font-weight: 600;
+        padding: 12px 8px;
+        text-align: left;
+        border-bottom: 2px solid #dee2e6;
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+    }
+    .custom-table td {
+        padding: 10px 8px;
+        border-bottom: 1px solid #dee2e6;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .custom-table tr:hover {
+        background-color: #f8f9fa;
+    }
+    .custom-table a {
+        color: #0066cc;
+        text-decoration: none;
+    }
+    .custom-table a:hover {
+        text-decoration: underline;
+    }
+    </style>
+    """
+    
+    table_html = table_style + '<div class="custom-table-container">'
+    table_html += df.to_html(escape=False, index=False, classes='custom-table')
+    table_html += '</div>'
+    
+    return table_html
+
 @st.cache_data
 def cached_load_properties():
     return load_properties()
@@ -144,8 +198,9 @@ def show_daily_status():
                     df = df.drop(columns=['type'])
                     df = df[['Inventory No', 'Room No', 'Booking ID', 'Guest Name', 'Mobile No', 'Total Pax',
                              'Check-in Date', 'Check-out Date', 'Days', 'Booking Status', 'Payment Status', 'Remarks']]
+                    
                     st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
-                    st.markdown(df.to_html(escape=False, index=False), unsafe_allow_html=True)
+                    st.markdown(render_table_with_styling(df), unsafe_allow_html=True)
                 else:
                     st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
                     st.info("No active bookings on this day.")
