@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date, timedelta
@@ -150,4 +149,3 @@ def show_daily_status():
                 else:
                     st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
                     st.info("No active bookings on this day.")
-```
