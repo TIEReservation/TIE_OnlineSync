@@ -195,7 +195,8 @@ def show_daily_status():
                         })
                     df = pd.DataFrame(df_data).sort_values('Room No')
                     df['Inventory No'] = range(1, len(df) + 1)
-                    df['Booking ID'] = df.apply(lambda row: f'<a target="_blank" href="/?edit_type={row["type"]}&booking_id={row["Booking ID"]}">{row["Booking ID"]}</a>', axis=1)
+                    # Create booking ID links properly for dataframe
+                    df['Booking ID'] = df.apply(lambda row: f"/?edit_type={row['type']}&booking_id={row['Booking ID']}", axis=1)
                     df = df.drop(columns=['type'])
                     df = df[['Inventory No', 'Room No', 'Booking ID', 'Guest Name', 'Mobile No', 'Total Pax',
                              'Check-in Date', 'Check-out Date', 'Days', 'Booking Status', 'Payment Status', 'Remarks']]
