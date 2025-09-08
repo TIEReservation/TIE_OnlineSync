@@ -140,11 +140,16 @@ def show_daily_status():
                         })
                     df = pd.DataFrame(df_data).sort_values('Room No')
                     df['Inventory No'] = range(1, len(df) + 1)
-                    df['Booking ID'] = df.apply(lambda row: f'<a target="_blank" href="/?edit_type={row["type"]}&booking_id={row["Booking ID"]}">{row["Booking ID"]}</a>', axis=1)
+                    # Create hyperlink for Booking ID
+                    df['Booking ID'] = df.apply(
+                        lambda row: f'<a target="_blank" href="/{"Edit_Online_Reservations" if row["type"] == "online" else "Direct_Reservations"}?booking_id={row["Booking ID"]}">{row["Booking ID"]}</a>',
+                        axis=1
+                    )
                     df = df.drop(columns=['type'])
                     df = df[['Inventory No', 'Room No', 'Booking ID', 'Guest Name', 'Mobile No', 'Total Pax',
                              'Check-in Date', 'Check-out Date', 'Days', 'Booking Status', 'Payment Status', 'Remarks']]
                     st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
+                    # Use st.dataframe to preserve table formatting and scrollbar
                     st.dataframe(df, use_container_width=True)
                 else:
                     st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
