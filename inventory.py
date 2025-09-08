@@ -86,7 +86,7 @@ def render_table_with_styling(df: pd.DataFrame) -> str:
     .custom-table-container {
         overflow-x: auto;
         margin: 10px 0;
-        border: 1px solid #e0e0e0;
+        border: 1px solid #dee2e6;
         border-radius: 5px;
     }
     .custom-table {
@@ -95,6 +95,7 @@ def render_table_with_styling(df: pd.DataFrame) -> str:
         font-size: 14px;
         background-color: white;
         min-width: 800px;
+        border: 1px solid #dee2e6;
     }
     .custom-table th {
         background-color: #f8f9fa;
@@ -102,14 +103,14 @@ def render_table_with_styling(df: pd.DataFrame) -> str:
         font-weight: 600;
         padding: 12px 8px;
         text-align: left;
-        border-bottom: 2px solid #dee2e6;
+        border: 1px solid #dee2e6;
         white-space: nowrap;
         position: sticky;
         top: 0;
     }
     .custom-table td {
         padding: 10px 8px;
-        border-bottom: 1px solid #dee2e6;
+        border: 1px solid #dee2e6;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
