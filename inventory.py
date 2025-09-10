@@ -171,42 +171,74 @@ def is_special_category(room_no: str) -> bool:
     """Check if room number is a special category (No Show or Day Use)."""
     return room_no in ["No Show", "Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4"]
 
-def assign_inventory_numbers(bookings: list[dict], property: str) -> list[dict]:
-    """Assign inventory numbers to bookings based on property rules.
+def assign_inventory_numbers(bookings: list[dict], property: str) -> tuple[list[dict], list[dict]]:
+    """Assign inventory numbers to bookings based on property rules, identifying overbookings.
     
     Args:
         bookings: List of booking dictionaries with room_no.
         property: Property name to determine inventory numbers.
     
     Returns:
-        Bookings with added inventory_no field.
+        Tuple of (assigned bookings with inventory_no, overbookings list).
     """
     warnings = []
+    assigned = []
+    overbookings = []
     if property not in PROPERTY_INVENTORY:
         for booking in bookings:
             booking['inventory_no'] = booking['room_no']
-            warnings.append(f"Unknown property {property} for booking {booking.get('booking_id', 'Unknown')}, using room_no {booking['room_no']}")
+            warnings.append(f"Unknown property {property} for booking {booking.get('booking_id', 'Unknown')}")
         if warnings:
             st.warning("\n".join(warnings))
-        return bookings
+        return bookings, []
+    available = [n for n in PROPERTY_INVENTORY[property]["all"] if not is_special_category(n)]
     available_three_bedroom = sorted(PROPERTY_INVENTORY[property]["three_bedroom"])
     for booking in bookings:
         room_no = booking['room_no']
         booking_id = booking.get('booking_id', 'Unknown')
         if is_special_category(room_no):
             booking['inventory_no'] = room_no
-        elif room_no in ['D1', 'D2', 'D3', 'D4', 'D5']:
-            booking['inventory_no'] = available_three_bedroom.pop(0) if available_three_bedroom else room_no
-            if not available_three_bedroom:
-                warnings.append(f"No available Three Bedroom Apartment for {room_no} in {property}, booking {booking_id}")
-        elif room_no in PROPERTY_INVENTORY[property]["all"]:
+            assigned.append(booking)
+        elif room_no in ['D1', 'D2', 'D3', 'D4', 'D5'] and available_three_bedroom:
+            booking['inventory_no'] = available_three_bedroom.pop(0)
+            assigned.append(booking)
+            if booking['inventory_no'] in available:
+                available.remove(booking['inventory_no'])
+        elif room_no in available:
             booking['inventory_no'] = room_no
+            assigned.append(booking)
+            available.remove(room_no)
         else:
-            booking['inventory_no'] = room_no
-            warnings.append(f"Invalid room number {room_no} for {property}, booking {booking_id}")
+            overbookings.append(booking)
     if warnings:
         st.warning("\n".join(warnings))
-    return bookings
+    return assigned, overbookings
+
+def create_inventory_table(assigned: list[dict], overbookings: list[dict], property: str) -> pd.DataFrame:
+    """Create a DataFrame with all inventory numbers for a property, mapping assigned bookings and overbookings.
+    
+    Args:
+        assigned: List of bookings with assigned inventory numbers.
+        overbookings: List of overbooked bookings.
+        property: Property name to get inventory numbers.
+    
+    Returns:
+        DataFrame with columns Inventory No, Room No, Booking ID, Guest Name.
+    """
+    # Initialize DataFrame with all inventory numbers
+    df_data = [{"Inventory No": inv, "Room No": "", "Booking ID": "", "Guest Name": ""} for inv in PROPERTY_INVENTORY[property]["all"]]
+    # Fill assigned bookings
+    for b in assigned:
+        for row in df_data:
+            if row["Inventory No"] == b["inventory_no"]:
+                row["Room No"] = b["room_no"]
+                row["Booking ID"] = f'<a target="_blank" href="/?edit_type={b["type"]}&booking_id={b["booking_id"]}">{b["booking_id"]}</a>'
+                row["Guest Name"] = b["guest_name"]
+    # Add overbookings row if needed
+    if overbookings:
+        overbooking_str = ", ".join(f"{b['room_no']} ({b['booking_id']})" for b in overbookings)
+        df_data.append({"Inventory No": "Overbookings", "Room No": overbooking_str, "Booking ID": "", "Guest Name": ""})
+    return pd.DataFrame(df_data)
 
 @st.cache_data
 def cached_load_properties():
@@ -249,41 +281,18 @@ def show_daily_status():
 
             for day in month_dates:
                 daily_bookings = filter_bookings_for_day(bookings, day)
+                st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
                 if daily_bookings:
                     # Assign inventory numbers
-                    daily_bookings = assign_inventory_numbers(daily_bookings, prop)
-                    # Build DataFrame
-                    df_data = []
-                    for b in daily_bookings:
-                        days = (b['check_out'] - b['check_in']).days if b['check_in'] and b['check_out'] else 0
-                        df_data.append({
-                            'Inventory No': b['inventory_no'],
-                            'Room No': b['room_no'],
-                            'Booking ID': b['booking_id'],
-                            'Guest Name': b['guest_name'],
-                            'Mobile No': b['mobile_no'],
-                            'Total Pax': b['total_pax'],
-                            'Check-in Date': b['check_in'],
-                            'Check-out Date': b['check_out'],
-                            'Days': days,
-                            'Booking Status': b['booking_status'],
-                            'Payment Status': b['payment_status'],
-                            'Remarks': b['remarks'],
-                            'type': b['type']
-                        })
-                    df = pd.DataFrame(df_data).sort_values('Inventory No')
-                    df['Booking ID'] = df.apply(lambda row: f'<a target="_blank" href="/?edit_type={row["type"]}&booking_id={row["Booking ID"]}">{row["Booking ID"]}</a>', axis=1)
-                    df = df.drop(columns=['type'])
-                    df = df[['Inventory No', 'Room No', 'Booking ID', 'Guest Name', 'Mobile No', 'Total Pax',
-                             'Check-in Date', 'Check-out Date', 'Days', 'Booking Status', 'Payment Status', 'Remarks']]
-                    st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
-                    # Add title attributes for specific columns
-                    tooltip_columns = ['Guest Name', 'Remarks', 'Mobile No']
+                    daily_bookings, overbookings = assign_inventory_numbers(daily_bookings, prop)
+                    # Create inventory table
+                    df = create_inventory_table(daily_bookings, overbookings, prop)
+                    # Add tooltips for specific columns
+                    tooltip_columns = ['Guest Name', 'Room No']
                     for col in tooltip_columns:
                         if col in df.columns:
                             df[col] = df[col].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x, str) else x)
                     table_html = df.to_html(escape=False, index=False)
                     st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
                 else:
-                    st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
                     st.info("No active bookings on this day.")
