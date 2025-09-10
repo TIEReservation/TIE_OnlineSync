@@ -3,6 +3,7 @@ from supabase import create_client, Client
 from datetime import date, timedelta
 import calendar
 import pandas as pd
+from typing import Any, List, Dict  # Type hints for function signatures
 
 # Initialize Supabase client
 supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
@@ -95,7 +96,7 @@ PROPERTY_INVENTORY = {
     }
 }
 
-def load_properties() -> list[str]:
+def load_properties() -> List[str]:
     """Load unique properties from both tables without merging variations."""
     try:
         res_direct = supabase.table("reservations").select("property_name").execute().data
@@ -110,7 +111,7 @@ def sanitize_string(value: Any, default: str = "Unknown") -> str:
     """Convert value to string, handling None and non-string types."""
     return str(value) if value is not None else default
 
-def normalize_booking(booking: dict, is_online: bool) -> dict:
+def normalize_booking(booking: Dict, is_online: bool) -> Dict:
     """Normalize booking dict to common schema."""
     # Sanitize inputs to prevent f-string and HTML issues
     booking_id = sanitize_string(booking.get('booking_id'))
@@ -140,7 +141,7 @@ def normalize_booking(booking: dict, is_online: bool) -> dict:
         st.error(f"Error normalizing booking {booking_id}: {sanitize_string(e)}")
         return None
 
-def load_combined_bookings(property: str, start_date: date, end_date: date) -> list[dict]:
+def load_combined_bookings(property: str, start_date: date, end_date: date) -> List[Dict]:
     """Load bookings overlapping the date range for the property with paid statuses."""
     try:
         start_str = start_date.isoformat()
@@ -164,11 +165,11 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> l
         st.error(f"Error loading bookings for {property}: {e}")
         return []
 
-def filter_bookings_for_day(bookings: list[dict], day: date) -> list[dict]:
+def filter_bookings_for_day(bookings: List[Dict], day: date) -> List[Dict]:
     """Filter bookings active on the given day."""
     return [b for b in bookings if b['check_in'] and b['check_out'] and b['check_in'] <= day < b['check_out']]
 
-def generate_month_dates(year: int, month: int) -> list[date]:
+def generate_month_dates(year: int, month: int) -> List[date]:
     """Generate all dates in the month."""
     _, num_days = calendar.monthrange(year, month)
     return [date(year, month, d) for d in range(1, num_days + 1)]
@@ -177,7 +178,7 @@ def is_special_category(room_no: str) -> bool:
     """Check if room number is a special category (No Show or Day Use)."""
     return room_no in ["No Show", "Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4"]
 
-def parse_inventory_numbers(room_no: str, property: str, available: list[str], three_bedroom: list[str]) -> tuple[list[str], list[str]]:
+def parse_inventory_numbers(room_no: str, property: str, available: List[str], three_bedroom: List[str]) -> tuple[List[str], List[str]]:
     """Parse and validate inventory numbers from room_no, handling comma-separated values.
     
     Args:
@@ -207,7 +208,7 @@ def parse_inventory_numbers(room_no: str, property: str, available: list[str], t
             invalid.append(num)
     return valid, invalid
 
-def assign_inventory_numbers(bookings: list[dict], property: str) -> tuple[list[dict], list[dict]]:
+def assign_inventory_numbers(bookings: List[Dict], property: str) -> tuple[List[Dict], List[Dict]]:
     """Assign inventory numbers to bookings based on property rules, identifying overbookings.
     
     Args:
@@ -251,7 +252,7 @@ def assign_inventory_numbers(bookings: list[dict], property: str) -> tuple[list[
         st.warning("\n".join(warnings))
     return assigned, overbookings
 
-def create_inventory_table(assigned: list[dict], overbookings: list[dict], property: str) -> pd.DataFrame:
+def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], property: str) -> pd.DataFrame:
     """Create a DataFrame with all inventory numbers for a property, mapping assigned bookings and overbookings.
     
     Args:
