@@ -7,6 +7,30 @@ import pandas as pd
 # Initialize Supabase client
 supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
 
+# Table CSS for non-wrapping, scrollable table
+TABLE_CSS = """
+<style>
+/* Styles for non-wrapping, scrollable table in daily status */
+.custom-scrollable-table {
+    overflow-x: auto;
+    max-width: 100%;
+    min-width: 800px;
+}
+.custom-scrollable-table table {
+    table-layout: auto;
+    border-collapse: collapse;
+}
+.custom-scrollable-table td, .custom-scrollable-table th {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    max-width: 300px;
+    padding: 8px;
+    border: 1px solid #ddd;
+}
+</style>
+"""
+
 def load_properties() -> list[str]:
     """Load unique properties from both tables without merging variations."""
     try:
@@ -109,6 +133,7 @@ def show_daily_status():
 
     # List properties
     st.subheader("Properties")
+    st.markdown(TABLE_CSS, unsafe_allow_html=True)  # Apply CSS once
     for prop in properties:
         with st.expander(f"{prop}"):
             month_dates = generate_month_dates(year, month)
@@ -145,7 +170,13 @@ def show_daily_status():
                     df = df[['Inventory No', 'Room No', 'Booking ID', 'Guest Name', 'Mobile No', 'Total Pax',
                              'Check-in Date', 'Check-out Date', 'Days', 'Booking Status', 'Payment Status', 'Remarks']]
                     st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
-                    st.markdown(df.to_html(escape=False, index=False), unsafe_allow_html=True)
+                    # Add title attributes for specific columns
+                    tooltip_columns = ['Guest Name', 'Remarks', 'Mobile No']
+                    for col in tooltip_columns:
+                        if col in df.columns:
+                            df[col] = df[col].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x, str) else x)
+                    table_html = df.to_html(escape=False, index=False)
+                    st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
                 else:
                     st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
                     st.info("No active bookings on this day.")
