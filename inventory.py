@@ -32,7 +32,7 @@ TABLE_CSS = """
 </style>
 """
 
-# Property inventory mapping: {"property": {"all": [all valid inventory numbers], "three_bedroom": [three bedroom numbers for D1-D5]}}
+# Property inventory mapping
 PROPERTY_INVENTORY = {
     "Le Poshe Beachview": {
         "all": ["101", "102", "201", "202", "203", "204", "301", "302", "303", "304", "Day Use 1", "Day Use 2", "No Show"],
@@ -96,13 +96,28 @@ PROPERTY_INVENTORY = {
     }
 }
 
+def initialize_property_inventory(properties: List[str]) -> None:
+    """Add missing properties to PROPERTY_INVENTORY with fallback inventory."""
+    fallback = {"all": ["Unknown"], "three_bedroom": []}
+    for prop in properties:
+        if prop not in PROPERTY_INVENTORY:
+            PROPERTY_INVENTORY[prop] = fallback
+            st.warning(f"Added fallback inventory for unknown property: {prop}")
+
+def format_booking_id(booking: Dict) -> str:
+    """Format booking ID as a clickable hyperlink."""
+    booking_id = sanitize_string(booking.get('booking_id'))
+    return f'<a target="_blank" href="/?edit_type={booking["type"]}&booking_id={booking_id}">{booking_id}</a>'
+
 def load_properties() -> List[str]:
-    """Load unique properties from both tables without merging variations."""
+    """Load unique properties from reservations and online_reservations tables."""
     try:
         res_direct = supabase.table("reservations").select("property_name").execute().data
         res_online = supabase.table("online_reservations").select("property").execute().data
         properties = set(r['property_name'] for r in res_direct if r['property_name']) | set(r['property'] for r in res_online if r['property'])
-        return sorted(properties)
+        properties = sorted(properties)
+        initialize_property_inventory(properties)
+        return properties
     except Exception as e:
         st.error(f"Error loading properties: {e}")
         return []
@@ -146,17 +161,14 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
     try:
         start_str = start_date.isoformat()
         end_str = end_date.isoformat()
-        # Fetch direct bookings
         direct = supabase.table("reservations").select("*").eq("property_name", property)\
             .lte("check_in", end_str).gt("check_out", start_str)\
             .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
         st.info(f"Fetched {len(direct)} direct bookings for {property} from {start_str} to {end_str}")
-        # Fetch online bookings
         online = supabase.table("online_reservations").select("*").eq("property", property)\
             .lte("check_in", end_str).gt("check_out", start_str)\
             .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
         st.info(f"Fetched {len(online)} online bookings for {property} from {start_str} to {end_str}")
-        # Normalize and filter
         normalized = [b for b in [normalize_booking(b, False) for b in direct] + [normalize_booking(b, True) for b in online] if b]
         if len(normalized) < len(direct) + len(online):
             st.warning(f"Skipped {len(direct) + len(online) - len(normalized)} bookings with invalid data for {property}")
@@ -179,24 +191,14 @@ def is_special_category(room_no: str) -> bool:
     return room_no in ["No Show", "Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4"]
 
 def parse_inventory_numbers(room_no: str, property: str, available: List[str], three_bedroom: List[str]) -> tuple[List[str], List[str]]:
-    """Parse and validate inventory numbers from room_no, handling comma-separated values.
-    
-    Args:
-        room_no: Room number string (e.g., "101,102" or "D1").
-        property: Property name to validate against.
-        available: List of available inventory numbers.
-        three_bedroom: List of available Three Bedroom Apartment numbers.
-    
-    Returns:
-        Tuple of (valid inventory numbers, invalid inventory numbers).
-    """
+    """Parse and validate inventory numbers from room_no, handling comma-separated values."""
     nums = room_no.split(",") if "," in room_no else [room_no]
     valid = []
     invalid = []
     for num in nums:
         if is_special_category(num):
             valid.append(num)
-        elif num in ['D1', 'D2', 'D3', 'D4', 'D5'] and three_bedroom:
+        elif num in ['D1', 'D2', 'D3', "D4", "D5"] and three_bedroom:
             inv = three_bedroom.pop(0)
             valid.append(inv)
             if inv in available:
@@ -209,27 +211,16 @@ def parse_inventory_numbers(room_no: str, property: str, available: List[str], t
     return valid, invalid
 
 def assign_inventory_numbers(bookings: List[Dict], property: str) -> tuple[List[Dict], List[Dict]]:
-    """Assign inventory numbers to bookings based on property rules, identifying overbookings.
-    
-    Args:
-        bookings: List of booking dictionaries with room_no.
-        property: Property name to determine inventory numbers.
-    
-    Returns:
-        Tuple of (assigned bookings with inventory_no list, overbookings list).
-    """
+    """Assign inventory numbers to bookings, handling unknown properties."""
     warnings = []
     assigned = []
     overbookings = []
+    fallback = {"all": ["Unknown"], "three_bedroom": []}
+    inventory = PROPERTY_INVENTORY.get(property, fallback)
     if property not in PROPERTY_INVENTORY:
-        for booking in bookings:
-            booking['inventory_no'] = [booking['room_no']]
-            warnings.append(f"Unknown property {property} for booking {booking.get('booking_id', 'Unknown')}")
-        if warnings:
-            st.warning("\n".join(warnings))
-        return bookings, []
-    available = [n for n in PROPERTY_INVENTORY[property]["all"] if not is_special_category(n)]
-    available_three_bedroom = sorted(PROPERTY_INVENTORY[property]["three_bedroom"])
+        warnings.append(f"Unknown property {property}; using fallback inventory")
+    available = [n for n in inventory["all"] if not is_special_category(n)]
+    available_three_bedroom = sorted(inventory["three_bedroom"])
     used_inventory = {}
     for booking in bookings:
         booking_id = booking.get('booking_id', 'Unknown')
@@ -253,30 +244,22 @@ def assign_inventory_numbers(bookings: List[Dict], property: str) -> tuple[List[
     return assigned, overbookings
 
 def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], property: str) -> pd.DataFrame:
-    """Create a DataFrame with all inventory numbers for a property, mapping assigned bookings and overbookings.
-    
-    Args:
-        assigned: List of bookings with assigned inventory numbers.
-        overbookings: List of overbooked bookings.
-        property: Property name to get inventory numbers.
-    
-    Returns:
-        DataFrame with all columns from bookings, plus Inventory No.
-    """
-    # Initialize DataFrame with all inventory numbers
+    """Create a DataFrame with inventory numbers, bookings, and overbookings with hyperlinks."""
     columns = ["Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No", "Total Pax", 
                "Check-in Date", "Check-out Date", "Days", "Booking Status", "Payment Status", "Remarks"]
-    df_data = [{col: "" for col in columns} for _ in PROPERTY_INVENTORY[property]["all"]]
-    for i, inv in enumerate(PROPERTY_INVENTORY[property]["all"]):
+    fallback = {"all": ["Unknown"], "three_bedroom": []}
+    inventory = PROPERTY_INVENTORY.get(property, fallback)
+    df_data = [{col: "" for col in columns} for _ in inventory["all"]]
+    for i, inv in enumerate(inventory["all"]):
         df_data[i]["Inventory No"] = inv
-    # Fill assigned bookings with sanitized values
+    # Fill assigned bookings
     for b in assigned:
         for inv in b['inventory_no']:
             for row in df_data:
                 if row["Inventory No"] == inv:
                     row.update({
                         "Room No": sanitize_string(b["room_no"]),
-                        "Booking ID": f'<a target="_blank" href="/?edit_type={b["type"]}&booking_id={sanitize_string(b["booking_id"])}">{sanitize_string(b["booking_id"])}</a>',
+                        "Booking ID": format_booking_id(b),
                         "Guest Name": sanitize_string(b["guest_name"]),
                         "Mobile No": sanitize_string(b["mobile_no"]),
                         "Total Pax": sanitize_string(b["total_pax"]),
@@ -287,12 +270,13 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
                         "Payment Status": sanitize_string(b["payment_status"]),
                         "Remarks": sanitize_string(b["remarks"])
                     })
-    # Add overbookings row if needed
+    # Add overbookings row with hyperlinks
     if overbookings:
+        overbooking_ids = ", ".join(format_booking_id(b) for b in overbookings)
         overbooking_str = ", ".join(f"{sanitize_string(b['room_no'])} ({sanitize_string(b['booking_id'])}, {sanitize_string(b['guest_name'])})" for b in overbookings)
-        df_data.append({"Inventory No": "Overbookings", "Room No": overbooking_str, "Booking ID": "", "Guest Name": "", 
-                        "Mobile No": "", "Total Pax": "", "Check-in Date": "", "Check-out Date": "", "Days": "", 
-                        "Booking Status": "", "Payment Status": "", "Remarks": ""})
+        df_data.append({"Inventory No": "Overbookings", "Room No": overbooking_str, "Booking ID": overbooking_ids, 
+                        "Guest Name": "", "Mobile No": "", "Total Pax": "", "Check-in Date": "", "Check-out Date": "", 
+                        "Days": "", "Booking Status": "", "Payment Status": "", "Remarks": ""})
     return pd.DataFrame(df_data, columns=columns)
 
 @st.cache_data
@@ -304,45 +288,34 @@ def cached_load_bookings(property, start_date, end_date):
     return load_combined_bookings(property, start_date, end_date)
 
 def show_daily_status():
-    """Main function to display daily status screen."""
+    """Display daily status table with inventory and bookings."""
     st.title("📅 Daily Status")
-
-    # Cache-clearing button
     if st.button("🔄 Refresh Property List"):
         st.cache_data.clear()
         st.success("Cache cleared! Refreshing properties...")
         st.rerun()
-
-    # Year and Month selection
     current_year = date.today().year
     year = st.selectbox("Select Year", list(range(current_year - 5, current_year + 6)), index=5)
     month = st.selectbox("Select Month", list(range(1, 13)), index=date.today().month - 1)
-
     properties = cached_load_properties()
     if not properties:
         st.info("No properties available.")
         return
-
-    # List properties
     st.subheader("Properties")
-    st.markdown(TABLE_CSS, unsafe_allow_html=True)  # Apply CSS once
+    st.markdown(TABLE_CSS, unsafe_allow_html=True)
     for prop in properties:
         with st.expander(f"{prop}"):
             month_dates = generate_month_dates(year, month)
             start_date = month_dates[0]
-            end_date = month_dates[-1] + timedelta(days=1)  # For exclusive check_out
+            end_date = month_dates[-1] + timedelta(days=1)
             bookings = cached_load_bookings(prop, start_date, end_date - timedelta(days=1))
             st.info(f"Total bookings for {prop}: {len(bookings)}")
-
             for day in month_dates:
                 daily_bookings = filter_bookings_for_day(bookings, day)
                 st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
                 if daily_bookings:
-                    # Assign inventory numbers
                     daily_bookings, overbookings = assign_inventory_numbers(daily_bookings, prop)
-                    # Create inventory table
                     df = create_inventory_table(daily_bookings, overbookings, prop)
-                    # Add tooltips for specific columns
                     tooltip_columns = ['Guest Name', 'Room No', 'Remarks', 'Mobile No']
                     for col in tooltip_columns:
                         if col in df.columns:
