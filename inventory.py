@@ -31,6 +31,70 @@ TABLE_CSS = """
 </style>
 """
 
+# Property inventory mapping: {"property": {"all": [all valid inventory numbers], "three_bedroom": [three bedroom numbers for D1-D5]}}
+PROPERTY_INVENTORY = {
+    "Le Poshe Beachview": {
+        "all": ["101", "102", "201", "202", "203", "204", "301", "302", "303", "304", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203", "204"]
+    },
+    "La Millionare Resort": {
+        "all": ["101", "102", "103", "105", "201", "202", "203", "204", "205", "206", "207", "208", "301", "302", "303", "304", "305", "306", "307", "308", "401", "402", "Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "No Show"],
+        "three_bedroom": ["203", "204", "205"]
+    },
+    "Le Poshe Luxury": {
+        "all": ["101", "102", "201", "202", "203", "204", "205", "301", "302", "303", "304", "305", "401", "402", "403", "404", "405", "501", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203", "204", "205"]
+    },
+    "Le Poshe Suite": {
+        "all": ["601", "602", "603", "604", "701", "702", "703", "704", "801", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": []
+    },
+    "La Paradise Residency": {
+        "all": ["101", "102", "103", "201", "202", "203", "301", "302", "303", "304", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203"]
+    },
+    "La Paradise Luxury": {
+        "all": ["101", "102", "103", "201", "202", "203", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203"]
+    },
+    "La Villa Heritage": {
+        "all": ["101", "102", "103", "201", "202", "203", "301", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203"]
+    },
+    "Le Pondy Beach Side": {
+        "all": ["101", "102", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": []
+    },
+    "Le Royce Villa": {
+        "all": ["101", "102", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": []
+    },
+    "La Tamara Luxury": {
+        "all": ["101", "102", "103", "104", "105", "106", "201", "202", "203", "204", "205", "206", "301", "302", "303", "304", "305", "306", "401", "402", "403", "404", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203", "204", "205", "206"]
+    },
+    "La Antilia": {
+        "all": ["101", "201", "202", "203", "204", "301", "302", "303", "304", "401", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203", "204"]
+    },
+    "La Tamara Suite": {
+        "all": ["101", "102", "103", "104", "201", "202", "203", "204", "205", "206", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203", "204", "205", "206"]
+    },
+    "Le Park Resort": {
+        "all": ["111", "222", "333", "444", "555", "666", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": []
+    },
+    "Villa Shakti": {
+        "all": ["101", "102", "201", "201A", "202", "203", "301", "301A", "302", "303", "401", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203"]
+    },
+    "Eden Beach Resort": {
+        "all": ["101", "102", "103", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": []
+    }
+}
+
 def load_properties() -> list[str]:
     """Load unique properties from both tables without merging variations."""
     try:
@@ -103,6 +167,47 @@ def generate_month_dates(year: int, month: int) -> list[date]:
     _, num_days = calendar.monthrange(year, month)
     return [date(year, month, d) for d in range(1, num_days + 1)]
 
+def is_special_category(room_no: str) -> bool:
+    """Check if room number is a special category (No Show or Day Use)."""
+    return room_no in ["No Show", "Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4"]
+
+def assign_inventory_numbers(bookings: list[dict], property: str) -> list[dict]:
+    """Assign inventory numbers to bookings based on property rules.
+    
+    Args:
+        bookings: List of booking dictionaries with room_no.
+        property: Property name to determine inventory numbers.
+    
+    Returns:
+        Bookings with added inventory_no field.
+    """
+    warnings = []
+    if property not in PROPERTY_INVENTORY:
+        for booking in bookings:
+            booking['inventory_no'] = booking['room_no']
+            warnings.append(f"Unknown property {property} for booking {booking.get('booking_id', 'Unknown')}, using room_no {booking['room_no']}")
+        if warnings:
+            st.warning("\n".join(warnings))
+        return bookings
+    available_three_bedroom = sorted(PROPERTY_INVENTORY[property]["three_bedroom"])
+    for booking in bookings:
+        room_no = booking['room_no']
+        booking_id = booking.get('booking_id', 'Unknown')
+        if is_special_category(room_no):
+            booking['inventory_no'] = room_no
+        elif room_no in ['D1', 'D2', 'D3', 'D4', 'D5']:
+            booking['inventory_no'] = available_three_bedroom.pop(0) if available_three_bedroom else room_no
+            if not available_three_bedroom:
+                warnings.append(f"No available Three Bedroom Apartment for {room_no} in {property}, booking {booking_id}")
+        elif room_no in PROPERTY_INVENTORY[property]["all"]:
+            booking['inventory_no'] = room_no
+        else:
+            booking['inventory_no'] = room_no
+            warnings.append(f"Invalid room number {room_no} for {property}, booking {booking_id}")
+    if warnings:
+        st.warning("\n".join(warnings))
+    return bookings
+
 @st.cache_data
 def cached_load_properties():
     return load_properties()
@@ -145,11 +250,14 @@ def show_daily_status():
             for day in month_dates:
                 daily_bookings = filter_bookings_for_day(bookings, day)
                 if daily_bookings:
+                    # Assign inventory numbers
+                    daily_bookings = assign_inventory_numbers(daily_bookings, prop)
                     # Build DataFrame
                     df_data = []
                     for b in daily_bookings:
                         days = (b['check_out'] - b['check_in']).days if b['check_in'] and b['check_out'] else 0
                         df_data.append({
+                            'Inventory No': b['inventory_no'],
                             'Room No': b['room_no'],
                             'Booking ID': b['booking_id'],
                             'Guest Name': b['guest_name'],
@@ -163,8 +271,7 @@ def show_daily_status():
                             'Remarks': b['remarks'],
                             'type': b['type']
                         })
-                    df = pd.DataFrame(df_data).sort_values('Room No')
-                    df['Inventory No'] = range(1, len(df) + 1)
+                    df = pd.DataFrame(df_data).sort_values('Inventory No')
                     df['Booking ID'] = df.apply(lambda row: f'<a target="_blank" href="/?edit_type={row["type"]}&booking_id={row["Booking ID"]}">{row["Booking ID"]}</a>', axis=1)
                     df = df.drop(columns=['type'])
                     df = df[['Inventory No', 'Room No', 'Booking ID', 'Guest Name', 'Mobile No', 'Total Pax',
