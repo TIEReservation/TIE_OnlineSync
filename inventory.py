@@ -106,8 +106,247 @@ def load_properties() -> list[str]:
         st.error(f"Error loading properties: {e}")
         return []
 
+def sanitize_string(value: Any, default: str = "Unknown") -> str:
+    """Convert value to string, handling None and non-string types."""
+    return str(value) if value is not None else default
+
 def normalize_booking(booking: dict, is_online: bool) -> dict:
     """Normalize booking dict to common schema."""
-    payment_status = booking.get('payment_status', '').title()
+    # Sanitize inputs to prevent f-string and HTML issues
+    booking_id = sanitize_string(booking.get('booking_id'))
+    payment_status = sanitize_string(booking.get('payment_status')).title()
     if payment_status not in ["Fully Paid", "Partially Paid"]:
-        st.warning(f"Skipping booking {booking.get('booking_id')} with
+        st.warning(f"Skipping booking {booking_id} with invalid payment status: {payment_status}")
+        return None
+    try:
+        normalized = {
+            'booking_id': booking_id,
+            'room_no': sanitize_string(booking.get('room_no')),
+            'guest_name': sanitize_string(booking.get('guest_name')),
+            'mobile_no': sanitize_string(booking.get('guest_phone') if is_online else booking.get('mobile_no')),
+            'total_pax': booking.get('total_pax'),
+            'check_in': date.fromisoformat(booking.get('check_in')) if booking.get('check_in') else None,
+            'check_out': date.fromisoformat(booking.get('check_out')) if booking.get('check_out') else None,
+            'booking_status': sanitize_string(booking.get('booking_status')),
+            'payment_status': payment_status,
+            'remarks': sanitize_string(booking.get('remarks')),
+            'type': 'online' if is_online else 'direct'
+        }
+        if not normalized['check_in'] or not normalized['check_out']:
+            st.warning(f"Skipping booking {booking_id} with missing check-in/check-out dates")
+            return None
+        return normalized
+    except Exception as e:
+        st.error(f"Error normalizing booking {booking_id}: {sanitize_string(e)}")
+        return None
+
+def load_combined_bookings(property: str, start_date: date, end_date: date) -> list[dict]:
+    """Load bookings overlapping the date range for the property with paid statuses."""
+    try:
+        start_str = start_date.isoformat()
+        end_str = end_date.isoformat()
+        # Fetch direct bookings
+        direct = supabase.table("reservations").select("*").eq("property_name", property)\
+            .lte("check_in", end_str).gt("check_out", start_str)\
+            .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
+        st.info(f"Fetched {len(direct)} direct bookings for {property} from {start_str} to {end_str}")
+        # Fetch online bookings
+        online = supabase.table("online_reservations").select("*").eq("property", property)\
+            .lte("check_in", end_str).gt("check_out", start_str)\
+            .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
+        st.info(f"Fetched {len(online)} online bookings for {property} from {start_str} to {end_str}")
+        # Normalize and filter
+        normalized = [b for b in [normalize_booking(b, False) for b in direct] + [normalize_booking(b, True) for b in online] if b]
+        if len(normalized) < len(direct) + len(online):
+            st.warning(f"Skipped {len(direct) + len(online) - len(normalized)} bookings with invalid data for {property}")
+        return normalized
+    except Exception as e:
+        st.error(f"Error loading bookings for {property}: {e}")
+        return []
+
+def filter_bookings_for_day(bookings: list[dict], day: date) -> list[dict]:
+    """Filter bookings active on the given day."""
+    return [b for b in bookings if b['check_in'] and b['check_out'] and b['check_in'] <= day < b['check_out']]
+
+def generate_month_dates(year: int, month: int) -> list[date]:
+    """Generate all dates in the month."""
+    _, num_days = calendar.monthrange(year, month)
+    return [date(year, month, d) for d in range(1, num_days + 1)]
+
+def is_special_category(room_no: str) -> bool:
+    """Check if room number is a special category (No Show or Day Use)."""
+    return room_no in ["No Show", "Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4"]
+
+def parse_inventory_numbers(room_no: str, property: str, available: list[str], three_bedroom: list[str]) -> tuple[list[str], list[str]]:
+    """Parse and validate inventory numbers from room_no, handling comma-separated values.
+    
+    Args:
+        room_no: Room number string (e.g., "101,102" or "D1").
+        property: Property name to validate against.
+        available: List of available inventory numbers.
+        three_bedroom: List of available Three Bedroom Apartment numbers.
+    
+    Returns:
+        Tuple of (valid inventory numbers, invalid inventory numbers).
+    """
+    nums = room_no.split(",") if "," in room_no else [room_no]
+    valid = []
+    invalid = []
+    for num in nums:
+        if is_special_category(num):
+            valid.append(num)
+        elif num in ['D1', 'D2', 'D3', 'D4', 'D5'] and three_bedroom:
+            inv = three_bedroom.pop(0)
+            valid.append(inv)
+            if inv in available:
+                available.remove(inv)
+        elif num in available:
+            valid.append(num)
+            available.remove(num)
+        else:
+            invalid.append(num)
+    return valid, invalid
+
+def assign_inventory_numbers(bookings: list[dict], property: str) -> tuple[list[dict], list[dict]]:
+    """Assign inventory numbers to bookings based on property rules, identifying overbookings.
+    
+    Args:
+        bookings: List of booking dictionaries with room_no.
+        property: Property name to determine inventory numbers.
+    
+    Returns:
+        Tuple of (assigned bookings with inventory_no list, overbookings list).
+    """
+    warnings = []
+    assigned = []
+    overbookings = []
+    if property not in PROPERTY_INVENTORY:
+        for booking in bookings:
+            booking['inventory_no'] = [booking['room_no']]
+            warnings.append(f"Unknown property {property} for booking {booking.get('booking_id', 'Unknown')}")
+        if warnings:
+            st.warning("\n".join(warnings))
+        return bookings, []
+    available = [n for n in PROPERTY_INVENTORY[property]["all"] if not is_special_category(n)]
+    available_three_bedroom = sorted(PROPERTY_INVENTORY[property]["three_bedroom"])
+    used_inventory = {}
+    for booking in bookings:
+        booking_id = booking.get('booking_id', 'Unknown')
+        valid_nums, invalid_nums = parse_inventory_numbers(booking['room_no'], property, available, available_three_bedroom)
+        booking['inventory_no'] = valid_nums
+        if invalid_nums:
+            warnings.append(f"Invalid inventory numbers {', '.join(invalid_nums)} for {property}, booking {booking_id}")
+            overbookings.append(booking)
+        for inv in valid_nums:
+            if inv in used_inventory:
+                overbookings.append(booking)
+                overbookings.append(used_inventory[inv])
+                del used_inventory[inv]
+            else:
+                used_inventory[inv] = booking
+        if not valid_nums and not invalid_nums:
+            overbookings.append(booking)
+    assigned = list(used_inventory.values())
+    if warnings:
+        st.warning("\n".join(warnings))
+    return assigned, overbookings
+
+def create_inventory_table(assigned: list[dict], overbookings: list[dict], property: str) -> pd.DataFrame:
+    """Create a DataFrame with all inventory numbers for a property, mapping assigned bookings and overbookings.
+    
+    Args:
+        assigned: List of bookings with assigned inventory numbers.
+        overbookings: List of overbooked bookings.
+        property: Property name to get inventory numbers.
+    
+    Returns:
+        DataFrame with all columns from bookings, plus Inventory No.
+    """
+    # Initialize DataFrame with all inventory numbers
+    columns = ["Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No", "Total Pax", 
+               "Check-in Date", "Check-out Date", "Days", "Booking Status", "Payment Status", "Remarks"]
+    df_data = [{col: "" for col in columns} for _ in PROPERTY_INVENTORY[property]["all"]]
+    for i, inv in enumerate(PROPERTY_INVENTORY[property]["all"]):
+        df_data[i]["Inventory No"] = inv
+    # Fill assigned bookings with sanitized values
+    for b in assigned:
+        for inv in b['inventory_no']:
+            for row in df_data:
+                if row["Inventory No"] == inv:
+                    row.update({
+                        "Room No": sanitize_string(b["room_no"]),
+                        "Booking ID": f'<a target="_blank" href="/?edit_type={b["type"]}&booking_id={sanitize_string(b["booking_id"])}">{sanitize_string(b["booking_id"])}</a>',
+                        "Guest Name": sanitize_string(b["guest_name"]),
+                        "Mobile No": sanitize_string(b["mobile_no"]),
+                        "Total Pax": sanitize_string(b["total_pax"]),
+                        "Check-in Date": b["check_in"],
+                        "Check-out Date": b["check_out"],
+                        "Days": (b["check_out"] - b["check_in"]).days if b["check_in"] and b["check_out"] else "",
+                        "Booking Status": sanitize_string(b["booking_status"]),
+                        "Payment Status": sanitize_string(b["payment_status"]),
+                        "Remarks": sanitize_string(b["remarks"])
+                    })
+    # Add overbookings row if needed
+    if overbookings:
+        overbooking_str = ", ".join(f"{sanitize_string(b['room_no'])} ({sanitize_string(b['booking_id'])}, {sanitize_string(b['guest_name'])})" for b in overbookings)
+        df_data.append({"Inventory No": "Overbookings", "Room No": overbooking_str, "Booking ID": "", "Guest Name": "", 
+                        "Mobile No": "", "Total Pax": "", "Check-in Date": "", "Check-out Date": "", "Days": "", 
+                        "Booking Status": "", "Payment Status": "", "Remarks": ""})
+    return pd.DataFrame(df_data, columns=columns)
+
+@st.cache_data
+def cached_load_properties():
+    return load_properties()
+
+@st.cache_data
+def cached_load_bookings(property, start_date, end_date):
+    return load_combined_bookings(property, start_date, end_date)
+
+def show_daily_status():
+    """Main function to display daily status screen."""
+    st.title("📅 Daily Status")
+
+    # Cache-clearing button
+    if st.button("🔄 Refresh Property List"):
+        st.cache_data.clear()
+        st.success("Cache cleared! Refreshing properties...")
+        st.rerun()
+
+    # Year and Month selection
+    current_year = date.today().year
+    year = st.selectbox("Select Year", list(range(current_year - 5, current_year + 6)), index=5)
+    month = st.selectbox("Select Month", list(range(1, 13)), index=date.today().month - 1)
+
+    properties = cached_load_properties()
+    if not properties:
+        st.info("No properties available.")
+        return
+
+    # List properties
+    st.subheader("Properties")
+    st.markdown(TABLE_CSS, unsafe_allow_html=True)  # Apply CSS once
+    for prop in properties:
+        with st.expander(f"{prop}"):
+            month_dates = generate_month_dates(year, month)
+            start_date = month_dates[0]
+            end_date = month_dates[-1] + timedelta(days=1)  # For exclusive check_out
+            bookings = cached_load_bookings(prop, start_date, end_date - timedelta(days=1))
+            st.info(f"Total bookings for {prop}: {len(bookings)}")
+
+            for day in month_dates:
+                daily_bookings = filter_bookings_for_day(bookings, day)
+                st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
+                if daily_bookings:
+                    # Assign inventory numbers
+                    daily_bookings, overbookings = assign_inventory_numbers(daily_bookings, prop)
+                    # Create inventory table
+                    df = create_inventory_table(daily_bookings, overbookings, prop)
+                    # Add tooltips for specific columns
+                    tooltip_columns = ['Guest Name', 'Room No', 'Remarks', 'Mobile No']
+                    for col in tooltip_columns:
+                        if col in df.columns:
+                            df[col] = df[col].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x, str) else x)
+                    table_html = df.to_html(escape=False, index=False)
+                    st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
+                else:
+                    st.info("No active bookings on this day.")
