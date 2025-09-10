@@ -126,13 +126,21 @@ def sanitize_string(value: Any, default: str = "Unknown") -> str:
     """Convert value to string, handling None and non-string types."""
     return str(value) if value is not None else default
 
-def normalize_booking(booking: Dict, is_online: bool) -> Dict:
-    """Normalize booking dict to common schema."""
-    # Sanitize inputs to prevent f-string and HTML issues
+def validate_tariff(booking: Dict, property: str) -> bool:
+    """Validate that booking has a positive tariff."""
     booking_id = sanitize_string(booking.get('booking_id'))
-    payment_status = sanitize_string(booking.get('payment_status')).title()
-    if payment_status not in ["Fully Paid", "Partially Paid"]:
-        st.warning(f"Skipping booking {booking_id} with invalid payment status: {payment_status}")
+    tariff = booking.get('total_tariff', booking.get('tariff', 0))
+    if not isinstance(tariff, (int, float)) or tariff <= 0:
+        st.warning(f"Skipping booking {booking_id} for {property} with invalid or zero tariff: {tariff}")
+        return False
+    return True
+
+def normalize_booking(booking: Dict, is_online: bool) -> Dict:
+    """Normalize booking dict to common schema, requiring positive tariff."""
+    booking_id = sanitize_string(booking.get('booking_id'))
+    property = sanitize_string(booking.get('property_name' if not is_online else 'property'))
+    # Ensure tariff is positive before normalization
+    if not validate_tariff(booking, property):
         return None
     try:
         normalized = {
@@ -144,30 +152,29 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
             'check_in': date.fromisoformat(booking.get('check_in')) if booking.get('check_in') else None,
             'check_out': date.fromisoformat(booking.get('check_out')) if booking.get('check_out') else None,
             'booking_status': sanitize_string(booking.get('booking_status')),
-            'payment_status': payment_status,
+            'payment_status': sanitize_string(booking.get('payment_status')).title(),
             'remarks': sanitize_string(booking.get('remarks')),
-            'type': 'online' if is_online else 'direct'
+            'type': 'online' if is_online else 'direct',
+            'total_tariff': booking.get('total_tariff', booking.get('tariff', 0))
         }
         if not normalized['check_in'] or not normalized['check_out']:
-            st.warning(f"Skipping booking {booking_id} with missing check-in/check-out dates")
+            st.warning(f"Skipping booking {booking_id} for {property} with missing check-in/check-out dates")
             return None
         return normalized
     except Exception as e:
-        st.error(f"Error normalizing booking {booking_id}: {sanitize_string(e)}")
+        st.error(f"Error normalizing booking {booking_id} for {property}: {sanitize_string(e)}")
         return None
 
 def load_combined_bookings(property: str, start_date: date, end_date: date) -> List[Dict]:
-    """Load bookings overlapping the date range for the property with paid statuses."""
+    """Load bookings overlapping the date range for the property."""
     try:
         start_str = start_date.isoformat()
         end_str = end_date.isoformat()
         direct = supabase.table("reservations").select("*").eq("property_name", property)\
-            .lte("check_in", end_str).gt("check_out", start_str)\
-            .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
+            .lte("check_in", end_str).gt("check_out", start_str).execute().data
         st.info(f"Fetched {len(direct)} direct bookings for {property} from {start_str} to {end_str}")
         online = supabase.table("online_reservations").select("*").eq("property", property)\
-            .lte("check_in", end_str).gt("check_out", start_str)\
-            .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
+            .lte("check_in", end_str).gt("check_out", start_str).execute().data
         st.info(f"Fetched {len(online)} online bookings for {property} from {start_str} to {end_str}")
         normalized = [b for b in [normalize_booking(b, False) for b in direct] + [normalize_booking(b, True) for b in online] if b]
         if len(normalized) < len(direct) + len(online):
