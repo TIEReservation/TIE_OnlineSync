@@ -34,11 +34,11 @@ TABLE_CSS = """
 
 # Property inventory mapping
 PROPERTY_INVENTORY = {
-    "Le Poshe Beachview": {
+    "Le Poshe Beach View": {
         "all": ["101", "102", "201", "202", "203", "204", "301", "302", "303", "304", "Day Use 1", "Day Use 2", "No Show"],
         "three_bedroom": ["203", "204"]
     },
-    "La Millionare Resort": {
+    "La Millionaire Resort": {
         "all": ["101", "102", "103", "105", "201", "202", "203", "204", "205", "206", "207", "208", "301", "302", "303", "304", "305", "306", "307", "308", "401", "402", "Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "No Show"],
         "three_bedroom": ["203", "204", "205"]
     },
@@ -74,7 +74,7 @@ PROPERTY_INVENTORY = {
         "all": ["101", "102", "103", "104", "105", "106", "201", "202", "203", "204", "205", "206", "301", "302", "303", "304", "305", "306", "401", "402", "403", "404", "Day Use 1", "Day Use 2", "No Show"],
         "three_bedroom": ["203", "204", "205", "206"]
     },
-    "La Antilia": {
+    "La Antilia Luxury": {
         "all": ["101", "201", "202", "203", "204", "301", "302", "303", "304", "401", "Day Use 1", "Day Use 2", "No Show"],
         "three_bedroom": ["203", "204"]
     },
