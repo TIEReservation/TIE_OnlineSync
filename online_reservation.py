@@ -84,6 +84,8 @@ def insert_online_reservation(reservation):
         response = supabase.table("online_reservations").insert(truncated_reservation).execute()
         return bool(response.data)
     except Exception as e:
+        if '23505' in str(e) and 'duplicate key value' in str(e).lower():
+            return False  # Silently skip duplicate booking_id errors
         st.error(f"Error inserting online reservation: {e}")
         return False
 
