@@ -8,6 +8,15 @@ from typing import Any, List, Dict  # Type hints for function signatures
 # Initialize Supabase client
 supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
 
+# Property synonym mapping
+property_mapping = {
+    "La Millionaire Luxury Resort": "La Millionaire Resort",
+}
+
+reverse_mapping = {}
+for variant, canonical in property_mapping.items():
+    reverse_mapping.setdefault(canonical, []).append(variant)
+
 # Table CSS for non-wrapping, scrollable table
 TABLE_CSS = """
 <style>
@@ -114,7 +123,17 @@ def load_properties() -> List[str]:
     try:
         res_direct = supabase.table("reservations").select("property_name").execute().data
         res_online = supabase.table("online_reservations").select("property").execute().data
-        properties = set(r['property_name'] for r in res_direct if r['property_name']) | set(r['property'] for r in res_online if r['property'])
+        properties = set()
+        for r in res_direct:
+            prop = r['property_name']
+            if prop:
+                canonical = property_mapping.get(prop, prop)
+                properties.add(canonical)
+        for r in res_online:
+            prop = r['property']
+            if prop:
+                canonical = property_mapping.get(prop, prop)
+                properties.add(canonical)
         properties = sorted(properties)
         initialize_property_inventory(properties)
         return properties
@@ -159,13 +178,14 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
 def load_combined_bookings(property: str, start_date: date, end_date: date) -> List[Dict]:
     """Load bookings overlapping the date range for the property with paid statuses."""
     try:
+        variants = [property] + reverse_mapping.get(property, [])
         start_str = start_date.isoformat()
         end_str = end_date.isoformat()
-        direct = supabase.table("reservations").select("*").eq("property_name", property)\
+        direct = supabase.table("reservations").select("*").in_("property_name", variants)\
             .lte("check_in", end_str).gt("check_out", start_str)\
             .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
         st.info(f"Fetched {len(direct)} direct bookings for {property} from {start_str} to {end_str}")
-        online = supabase.table("online_reservations").select("*").eq("property", property)\
+        online = supabase.table("online_reservations").select("*").in_("property", variants)\
             .lte("check_in", end_str).gt("check_out", start_str)\
             .in_("payment_status", ["Fully Paid", "Partially Paid"]).execute().data
         st.info(f"Fetched {len(online)} online bookings for {property} from {start_str} to {end_str}")
