@@ -49,10 +49,10 @@ def generate_month_dates(year, month):
     return [date(year, month, day) for day in range(1, num_days + 1)]
 
 def filter_bookings_for_day(bookings, target_date):
-    """Filter bookings active on the target date with status Pending."""
+    """Filter bookings active on the target date with status Pending or Follow-up."""
     filtered_bookings = []
     for booking in bookings:
-        if booking.get("booking_status") != "Pending":
+        if booking.get("booking_status") not in ["Pending", "Follow-up"]:
             continue
         check_in = date.fromisoformat(booking["check_in"]) if booking.get("check_in") else None
         check_out = date.fromisoformat(booking["check_out"]) if booking.get("check_out") else None
@@ -64,7 +64,8 @@ def create_bookings_table(bookings):
     """Create a DataFrame for bookings with specified columns, including edit links."""
     columns = [
         "Booking ID", "Guest Name", "Check-in Date", "Check-out Date", "Room No",
-        "Advance MOP", "Balance MOP", "Total Tariff", "Advance Amount", "Balance Due", "Remarks"
+        "Advance MOP", "Balance MOP", "Total Tariff", "Advance Amount", "Balance Due",
+        "Booking Status", "Remarks"
     ]
     df_data = []
     for booking in bookings:
@@ -82,6 +83,7 @@ def create_bookings_table(bookings):
             "Total Tariff": booking.get("booking_amount", 0.0),
             "Advance Amount": booking.get("total_payment_made", 0.0),
             "Balance Due": booking.get("balance_due", 0.0),
+            "Booking Status": booking.get("booking_status", ""),
             "Remarks": booking.get("remarks", "")
         })
     return pd.DataFrame(df_data, columns=columns)
@@ -92,7 +94,7 @@ def cached_load_online_reservations():
     return load_online_reservations_from_supabase()
 
 def show_dms():
-    """Display Daily Management Status page with Pending online bookings."""
+    """Display Daily Management Status page with Pending and Follow-up online bookings."""
     st.title("📋 Daily Management Status")
     if st.button("🔄 Refresh Bookings"):
         st.cache_data.clear()
@@ -116,7 +118,7 @@ def show_dms():
         st.info("No properties found in reservations.")
         return
     
-    st.subheader("Pending Bookings by Property")
+    st.subheader("Pending and Follow-up Bookings by Property")
     st.markdown(TABLE_CSS, unsafe_allow_html=True)
     
     for prop in properties:
@@ -125,9 +127,9 @@ def show_dms():
             start_date = month_dates[0]
             end_date = month_dates[-1] + timedelta(days=1)
             
-            # Filter bookings for the property and Pending status
-            prop_bookings = [b for b in bookings if b.get("property") == prop and b.get("booking_status") == "Pending"]
-            st.info(f"Total Pending bookings for {prop}: {len(prop_bookings)}")
+            # Filter bookings for the property and Pending or Follow-up status
+            prop_bookings = [b for b in bookings if b.get("property") == prop and b.get("booking_status") in ["Pending", "Follow-up"]]
+            st.info(f"Total Pending and Follow-up bookings for {prop}: {len(prop_bookings)}")
             
             for day in month_dates:
                 daily_bookings = filter_bookings_for_day(prop_bookings, day)
@@ -141,4 +143,4 @@ def show_dms():
                     table_html = df.to_html(escape=False, index=False)
                     st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
                 else:
-                    st.info("No Pending bookings on this day.")
+                    st.info("No Pending or Follow-up bookings on this day.")
