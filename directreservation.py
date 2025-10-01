@@ -435,8 +435,11 @@ def show_new_reservation_form():
             else:
                 custom_room_no = None
         with row4_col4:
-            available_rooms = sorted(room_map.get(property_name, {}).get(room_type, [])) if room_type != "Other" else []
-            room_no = st.selectbox("Room No", [""] + available_rooms, index=0 if room_type == "Other" else available_rooms.index(st.session_state[f"{form_key}_room"]) if st.session_state[f"{form_key}_room"] in available_rooms else 0, key=f"{form_key}_room")
+            if room_type == "Other":
+                room_no = st.text_input("Room No", value=st.session_state[f"{form_key}_room"], key=f"{form_key}_room", placeholder="Enter room number")
+            else:
+                available_rooms = sorted(room_map.get(property_name, {}).get(room_type, []))
+                room_no = st.selectbox("Room No", available_rooms, index=available_rooms.index(st.session_state[f"{form_key}_room"]) if st.session_state[f"{form_key}_room"] in available_rooms else 0, key=f"{form_key}_room")
         # Row 5: Total Tariff, Tariff (per day), Advance Amount, Advance MOP
         row5_col1, row5_col2, row5_col3, row5_col4 = st.columns(4)
         with row5_col1:
@@ -726,11 +729,14 @@ def show_edit_form(edit_index):
             else:
                 custom_room_no = None
         with row4_col4:
-            available_rooms = sorted(room_map.get(property_name, {}).get(room_type, [])) if room_type != "Other" else []
-            existing_room_no = reservation["Room No"] or ""
-            if existing_room_no and existing_room_no not in available_rooms and room_type != "Other":
-                available_rooms = sorted(set(available_rooms + [existing_room_no]))
-            room_no = st.selectbox("Room No", [""] + available_rooms, index=0 if room_type == "Other" else available_rooms.index(existing_room_no) if existing_room_no in available_rooms else 0, key=f"{form_key}_room")
+            if room_type == "Other":
+                room_no = st.text_input("Room No", value=st.session_state[f"{form_key}_room"], key=f"{form_key}_room", placeholder="Enter room number")
+            else:
+                available_rooms = sorted(room_map.get(property_name, {}).get(room_type, []))
+                existing_room_no = reservation["Room No"] or ""
+                if existing_room_no and existing_room_no not in available_rooms:
+                    available_rooms = sorted(set(available_rooms + [existing_room_no]))
+                room_no = st.selectbox("Room No", available_rooms, index=available_rooms.index(st.session_state[f"{form_key}_room"]) if st.session_state[f"{form_key}_room"] in available_rooms else 0, key=f"{form_key}_room")
         # Row 5: Total Tariff, Tariff (per day), Advance Amount, Advance MOP
         row5_col1, row5_col2, row5_col3, row5_col4 = st.columns(4)
         with row5_col1:
