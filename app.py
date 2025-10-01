@@ -50,6 +50,7 @@ def show_admin_panel():
     st.subheader("Create New User")
     with st.form("create_user_form"):
         new_username = st.text_input("Username")
+        new_password = st.text_input("Password", type="password")
         new_role = st.selectbox("Role", ["ReservationTeam", "Management"])
         all_properties = [
             "All",
@@ -74,11 +75,11 @@ def show_admin_panel():
         default_screens = all_screens if new_role == "Management" else ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status"]
         selected_screens = st.multiselect("Permitted Screens", all_screens, default=default_screens)
         if st.form_submit_button("Create User"):
-            if new_username:
+            if new_username and new_password and len(new_password) >= 8:
                 # Handle "All" option
                 final_properties = all_properties[1:] if "All" in selected_properties else selected_properties
                 try:
-                    if create_user(supabase, new_username, new_role, final_properties, selected_screens):
+                    if create_user(supabase, new_username, new_password, new_role, final_properties, selected_screens):
                         st.success(f"User {new_username} created successfully!")
                         st.rerun()
                     else:
@@ -86,27 +87,29 @@ def show_admin_panel():
                 except Exception as e:
                     st.error(f"Error creating user: {e}")
             else:
-                st.error("Username is required.")
+                st.error("Username and password (minimum 8 characters) are required.")
 
     # Edit or delete user
     st.subheader("Edit or Delete User")
-    usernames = [user["username"] for user in users if user["role"] != "Admin"]
+    usernames = [user["username"] for user in users if user["username"] != "admin"]
     if usernames:
         selected_username = st.selectbox("Select User to Edit/Delete", usernames)
         user = next((u for u in users if u["username"] == selected_username), None)
         if user:
             with st.form("edit_user_form"):
+                edit_password = st.text_input("New Password (leave blank to keep unchanged)", type="password")
                 edit_role = st.selectbox("Role", ["ReservationTeam", "Management"], index=["ReservationTeam", "Management"].index(user["role"]))
                 edit_properties = st.multiselect("Properties", all_properties, default=user["properties"])
                 edit_screens = st.multiselect("Permitted Screens", all_screens, default=user["screens"])
-                # Use st.columns directly within the form context
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.form_submit_button("Update User"):
                         # Handle "All" option
                         final_properties = all_properties[1:] if "All" in edit_properties else edit_properties
                         try:
-                            if update_user(supabase, selected_username, role=edit_role, properties=final_properties, screens=edit_screens):
+                            if edit_password and len(edit_password) < 8:
+                                st.error("Password must be at least 8 characters.")
+                            elif update_user(supabase, selected_username, password=edit_password if edit_password else None, role=edit_role, properties=final_properties, screens=edit_screens):
                                 st.success(f"User {selected_username} updated successfully!")
                                 st.rerun()
                             else:
@@ -123,6 +126,8 @@ def show_admin_panel():
                                 st.error("Failed to delete user.")
                         except Exception as e:
                             st.error(f"Error deleting user: {e}")
+    else:
+        st.info("No users available to edit or delete (excluding admin).")
 
 def check_authentication():
     # Initialize session state
@@ -158,15 +163,15 @@ def check_authentication():
 
     if not st.session_state.authenticated:
         st.title("🔐 TIE Reservations Login")
-        st.write("Please select your role and enter the password to access the system.")
+        st.write("Please enter your username and password to access the system.")
         
-        role = st.selectbox("Select Role", ["Admin", "ReservationTeam", "Management"])
+        username = st.text_input("Username")
         password = st.text_input("Password", type="password")
-        username = st.text_input("Username (required for custom users)") if role != "Admin" else None
         
         if st.button("🔑 Login"):
-            st.write(f"Debug: Attempting login with role={role}, username={username}")
-            if role == "Admin" and password == "AdminTIE2025":
+            st.write(f"Debug: Attempting login with username={username}")
+            # Default Admin login
+            if username == "admin" and password == "AdminTIE2025":
                 st.session_state.authenticated = True
                 st.session_state.role = "Admin"
                 st.session_state.username = "admin"
@@ -182,10 +187,11 @@ def check_authentication():
                     st.session_state.online_reservations = []
                     st.warning(f"✅ Admin login successful, but failed to fetch reservations: {e}")
                 st.rerun()
-            elif role == "Management" and password == "TIE2024":
+            # Default Management login
+            elif username == "management" and password == "TIE2024":
                 st.session_state.authenticated = True
                 st.session_state.role = "Management"
-                st.session_state.username = username or "management"
+                st.session_state.username = "management"
                 st.session_state.properties = [
                     "Eden Beach Resort",
                     "La Millionare Resort",
@@ -219,74 +225,50 @@ def check_authentication():
                     st.session_state.online_reservations = []
                     st.warning(f"✅ Management login successful, but failed to fetch reservations: {e}")
                 st.rerun()
-            elif role == "ReservationTeam" and password == "TIE123":
-                if username:
-                    user = validate_user(supabase, username, "ReservationTeam")
-                    if user:
-                        st.session_state.authenticated = True
-                        st.session_state.role = "ReservationTeam"
-                        st.session_state.username = username
-                        st.session_state.properties = user["properties"]
-                        st.session_state.screens = user["screens"]
-                        query_page = query_params.get("page", ["Direct Reservations"])[0]
-                        if query_page in st.session_state.screens:
-                            st.session_state.current_page = query_page
-                        query_booking_id = query_params.get("booking_id", [None])[0]
-                        if query_booking_id:
-                            st.session_state.selected_booking_id = query_booking_id
-                        try:
-                            st.session_state.reservations = load_reservations_from_supabase()
-                            st.session_state.online_reservations = load_online_reservations_from_supabase()
-                            st.success(f"✅ ReservationTeam login successful for {username}!")
-                        except Exception as e:
-                            st.session_state.reservations = []
-                            st.session_state.online_reservations = []
-                            st.warning(f"✅ ReservationTeam login successful, but failed to fetch reservations: {e}")
-                        st.rerun()
-                    else:
-                        st.error("❌ Invalid username for ReservationTeam role.")
-                else:
-                    st.session_state.authenticated = True
-                    st.session_state.role = "ReservationTeam"
-                    st.session_state.username = "reservationteam"
-                    st.session_state.properties = [
-                        "Eden Beach Resort",
-                        "La Millionare Resort",
-                        "Le Poshe Beachview",
-                        "La Park Resort",
-                        "Le Poshe Luxury",
-                        "La Paradise Residency",
-                        "La Tamara Luxury",
-                        "Villa Shakti",
-                        "La Millionaire Luxury Resort",
-                        "Le Meridian Resort",
-                        "La Serenity Resort",
-                        "La Beachview Resort",
-                        "La Oceanview Resort",
-                        "La Grand Resort",
-                        "La Coastal Residency"
-                    ]
-                    st.session_state.screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status"]
-                    query_page = query_params.get("page", ["Direct Reservations"])[0]
-                    if query_page in st.session_state.screens:
-                        st.session_state.current_page = query_page
-                    query_booking_id = query_params.get("booking_id", [None])[0]
-                    if query_booking_id:
-                        st.session_state.selected_booking_id = query_booking_id
-                    try:
-                        st.session_state.reservations = load_reservations_from_supabase()
-                        st.session_state.online_reservations = load_online_reservations_from_supabase()
-                        st.success("✅ ReservationTeam login successful!")
-                    except Exception as e:
-                        st.session_state.reservations = []
-                        st.session_state.online_reservations = []
-                        st.warning(f"✅ ReservationTeam login successful, but failed to fetch reservations: {e}")
-                    st.rerun()
-            elif role in ["ReservationTeam", "Management"] and username:
-                user = validate_user(supabase, username, role)
+            # Default ReservationTeam login
+            elif username == "reservationteam" and password == "TIE123":
+                st.session_state.authenticated = True
+                st.session_state.role = "ReservationTeam"
+                st.session_state.username = "reservationteam"
+                st.session_state.properties = [
+                    "Eden Beach Resort",
+                    "La Millionare Resort",
+                    "Le Poshe Beachview",
+                    "La Park Resort",
+                    "Le Poshe Luxury",
+                    "La Paradise Residency",
+                    "La Tamara Luxury",
+                    "Villa Shakti",
+                    "La Millionaire Luxury Resort",
+                    "Le Meridian Resort",
+                    "La Serenity Resort",
+                    "La Beachview Resort",
+                    "La Oceanview Resort",
+                    "La Grand Resort",
+                    "La Coastal Residency"
+                ]
+                st.session_state.screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status"]
+                query_page = query_params.get("page", ["Direct Reservations"])[0]
+                if query_page in st.session_state.screens:
+                    st.session_state.current_page = query_page
+                query_booking_id = query_params.get("booking_id", [None])[0]
+                if query_booking_id:
+                    st.session_state.selected_booking_id = query_booking_id
+                try:
+                    st.session_state.reservations = load_reservations_from_supabase()
+                    st.session_state.online_reservations = load_online_reservations_from_supabase()
+                    st.success("✅ ReservationTeam login successful!")
+                except Exception as e:
+                    st.session_state.reservations = []
+                    st.session_state.online_reservations = []
+                    st.warning(f"✅ ReservationTeam login successful, but failed to fetch reservations: {e}")
+                st.rerun()
+            # Custom user login
+            else:
+                user = validate_user(supabase, username, password)
                 if user:
                     st.session_state.authenticated = True
-                    st.session_state.role = role
+                    st.session_state.role = user["role"]
                     st.session_state.username = username
                     st.session_state.properties = user["properties"]
                     st.session_state.screens = user["screens"]
@@ -299,16 +281,14 @@ def check_authentication():
                     try:
                         st.session_state.reservations = load_reservations_from_supabase()
                         st.session_state.online_reservations = load_online_reservations_from_supabase()
-                        st.success(f"✅ {role} login successful for {username}!")
+                        st.success(f"✅ {user['role']} login successful for {username}!")
                     except Exception as e:
                         st.session_state.reservations = []
                         st.session_state.online_reservations = []
-                        st.warning(f"✅ {role} login successful, but failed to fetch reservations: {e}")
+                        st.warning(f"✅ {user['role']} login successful, but failed to fetch reservations: {e}")
                     st.rerun()
                 else:
-                    st.error(f"❌ Invalid username for {role} role.")
-            else:
-                st.error("❌ Invalid password or missing username for custom user.")
+                    st.error("❌ Invalid username or password.")
         st.stop()
 
 def main():
