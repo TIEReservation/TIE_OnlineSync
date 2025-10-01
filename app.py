@@ -6,6 +6,7 @@ from directreservation import show_new_reservation_form, show_reservations, show
 from online_reservation import show_online_reservations, load_online_reservations_from_supabase
 from editOnline import show_edit_online_reservations
 from inventory import show_daily_status
+from dms import show_dms
 
 # Page config
 st.set_page_config(
@@ -77,10 +78,16 @@ def main():
     st.title("🏢 TIE Reservations")
     st.markdown("---")
     st.sidebar.title("Navigation")
-    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status"]
+    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status"]
     if st.session_state.role == "Management":  # Safe to access role after check_authentication
         page_options.append("Analytics")
-    page = st.sidebar.selectbox("Choose a page", page_options)
+    
+    # Get query parameters
+    query_params = st.query_params
+    default_page = query_params.get("page", ["Direct Reservations"])[0]
+    selected_booking_id = query_params.get("booking_id", [None])[0]
+    
+    page = st.sidebar.selectbox("Choose a page", page_options, index=page_options.index(default_page) if default_page in page_options else 0)
 
     if page == "Direct Reservations":
         show_new_reservation_form()
@@ -91,9 +98,11 @@ def main():
     elif page == "Online Reservations":
         show_online_reservations()
     elif page == "Edit Online Reservations":
-        show_edit_online_reservations()
+        show_edit_online_reservations(selected_booking_id=selected_booking_id)
     elif page == "Daily Status":
         show_daily_status()
+    elif page == "Daily Management Status" and st.session_state.role == "Management":
+        show_dms()
     elif page == "Analytics" and st.session_state.role == "Management":
         show_analytics()
 
@@ -107,6 +116,7 @@ def main():
         st.session_state.edit_index = None
         st.session_state.online_edit_mode = False
         st.session_state.online_edit_index = None
+        st.query_params.clear()
         st.rerun()
 
 if __name__ == "__main__":
