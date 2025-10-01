@@ -1,11 +1,23 @@
 import streamlit as st
 from supabase import Client
+import bcrypt
 
-def validate_user(supabase: Client, username: str, role: str) -> dict:
-    """Validate user by username and role, return user data if valid."""
+def hash_password(password: str) -> str:
+    """Hash a password using bcrypt."""
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verify a password against its hash."""
     try:
-        response = supabase.table("users").select("*").eq("username", username).eq("role", role).execute()
-        if response.data:
+        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+    except Exception:
+        return False
+
+def validate_user(supabase: Client, username: str, password: str) -> dict:
+    """Validate user by username and password, return user data if valid."""
+    try:
+        response = supabase.table("users").select("*").eq("username", username).execute()
+        if response.data and verify_password(password, response.data[0]["password"]):
             user = response.data[0]
             return {
                 "username": user["username"],
@@ -18,11 +30,13 @@ def validate_user(supabase: Client, username: str, role: str) -> dict:
         st.error(f"Error validating user: {e}")
         return None
 
-def create_user(supabase: Client, username: str, role: str, properties: list, screens: list) -> bool:
-    """Create a new user in Supabase."""
+def create_user(supabase: Client, username: str, password: str, role: str, properties: list, screens: list) -> bool:
+    """Create a new user in Supabase with hashed password."""
     try:
+        hashed_password = hash_password(password)
         user_data = {
             "username": username,
+            "password": hashed_password,
             "role": role,
             "properties": properties,
             "screens": screens
@@ -33,10 +47,12 @@ def create_user(supabase: Client, username: str, role: str, properties: list, sc
         st.error(f"Error creating user: {e}")
         return False
 
-def update_user(supabase: Client, username: str, role: str = None, properties: list = None, screens: list = None) -> bool:
+def update_user(supabase: Client, username: str, password: str = None, role: str = None, properties: list = None, screens: list = None) -> bool:
     """Update an existing user in Supabase."""
     try:
         update_data = {}
+        if password:
+            update_data["password"] = hash_password(password)
         if role:
             update_data["role"] = role
         if properties is not None:
