@@ -47,9 +47,9 @@ def update_user(supabase: Client, username: str, password: str = None, propertie
         update_data = {}
         if password:
             update_data["password"] = hash_password(password)
-        if properties:
+        if properties is not None:
             update_data["properties"] = properties
-        if screens:
+        if screens is not None:
             update_data["screens"] = screens
         if is_admin is not None:
             update_data["is_admin"] = is_admin
