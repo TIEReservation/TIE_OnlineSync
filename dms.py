@@ -65,7 +65,7 @@ def create_bookings_table(bookings):
     columns = [
         "Booking ID", "Guest Name", "Check-in Date", "Check-out Date", "Room No",
         "Advance MOP", "Balance MOP", "Total Tariff", "Advance Amount", "Balance Due",
-        "Booking Status", "Remarks"
+        "Booking Status", "Status", "Remarks"
     ]
     df_data = []
     for booking in bookings:
