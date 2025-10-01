@@ -45,14 +45,33 @@ def show_admin_panel():
     with st.form("create_user_form"):
         new_username = st.text_input("Username")
         new_role = st.selectbox("Role", ["ReservationTeam", "Management"])
-        all_properties = ["Eden Beach Resort", "La Millionare Resort", "Le Poshe Beachview", "La Park Resort"]
+        all_properties = [
+            "All",
+            "Eden Beach Resort",
+            "La Millionare Resort",
+            "Le Poshe Beachview",
+            "La Park Resort",
+            "Le Poshe Luxury",
+            "La Paradise Residency",
+            "La Tamara Luxury",
+            "Villa Shakti",
+            "La Millionaire Luxury Resort",
+            "Le Meridian Resort",
+            "La Serenity Resort",
+            "La Beachview Resort",
+            "La Oceanview Resort",
+            "La Grand Resort",
+            "La Coastal Residency"
+        ]
         selected_properties = st.multiselect("Properties", all_properties, default=[])
         all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]
         default_screens = all_screens if new_role == "Management" else ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status"]
         selected_screens = st.multiselect("Permitted Screens", all_screens, default=default_screens)
         if st.form_submit_button("Create User"):
             if new_username:
-                if create_user(supabase, new_username, new_role, selected_properties, selected_screens):
+                # Handle "All" option
+                final_properties = all_properties[1:] if "All" in selected_properties else selected_properties
+                if create_user(supabase, new_username, new_role, final_properties, selected_screens):
                     st.success(f"User {new_username} created successfully!")
                     st.rerun()
                 else:
@@ -74,7 +93,9 @@ def show_admin_panel():
                 col1, col2 = st.form.columns(2)
                 with col1:
                     if st.form_submit_button("Update User"):
-                        if update_user(supabase, selected_username, role=edit_role, properties=edit_properties, screens=edit_screens):
+                        # Handle "All" option
+                        final_properties = all_properties[1:] if "All" in edit_properties else edit_properties
+                        if update_user(supabase, selected_username, role=edit_role, properties=final_properties, screens=edit_screens):
                             st.success(f"User {selected_username} updated successfully!")
                             st.rerun()
                         else:
@@ -147,7 +168,23 @@ def check_authentication():
                 st.session_state.authenticated = True
                 st.session_state.role = "Management"
                 st.session_state.username = username or "management"
-                st.session_state.properties = ["Eden Beach Resort", "La Millionare Resort", "Le Poshe Beachview", "La Park Resort"]
+                st.session_state.properties = [
+                    "Eden Beach Resort",
+                    "La Millionare Resort",
+                    "Le Poshe Beachview",
+                    "La Park Resort",
+                    "Le Poshe Luxury",
+                    "La Paradise Residency",
+                    "La Tamara Luxury",
+                    "Villa Shakti",
+                    "La Millionaire Luxury Resort",
+                    "Le Meridian Resort",
+                    "La Serenity Resort",
+                    "La Beachview Resort",
+                    "La Oceanview Resort",
+                    "La Grand Resort",
+                    "La Coastal Residency"
+                ]
                 st.session_state.screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]
                 query_page = query_params.get("page", ["Direct Reservations"])[0]
                 if query_page in st.session_state.screens:
@@ -194,7 +231,23 @@ def check_authentication():
                     st.session_state.authenticated = True
                     st.session_state.role = "ReservationTeam"
                     st.session_state.username = "reservationteam"
-                    st.session_state.properties = ["Eden Beach Resort", "La Millionare Resort", "Le Poshe Beachview", "La Park Resort"]
+                    st.session_state.properties = [
+                        "Eden Beach Resort",
+                        "La Millionare Resort",
+                        "Le Poshe Beachview",
+                        "La Park Resort",
+                        "Le Poshe Luxury",
+                        "La Paradise Residency",
+                        "La Tamara Luxury",
+                        "Villa Shakti",
+                        "La Millionaire Luxury Resort",
+                        "Le Meridian Resort",
+                        "La Serenity Resort",
+                        "La Beachview Resort",
+                        "La Oceanview Resort",
+                        "La Grand Resort",
+                        "La Coastal Residency"
+                    ]
                     st.session_state.screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status"]
                     query_page = query_params.get("page", ["Direct Reservations"])[0]
                     if query_page in st.session_state.screens:
