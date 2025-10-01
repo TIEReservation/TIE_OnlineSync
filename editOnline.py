@@ -14,7 +14,6 @@ except KeyError as e:
 def update_online_reservation_in_supabase(booking_id, updated_reservation):
     """Update an online reservation in Supabase."""
     try:
-        # Truncate string fields to prevent database errors
         truncated_reservation = updated_reservation.copy()
         string_fields_50 = [
             "property", "booking_id", "guest_name", "guest_phone", "room_no", 
@@ -43,9 +42,12 @@ def delete_online_reservation_in_supabase(booking_id):
         return False
 
 def load_online_reservations_from_supabase():
-    """Load online reservations from Supabase."""
+    """Load online reservations from Supabase, filtered by user properties."""
     try:
-        response = supabase.table("online_reservations").select("*").order("check_in", desc=True).execute()
+        query = supabase.table("online_reservations").select("*").order("check_in", desc=True)
+        if not st.session_state.is_admin:
+            query = query.in_("property", st.session_state.properties)
+        response = query.execute()
         return response.data if response.data else []
     except Exception as e:
         st.error(f"Error loading online reservations: {e}")
@@ -71,7 +73,6 @@ def show_edit_online_reservations(selected_booking_id=None):
     
     st.subheader("Select Reservation to Edit")
     booking_id_list = df["booking_id"].tolist()
-    # Set default index based on selected_booking_id if provided and valid
     default_index = booking_id_list.index(selected_booking_id) if selected_booking_id in booking_id_list else 0
     selected_booking_id = st.selectbox("Select Booking ID", booking_id_list, index=default_index)
     
@@ -87,7 +88,6 @@ def show_edit_online_reservations(selected_booking_id=None):
         
         st.subheader(f"Editing Reservation: {reservation['booking_id']}")
         
-        # Row 1: Property Name, Booking ID, Booking Made On
         col1, col2, col3 = st.columns(3)
         with col1:
             property_name = st.text_input("Property Name", value=reservation.get("property", ""), disabled=True)
@@ -96,7 +96,6 @@ def show_edit_online_reservations(selected_booking_id=None):
         with col3:
             booking_made_on = st.date_input("Booking Made On", value=date.fromisoformat(reservation.get("booking_made_on")) if reservation.get("booking_made_on") else None)
 
-        # Row 2: Guest Name, Mobile No, Check In, Check Out
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             guest_name = st.text_input("Guest Name", value=reservation.get("guest_name", ""))
@@ -107,7 +106,6 @@ def show_edit_online_reservations(selected_booking_id=None):
         with col4:
             check_out = st.date_input("Check Out", value=date.fromisoformat(reservation.get("check_out")) if reservation.get("check_out") else None)
 
-        # Row 3: No of Adults, No of Children, No of Infant, Total Pax
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             no_of_adults = st.number_input("No of Adults", value=safe_int(reservation.get("no_of_adults", 0)), min_value=0)
@@ -119,7 +117,6 @@ def show_edit_online_reservations(selected_booking_id=None):
             total_pax = no_of_adults + no_of_children + no_of_infant
             st.text_input("Total Pax", value=total_pax, disabled=True)
 
-        # Row 4: Room No, Room Type, Breakfast (rate_plans), Booking Source
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             room_no = st.text_input("Room No", value=reservation.get("room_no", ""))
@@ -130,7 +127,6 @@ def show_edit_online_reservations(selected_booking_id=None):
         with col4:
             booking_source = st.text_input("Booking Source", value=reservation.get("booking_source", ""))
 
-        # Row 5: Segment, Staflexi Status, Booking Confirmed on
         col1, col2, col3 = st.columns(3)
         with col1:
             segment = st.text_input("Segment", value=reservation.get("segment", ""))
@@ -139,7 +135,6 @@ def show_edit_online_reservations(selected_booking_id=None):
         with col3:
             booking_confirmed_on = st.date_input("Booking Confirmed on", value=date.fromisoformat(reservation.get("booking_confirmed_on")) if reservation.get("booking_confirmed_on") else None)
 
-        # Row 6: Total Tariff (booking_amount), Advance Amount, Advance MOP, Balance Due, Balance MOP
         col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 1])
         with col1:
             booking_amount = st.number_input("Total Tariff", value=safe_float(reservation.get("booking_amount", 0.0)))
@@ -163,47 +158,37 @@ def show_edit_online_reservations(selected_booking_id=None):
             else:
                 custom_balance_mop = None
 
-        # Row 7: MOB (mode_of_booking), Booking Status, Payment Status
         col1, col2, col3 = st.columns(3)
         with col1:
-            # MOB dropdown with Booking Source as default and Booking-Dir as option
             current_mob = reservation.get("mode_of_booking", "") or reservation.get("booking_source", "")
             mob_options = [booking_source, "Booking-Dir"] if booking_source else ["Booking-Dir"]
-            # Ensure current value is in options
             if current_mob and current_mob not in mob_options:
                 mob_options.insert(0, current_mob)
-            # Remove duplicates while preserving order
             mob_options = list(dict.fromkeys(mob_options))
-            
             try:
                 mob_index = mob_options.index(current_mob) if current_mob in mob_options else 0
             except ValueError:
                 mob_index = 0
-            
             mode_of_booking = st.selectbox("MOB", mob_options, index=mob_index)
         with col2:
-            # Booking Status with Pending as default, including Follow-up
             booking_status_options = ["Pending", "Follow-up", "Confirmed", "Cancelled", "Completed", "No Show"]
             current_status = reservation.get("booking_status", "Pending")
             try:
                 status_index = booking_status_options.index(current_status)
             except ValueError:
-                status_index = 0  # Default to Pending
+                status_index = 0
             booking_status = st.selectbox("Booking Status", booking_status_options, index=status_index)
         with col3:
             payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], index=["Not Paid", "Fully Paid", "Partially Paid"].index(reservation.get("payment_status", "Not Paid")))
 
-        # Row 8: Remarks
         remarks = st.text_area("Remarks", value=reservation.get("remarks", ""))
 
-        # Row 9: Submitted by, Modified by
         col1, col2 = st.columns(2)
         with col1:
             submitted_by = st.text_input("Submitted by", value=reservation.get("submitted_by", ""))
         with col2:
             modified_by = st.text_input("Modified by", value=reservation.get("modified_by", ""))
 
-        # Hidden/Other fields - update if needed, but not shown
         total_amount_with_services = safe_float(reservation.get("total_amount_with_services", 0.0))
         ota_gross_amount = safe_float(reservation.get("ota_gross_amount", 0.0))
         ota_commission = safe_float(reservation.get("ota_commission", 0.0))
@@ -254,19 +239,19 @@ def show_edit_online_reservations(selected_booking_id=None):
                     st.session_state.online_reservations[edit_index] = {**reservation, **updated_reservation}
                     st.session_state.online_edit_mode = False
                     st.session_state.online_edit_index = None
-                    st.query_params.clear()  # Clear query params after update
+                    st.query_params.clear()
                     st.success(f"✅ Reservation {reservation['booking_id']} updated successfully!")
                     st.rerun()
                 else:
                     st.error("❌ Failed to update reservation")
         with col_btn2:
-            if st.session_state.role in ["Admin", "Management"]:
+            if st.session_state.is_admin:
                 if st.button("🗑️ Delete Reservation", use_container_width=True):
                     if delete_online_reservation_in_supabase(reservation["booking_id"]):
                         st.session_state.online_reservations.pop(edit_index)
                         st.session_state.online_edit_mode = False
                         st.session_state.online_edit_index = None
-                        st.query_params.clear()  # Clear query params after deletion
+                        st.query_params.clear()
                         st.success(f"🗑️ Reservation {reservation['booking_id']} deleted successfully!")
                         st.rerun()
                     else:
