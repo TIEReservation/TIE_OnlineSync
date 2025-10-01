@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import os
 from supabase import create_client, Client
@@ -7,6 +6,7 @@ from online_reservation import show_online_reservations, load_online_reservation
 from editOnline import show_edit_online_reservations
 from inventory import show_daily_status
 from dms import show_dms
+from users import validate_user, create_user, update_user, delete_user, load_users
 
 # Page config
 st.set_page_config(
@@ -18,20 +18,83 @@ st.set_page_config(
 # Display logo in top-left corner
 st.image("https://github.com/TIEReservation/TIEReservation-System/raw/main/TIE_Logo_Icon.png", width=100)
 
-# Initialize Supabase client with environment variables
+# Initialize Supabase client
 try:
-    os.environ["SUPABASE_URL"] = "https://oxbrezracnmazucnnqox.supabase.co"
-    os.environ["SUPABASE_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94YnJlenJhY25tYXp1Y25ucW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjUxMTgsImV4cCI6MjA2OTM0MTExOH0.nqBK2ZxntesLY9qYClpoFPVnXOW10KrzF-UI_DKjbKo"
-    supabase: Client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
+    supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
 except Exception as e:
     st.error(f"Failed to initialize Supabase client: {e}")
     st.stop()
 
+def show_admin_panel():
+    """Display Admin Panel for managing user accounts."""
+    st.title("🔧 Admin Panel")
+    st.subheader("Manage Users")
+    
+    users = load_users(supabase)
+    if not users:
+        st.info("No users found.")
+    
+    # Display existing users
+    st.subheader("Current Users")
+    user_df = pd.DataFrame(users, columns=["username", "properties", "screens", "is_admin"])
+    st.dataframe(user_df)
+    
+    # Create new user
+    st.subheader("Create New User")
+    with st.form("create_user_form"):
+        new_username = st.text_input("Username")
+        new_password = st.text_input("Password", type="password")
+        all_properties = ["Eden Beach Resort", "La Millionare Resort", "Le Poshe Beachview", "La Park Resort"]
+        selected_properties = st.multiselect("Properties", all_properties, default=[])
+        all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]
+        selected_screens = st.multiselect("Permitted Screens", all_screens, default=[])
+        is_admin = st.checkbox("Admin Privileges", value=False)
+        if st.form_submit_button("Create User"):
+            if new_username and new_password:
+                if create_user(supabase, new_username, new_password, selected_properties, selected_screens, is_admin):
+                    st.success(f"User {new_username} created successfully!")
+                    st.rerun()
+                else:
+                    st.error("Failed to create user. Username may already exist.")
+            else:
+                st.error("Username and password are required.")
+
+    # Edit or delete user
+    st.subheader("Edit or Delete User")
+    usernames = [user["username"] for user in users]
+    if usernames:
+        selected_username = st.selectbox("Select User to Edit/Delete", usernames)
+        user = next((u for u in users if u["username"] == selected_username), None)
+        if user:
+            with st.form("edit_user_form"):
+                edit_password = st.text_input("New Password (leave blank to keep unchanged)", type="password")
+                edit_properties = st.multiselect("Properties", all_properties, default=user["properties"])
+                edit_screens = st.multiselect("Permitted Screens", all_screens, default=user["screens"])
+                edit_is_admin = st.checkbox("Admin Privileges", value=user["is_admin"])
+                col1, col2 = st.form.columns(2)
+                with col1:
+                    if st.form_submit_button("Update User"):
+                        if update_user(supabase, selected_username, edit_password or None, edit_properties, edit_screens, edit_is_admin):
+                            st.success(f"User {selected_username} updated successfully!")
+                            st.rerun()
+                        else:
+                            st.error("Failed to update user.")
+                with col2:
+                    if st.form_submit_button("Delete User"):
+                        if delete_user(supabase, selected_username):
+                            st.success(f"User {selected_username} deleted successfully!")
+                            st.rerun()
+                        else:
+                            st.error("Failed to delete user.")
+
 def check_authentication():
-    # Initialize session state if not already set
+    # Initialize session state
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
-        st.session_state.role = None
+        st.session_state.username = None
+        st.session_state.properties = []
+        st.session_state.screens = []
+        st.session_state.is_admin = False
         st.session_state.reservations = []
         st.session_state.online_reservations = []
         st.session_state.edit_mode = False
@@ -41,11 +104,11 @@ def check_authentication():
         st.session_state.current_page = "Direct Reservations"
         st.session_state.selected_booking_id = None
 
-    # Preserve current page and selected booking ID from query params if authenticated
+    # Preserve query parameters
     query_params = st.query_params
     if st.session_state.authenticated:
         query_page = query_params.get("page", [st.session_state.current_page])[0]
-        if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
+        if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Admin Panel"]:
             st.session_state.current_page = query_page
         query_booking_id = query_params.get("booking_id", [None])[0]
         if query_booking_id:
@@ -53,16 +116,19 @@ def check_authentication():
 
     if not st.session_state.authenticated:
         st.title("🔐 TIE Reservations Login")
-        st.write("Please select your role and enter the password to access the system.")
-        role = st.selectbox("Select Role", ["Admin", "Management", "ReservationTeam"])
-        password = st.text_input("Enter password:", type="password")
+        st.write("Please enter your credentials to access the system.")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
         if st.button("🔑 Login"):
-            if role == "Admin" and password == "AdminTIE2025":
+            user = validate_user(supabase, username, password)
+            if user:
                 st.session_state.authenticated = True
-                st.session_state.role = "Admin"
-                # Preserve intended page and booking ID from query params after login
+                st.session_state.username = user["username"]
+                st.session_state.properties = user["properties"]
+                st.session_state.screens = user["screens"]
+                st.session_state.is_admin = user["is_admin"]
                 query_page = query_params.get("page", ["Direct Reservations"])[0]
-                if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
+                if query_page in st.session_state.screens or st.session_state.is_admin:
                     st.session_state.current_page = query_page
                 query_booking_id = query_params.get("booking_id", [None])[0]
                 if query_booking_id:
@@ -70,92 +136,59 @@ def check_authentication():
                 try:
                     st.session_state.reservations = load_reservations_from_supabase()
                     st.session_state.online_reservations = load_online_reservations_from_supabase()
-                    st.success("✅ Admin login successful! Reservations fetched.")
+                    st.success(f"✅ Login successful for {username}!")
                 except Exception as e:
                     st.session_state.reservations = []
                     st.session_state.online_reservations = []
-                    st.warning(f"✅ Admin login successful, but failed to fetch reservations: {e}")
-                st.rerun()
-            elif role == "Management" and password == "TIE2024":
-                st.session_state.authenticated = True
-                st.session_state.role = "Management"
-                # Preserve intended page and booking ID from query params after login
-                query_page = query_params.get("page", ["Direct Reservations"])[0]
-                if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
-                    st.session_state.current_page = query_page
-                query_booking_id = query_params.get("booking_id", [None])[0]
-                if query_booking_id:
-                    st.session_state.selected_booking_id = query_booking_id
-                try:
-                    st.session_state.reservations = load_reservations_from_supabase()
-                    st.session_state.online_reservations = load_online_reservations_from_supabase()
-                    st.success("✅ Management login successful! Reservations fetched.")
-                except Exception as e:
-                    st.session_state.reservations = []
-                    st.session_state.online_reservations = []
-                    st.warning(f"✅ Management login successful, but failed to fetch reservations: {e}")
-                st.rerun()
-            elif role == "ReservationTeam" and password == "TIE123":
-                st.session_state.authenticated = True
-                st.session_state.role = "ReservationTeam"
-                # Preserve intended page and booking ID from query params after login
-                query_page = query_params.get("page", ["Direct Reservations"])[0]
-                if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status"]:
-                    st.session_state.current_page = query_page
-                query_booking_id = query_params.get("booking_id", [None])[0]
-                if query_booking_id:
-                    st.session_state.selected_booking_id = query_booking_id
-                try:
-                    st.session_state.reservations = load_reservations_from_supabase()
-                    st.session_state.online_reservations = load_online_reservations_from_supabase()
-                    st.success("✅ Agent login successful! Reservations fetched.")
-                except Exception as e:
-                    st.session_state.reservations = []
-                    st.session_state.online_reservations = []
-                    st.warning(f"✅ Agent login successful, but failed to fetch reservations: {e}")
+                    st.warning(f"✅ Login successful, but failed to fetch reservations: {e}")
                 st.rerun()
             else:
-                st.error("❌ Invalid password. Please try again.")
+                st.error("❌ Invalid username or password.")
         st.stop()
 
 def main():
     check_authentication()
     st.title("🏢 TIE Reservations")
     st.markdown("---")
-    st.sidebar.title("Navigation")
-    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status"]
-    if st.session_state.role in ["Admin", "Management"]:
-        page_options.extend(["Daily Management Status", "Analytics"])
+    st.sidebar.title(f"Welcome, {st.session_state.username}")
+    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]
+    if st.session_state.is_admin:
+        page_options.append("Admin Panel")
+    # Filter page options based on user permissions
+    permitted_pages = [page for page in page_options if page in st.session_state.screens or st.session_state.is_admin]
     
-    # Use session state for current page as default
-    page = st.sidebar.selectbox("Choose a page", page_options, index=page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0, key="page_select")
+    page = st.sidebar.selectbox("Choose a page", permitted_pages, index=permitted_pages.index(st.session_state.current_page) if st.session_state.current_page in permitted_pages else 0, key="page_select")
     st.session_state.current_page = page
 
-    if page == "Direct Reservations":
+    if page == "Direct Reservations" and (page in st.session_state.screens or st.session_state.is_admin):
         show_new_reservation_form()
-    elif page == "View Reservations":
+    elif page == "View Reservations" and (page in st.session_state.screens or st.session_state.is_admin):
         show_reservations()
-    elif page == "Edit Reservations":
+    elif page == "Edit Reservations" and (page in st.session_state.screens or st.session_state.is_admin):
         show_edit_reservations()
-    elif page == "Online Reservations":
+    elif page == "Online Reservations" and (page in st.session_state.screens or st.session_state.is_admin):
         show_online_reservations()
-    elif page == "Edit Online Reservations":
+    elif page == "Edit Online Reservations" and (page in st.session_state.screens or st.session_state.is_admin):
         show_edit_online_reservations(st.session_state.selected_booking_id)
-        # Clear selected booking ID after displaying the page to prevent stale selections
         if st.session_state.selected_booking_id:
             st.session_state.selected_booking_id = None
             st.query_params.clear()
-    elif page == "Daily Status":
+    elif page == "Daily Status" and (page in st.session_state.screens or st.session_state.is_admin):
         show_daily_status()
-    elif page == "Daily Management Status" and st.session_state.role in ["Admin", "Management"]:
+    elif page == "Daily Management Status" and (page in st.session_state.screens or st.session_state.is_admin):
         show_dms()
-    elif page == "Analytics" and st.session_state.role in ["Admin", "Management"]:
+    elif page == "Analytics" and (page in st.session_state.screens or st.session_state.is_admin):
         show_analytics()
+    elif page == "Admin Panel" and st.session_state.is_admin:
+        show_admin_panel()
 
     # Logout button
     if st.sidebar.button("Log Out"):
         st.session_state.authenticated = False
-        st.session_state.role = None
+        st.session_state.username = None
+        st.session_state.properties = []
+        st.session_state.screens = []
+        st.session_state.is_admin = False
         st.session_state.reservations = []
         st.session_state.online_reservations = []
         st.session_state.edit_mode = False
