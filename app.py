@@ -31,9 +31,15 @@ def show_admin_panel():
     st.title("🔧 Admin Panel")
     st.subheader("Manage Users")
     
-    users = load_users(supabase)
-    if not users:
-        st.info("No users found.")
+    try:
+        users = load_users(supabase)
+        if not users:
+            st.info("No users found.")
+        else:
+            st.write(f"Debug: Loaded {len(users)} users")
+    except Exception as e:
+        st.error(f"Error loading users: {e}")
+        users = []
     
     # Display existing users
     st.subheader("Current Users")
@@ -71,11 +77,14 @@ def show_admin_panel():
             if new_username:
                 # Handle "All" option
                 final_properties = all_properties[1:] if "All" in selected_properties else selected_properties
-                if create_user(supabase, new_username, new_role, final_properties, selected_screens):
-                    st.success(f"User {new_username} created successfully!")
-                    st.rerun()
-                else:
-                    st.error("Failed to create user. Username may already exist.")
+                try:
+                    if create_user(supabase, new_username, new_role, final_properties, selected_screens):
+                        st.success(f"User {new_username} created successfully!")
+                        st.rerun()
+                    else:
+                        st.error("Failed to create user. Username may already exist.")
+                except Exception as e:
+                    st.error(f"Error creating user: {e}")
             else:
                 st.error("Username is required.")
 
@@ -95,22 +104,29 @@ def show_admin_panel():
                     if st.form_submit_button("Update User"):
                         # Handle "All" option
                         final_properties = all_properties[1:] if "All" in edit_properties else edit_properties
-                        if update_user(supabase, selected_username, role=edit_role, properties=final_properties, screens=edit_screens):
-                            st.success(f"User {selected_username} updated successfully!")
-                            st.rerun()
-                        else:
-                            st.error("Failed to update user.")
+                        try:
+                            if update_user(supabase, selected_username, role=edit_role, properties=final_properties, screens=edit_screens):
+                                st.success(f"User {selected_username} updated successfully!")
+                                st.rerun()
+                            else:
+                                st.error("Failed to update user.")
+                        except Exception as e:
+                            st.error(f"Error updating user: {e}")
                 with col2:
                     if st.form_submit_button("Delete User"):
-                        if delete_user(supabase, selected_username):
-                            st.success(f"User {selected_username} deleted successfully!")
-                            st.rerun()
-                        else:
-                            st.error("Failed to delete user.")
+                        try:
+                            if delete_user(supabase, selected_username):
+                                st.success(f"User {selected_username} deleted successfully!")
+                                st.rerun()
+                            else:
+                                st.error("Failed to delete user.")
+                        except Exception as e:
+                            st.error(f"Error deleting user: {e}")
 
 def check_authentication():
     # Initialize session state
     if 'authenticated' not in st.session_state:
+        st.write("Debug: Initializing session state")
         st.session_state.authenticated = False
         st.session_state.role = None
         st.session_state.username = None
@@ -148,6 +164,7 @@ def check_authentication():
         username = st.text_input("Username (required for custom users)") if role != "Admin" else None
         
         if st.button("🔑 Login"):
+            st.write(f"Debug: Attempting login with role={role}, username={username}")
             if role == "Admin" and password == "AdminTIE2025":
                 st.session_state.authenticated = True
                 st.session_state.role = "Admin"
