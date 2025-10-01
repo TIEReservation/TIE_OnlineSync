@@ -182,8 +182,8 @@ def show_edit_online_reservations(selected_booking_id=None):
             
             mode_of_booking = st.selectbox("MOB", mob_options, index=mob_index)
         with col2:
-            # Booking Status with Pending as default
-            booking_status_options = ["Pending", "Confirmed", "Cancelled", "Completed", "No Show"]
+            # Booking Status with Pending as default, including Follow-up
+            booking_status_options = ["Pending", "Follow-up", "Confirmed", "Cancelled", "Completed", "No Show"]
             current_status = reservation.get("booking_status", "Pending")
             try:
                 status_index = booking_status_options.index(current_status)
