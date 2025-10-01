@@ -99,7 +99,8 @@ def show_admin_panel():
                 edit_role = st.selectbox("Role", ["ReservationTeam", "Management"], index=["ReservationTeam", "Management"].index(user["role"]))
                 edit_properties = st.multiselect("Properties", all_properties, default=user["properties"])
                 edit_screens = st.multiselect("Permitted Screens", all_screens, default=user["screens"])
-                col1, col2 = st.form.columns(2)
+                # Use st.columns directly within the form context
+                col1, col2 = st.columns(2)
                 with col1:
                     if st.form_submit_button("Update User"):
                         # Handle "All" option
