@@ -83,9 +83,9 @@ def show_admin_panel():
                         st.success(f"User {new_username} created successfully!")
                         st.rerun()
                     else:
-                        st.error("Failed to create user. Username may already exist.")
+                        st.error(f"Failed to create user '{new_username}'. Username may already exist or there was a database error.")
                 except Exception as e:
-                    st.error(f"Error creating user: {e}")
+                    st.error(f"Error creating user '{new_username}': {e}")
             else:
                 st.error("Username and password (minimum 8 characters) are required.")
 
@@ -99,8 +99,8 @@ def show_admin_panel():
             with st.form("edit_user_form"):
                 edit_password = st.text_input("New Password (leave blank to keep unchanged)", type="password")
                 edit_role = st.selectbox("Role", ["ReservationTeam", "Management"], index=["ReservationTeam", "Management"].index(user["role"]))
-                edit_properties = st.multiselect("Properties", all_properties, default=user["properties"])
-                edit_screens = st.multiselect("Permitted Screens", all_screens, default=user["screens"])
+                edit_properties = st.multiselect("Properties", all_properties, default=user["properties"] or [])
+                edit_screens = st.multiselect("Permitted Screens", all_screens, default=user["screens"] or [])
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.form_submit_button("Update User"):
@@ -113,9 +113,9 @@ def show_admin_panel():
                                 st.success(f"User {selected_username} updated successfully!")
                                 st.rerun()
                             else:
-                                st.error("Failed to update user.")
+                                st.error(f"Failed to update user '{selected_username}'.")
                         except Exception as e:
-                            st.error(f"Error updating user: {e}")
+                            st.error(f"Error updating user '{selected_username}': {e}")
                 with col2:
                     if st.form_submit_button("Delete User"):
                         try:
@@ -123,9 +123,9 @@ def show_admin_panel():
                                 st.success(f"User {selected_username} deleted successfully!")
                                 st.rerun()
                             else:
-                                st.error("Failed to delete user.")
+                                st.error(f"Failed to delete user '{selected_username}'.")
                         except Exception as e:
-                            st.error(f"Error deleting user: {e}")
+                            st.error(f"Error deleting user '{selected_username}': {e}")
     else:
         st.info("No users available to edit or delete (excluding admin).")
 
@@ -170,7 +170,7 @@ def check_authentication():
         
         if st.button("🔑 Login"):
             st.write(f"Debug: Attempting login with username={username}")
-            # Default Admin login
+            # Default logins
             if username == "admin" and password == "AdminTIE2025":
                 st.session_state.authenticated = True
                 st.session_state.role = "Admin"
@@ -187,7 +187,6 @@ def check_authentication():
                     st.session_state.online_reservations = []
                     st.warning(f"✅ Admin login successful, but failed to fetch reservations: {e}")
                 st.rerun()
-            # Default Management login
             elif username == "management" and password == "TIE2024":
                 st.session_state.authenticated = True
                 st.session_state.role = "Management"
@@ -225,7 +224,6 @@ def check_authentication():
                     st.session_state.online_reservations = []
                     st.warning(f"✅ Management login successful, but failed to fetch reservations: {e}")
                 st.rerun()
-            # Default ReservationTeam login
             elif username == "reservationteam" and password == "TIE123":
                 st.session_state.authenticated = True
                 st.session_state.role = "ReservationTeam"
@@ -263,7 +261,6 @@ def check_authentication():
                     st.session_state.online_reservations = []
                     st.warning(f"✅ ReservationTeam login successful, but failed to fetch reservations: {e}")
                 st.rerun()
-            # Custom user login
             else:
                 user = validate_user(supabase, username, password)
                 if user:
