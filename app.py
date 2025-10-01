@@ -54,10 +54,29 @@ def check_authentication():
     if not st.session_state.authenticated:
         st.title("🔐 TIE Reservations Login")
         st.write("Please select your role and enter the password to access the system.")
-        role = st.selectbox("Select Role", ["Management", "ReservationTeam"])
+        role = st.selectbox("Select Role", ["Admin", "Management", "ReservationTeam"])
         password = st.text_input("Enter password:", type="password")
         if st.button("🔑 Login"):
-            if role == "Management" and password == "TIE2024":
+            if role == "Admin" and password == "AdminTIE2025":
+                st.session_state.authenticated = True
+                st.session_state.role = "Admin"
+                # Preserve intended page and booking ID from query params after login
+                query_page = query_params.get("page", ["Direct Reservations"])[0]
+                if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
+                    st.session_state.current_page = query_page
+                query_booking_id = query_params.get("booking_id", [None])[0]
+                if query_booking_id:
+                    st.session_state.selected_booking_id = query_booking_id
+                try:
+                    st.session_state.reservations = load_reservations_from_supabase()
+                    st.session_state.online_reservations = load_online_reservations_from_supabase()
+                    st.success("✅ Admin login successful! Reservations fetched.")
+                except Exception as e:
+                    st.session_state.reservations = []
+                    st.session_state.online_reservations = []
+                    st.warning(f"✅ Admin login successful, but failed to fetch reservations: {e}")
+                st.rerun()
+            elif role == "Management" and password == "TIE2024":
                 st.session_state.authenticated = True
                 st.session_state.role = "Management"
                 # Preserve intended page and booking ID from query params after login
@@ -104,9 +123,9 @@ def main():
     st.title("🏢 TIE Reservations")
     st.markdown("---")
     st.sidebar.title("Navigation")
-    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status"]
-    if st.session_state.role == "Management":
-        page_options.append("Analytics")
+    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status"]
+    if st.session_state.role in ["Admin", "Management"]:
+        page_options.extend(["Daily Management Status", "Analytics"])
     
     # Use session state for current page as default
     page = st.sidebar.selectbox("Choose a page", page_options, index=page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0, key="page_select")
@@ -128,9 +147,9 @@ def main():
             st.query_params.clear()
     elif page == "Daily Status":
         show_daily_status()
-    elif page == "Daily Management Status" and st.session_state.role == "Management":
+    elif page == "Daily Management Status" and st.session_state.role in ["Admin", "Management"]:
         show_dms()
-    elif page == "Analytics" and st.session_state.role == "Management":
+    elif page == "Analytics" and st.session_state.role in ["Admin", "Management"]:
         show_analytics()
 
     # Logout button
