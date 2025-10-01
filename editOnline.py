@@ -42,10 +42,10 @@ def delete_online_reservation_in_supabase(booking_id):
         return False
 
 def load_online_reservations_from_supabase():
-    """Load online reservations from Supabase, filtered by user properties."""
+    """Load online reservations, filtered by user properties."""
     try:
         query = supabase.table("online_reservations").select("*").order("check_in", desc=True)
-        if not st.session_state.is_admin:
+        if st.session_state.role != "Management" and not st.session_state.is_admin:
             query = query.in_("property", st.session_state.properties)
         response = query.execute()
         return response.data if response.data else []
@@ -245,7 +245,7 @@ def show_edit_online_reservations(selected_booking_id=None):
                 else:
                     st.error("❌ Failed to update reservation")
         with col_btn2:
-            if st.session_state.is_admin:
+            if st.session_state.role == "Management" or ("Daily Management Status" in st.session_state.screens and "Analytics" in st.session_state.screens):
                 if st.button("🗑️ Delete Reservation", use_container_width=True):
                     if delete_online_reservation_in_supabase(reservation["booking_id"]):
                         st.session_state.online_reservations.pop(edit_index)
