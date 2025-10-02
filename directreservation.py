@@ -478,7 +478,7 @@ def show_new_reservation_form():
         with row7_col2:
             invoice_no = st.text_input("Invoice No", placeholder="Enter invoice number", key=f"{form_key}_invoice")
         with row7_col3:
-            booking_status = st.selectbox("Booking Status", ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"], index=1, key=f"{form_key}_status")
+            booking_status = st.selectbox("Booking Status", ["Confirmed", "Pending", "Cancelled", "Completed", "Follow-up", "No Show"], index=1, key=f"{form_key}_status")
         # Row 8: Remarks
         row8_col1, = st.columns(1)
         with row8_col1:
@@ -577,7 +577,7 @@ def show_reservations():
     with col2:
         end_date = st.date_input("End Date", value=None, key="view_filter_end_date", help="Filter by Check In date range (optional)")
     with col3:
-        filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Completed", "No Show"], key="view_filter_status")
+        filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Follow-up", "Completed", "No Show"], key="view_filter_status")
     with col4:
         filter_check_in_date = st.date_input("Check-in Date", value=None, key="view_filter_check_in_date")
     with col5:
@@ -614,7 +614,7 @@ def show_edit_reservations():
         st.subheader("Filters")
         col1, col2, col3, col4, col5, col6 = st.columns(6)
         with col1:
-            filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Completed", "No Show"], key="edit_filter_status")
+            filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Follow-up", "Completed", "No Show"], key="edit_filter_status")
         with col2:
             filter_check_in_date = st.date_input("Check-in Date", value=None, key="edit_filter_check_in_date")
         with col3:
@@ -774,7 +774,7 @@ def show_edit_form(edit_index):
         with row7_col2:
             invoice_no = st.text_input("Invoice No", value=reservation["Invoice No"], key=f"{form_key}_invoice")
         with row7_col3:
-            booking_status_options = ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"]
+            booking_status_options = ["Confirmed", "Pending", "Cancelled","Follow-up", "Completed", "No Show"]
             booking_status_index = booking_status_options.index(reservation["Booking Status"]) if reservation["Booking Status"] in booking_status_options else 1
             booking_status = st.selectbox("Booking Status", booking_status_options, index=booking_status_index, key=f"{form_key}_status")
         # Row 8: Remarks
@@ -898,7 +898,7 @@ def show_analytics():
     with col2:
         end_date = st.date_input("End Date", value=None, key="analytics_filter_end_date", help="Filter by Check In date range (optional)")
     with col3:
-        filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Completed", "No Show"], key="analytics_filter_status")
+        filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Follow-up", "Completed", "No Show"], key="analytics_filter_status")
     with col4:
         filter_check_in_date = st.date_input("Check-in Date", value=None, key="analytics_filter_check_in_date")
     with col5:
