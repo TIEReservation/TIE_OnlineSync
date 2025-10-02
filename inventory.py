@@ -11,6 +11,7 @@ supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supa
 # Property synonym mapping
 property_mapping = {
     "La Millionaire Luxury Resort": "La Millionaire Resort",
+    "Le Poshe Beach View": "Le Poshe Beach view",
 }
 reverse_mapping = {}
 for variant, canonical in property_mapping.items():
@@ -42,7 +43,7 @@ TABLE_CSS = """
 
 # Property inventory mapping
 PROPERTY_INVENTORY = {
-    "Le Poshe Beach View": {
+    "Le Poshe Beach view": {
         "all": ["101", "102", "201", "202", "203", "204", "301", "302", "303", "304", "Day Use 1", "Day Use 2", "No Show"],
         "three_bedroom": ["203", "204"]
     },
