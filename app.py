@@ -26,6 +26,9 @@ except Exception as e:
     st.error(f"Failed to initialize Supabase client: {e}")
     st.stop()
 
+# Store Supabase client in session state for other modules
+st.session_state.supabase = supabase
+
 def show_admin_panel():
     """Display Admin Panel for managing user accounts."""
     st.title("🔧 Admin Panel")
