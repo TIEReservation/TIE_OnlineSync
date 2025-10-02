@@ -12,6 +12,14 @@ except KeyError as e:
     st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets configuration.")
     st.stop()
 
+# Property synonym mapping
+property_mapping = {
+    "La Millionaire Luxury Resort": "La Millionaire Resort",
+}
+reverse_mapping = {}
+for variant, canonical in property_mapping.items():
+    reverse_mapping.setdefault(canonical, []).append(variant)
+
 # Table CSS for non-wrapping, scrollable table
 TABLE_CSS = """
 <style>
@@ -137,11 +145,19 @@ def show_dms():
     online_bookings = cached_load_online_reservations()
     direct_bookings = cached_load_direct_reservations()
     
+    # Normalize property names using the mapping
+    for b in online_bookings:
+        if "property" in b:
+            b["property"] = property_mapping.get(b["property"], b["property"])
+    for b in direct_bookings:
+        if "property_name" in b:
+            b["property_name"] = property_mapping.get(b["property_name"], b["property_name"])
+    
     if not online_bookings and not direct_bookings:
         st.info("No reservations available.")
         return
     
-    # Get unique properties from both sources
+    # Get unique properties from both sources (now normalized)
     online_df = pd.DataFrame(online_bookings)
     direct_df = pd.DataFrame(direct_bookings)
     online_properties = sorted(online_df["property"].dropna().unique().tolist())
