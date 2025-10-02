@@ -69,8 +69,7 @@ def insert_online_reservation(reservation):
         string_fields_50 = [
             "property", "booking_id", "guest_name", "guest_phone", "room_no", 
             "room_type", "rate_plans", "booking_source", "segment", "staflexi_status",
-            "mode_of_booking", "booking_status", "payment_status", "submitted_by", 
-            "modified_by", "advance_mop", "balance_mop"
+            "mode_of_booking", "booking_status", "payment_status", "submitted_by", "modified_by"
         ]
         
         # Truncate to 50 characters for standard fields
@@ -116,7 +115,7 @@ def process_and_sync_excel(uploaded_file):
             property_name = get_property_name(hotel_id)
             if property_name == "Unknown Property":
                 property_name = str(row.get("hotel name", "")).split("-")[0].strip() if row.get("hotel name") else ""
-            booking_id = str(row.get("booking_id", ""))
+            booking_id = str(row.get("booking id", ""))
             if not booking_id:
                 continue  # Skip if no booking_id
             if booking_id in existing_ids:
@@ -130,15 +129,15 @@ def process_and_sync_excel(uploaded_file):
             pax_str = str(row.get("pax", ""))
             no_of_adults, no_of_children, no_of_infant = parse_pax(pax_str)
             total_pax = no_of_adults + no_of_children + no_of_infant
-            room_no = truncate_string(row.get("room_ids", ""), 50)
-            room_type = truncate_string(row.get("room_types", ""), 50)
+            room_no = truncate_string(row.get("room ids", ""), 50)
+            room_type = truncate_string(row.get("room types", ""), 50)
             rate_plans = truncate_string(row.get("rate_plans", ""), 50)
             booking_source = truncate_string(row.get("booking_source", ""), 50)
             segment = truncate_string(row.get("segment", ""), 50)
             staflexi_status = truncate_string(row.get("status", ""), 50)
             booking_confirmed_on = None  # Editable, default None
             booking_amount = safe_float(row.get("booking_amount"))
-            total_payment_made = safe_float(row.get("total_payment_made"))
+            total_payment_made = safe_float(row.get("Total Payment Made"))
             balance_due = safe_float(row.get("balance_due"))
             
             # Set mode_of_booking to booking_source by default (truncated)
@@ -158,8 +157,6 @@ def process_and_sync_excel(uploaded_file):
             remarks = truncate_string(row.get("special_requests", ""), 500)  # Longer limit for remarks
             submitted_by = ""  # Editable
             modified_by = ""  # Editable
-            advance_mop = ""  # New field, default empty for Excel upload
-            balance_mop = ""  # New field, default empty for Excel upload
             total_amount_with_services = safe_float(row.get("total_amount_with_services"))
             ota_gross_amount = safe_float(row.get("ota_gross_amount"))
             ota_commission = safe_float(row.get("ota_commission"))
@@ -184,7 +181,7 @@ def process_and_sync_excel(uploaded_file):
                 "booking_source": booking_source,
                 "segment": segment,
                 "staflexi_status": staflexi_status,
-                "booking_confirmed_on": booking_confirmed_on,
+                "booking_confirmed_on": booking_confirmed_on,  # Fixed: lowercase 'c'
                 "booking_amount": booking_amount,
                 "total_payment_made": total_payment_made,
                 "balance_due": balance_due,
@@ -194,8 +191,6 @@ def process_and_sync_excel(uploaded_file):
                 "remarks": remarks,
                 "submitted_by": submitted_by,
                 "modified_by": modified_by,
-                "advance_mop": advance_mop,
-                "balance_mop": balance_mop,
                 "total_amount_with_services": total_amount_with_services,
                 "ota_gross_amount": ota_gross_amount,
                 "ota_commission": ota_commission,
@@ -272,10 +267,9 @@ def show_online_reservations():
     if filtered_df.empty:
         st.warning("No reservations match the selected filters.")
     else:
-        # Display selected columns, including submitted_by and modified_by
+        # Display selected columns
         display_columns = [
             "property", "booking_id", "guest_name", "check_in", "check_out", "room_no", "room_type",
-            "booking_status", "payment_status", "booking_amount", "total_payment_made", "balance_due",
-            "advance_mop", "balance_mop", "submitted_by", "modified_by"
+            "booking_status", "payment_status", "booking_amount", "total_payment_made", "balance_due"
         ]
         st.dataframe(filtered_df[display_columns], use_container_width=True)
