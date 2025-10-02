@@ -1,10 +1,10 @@
+
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date, timedelta
 import pandas as pd
 import calendar
 from online_reservation import load_online_reservations_from_supabase
-from directreservation import load_reservations_from_supabase
 
 # Initialize Supabase client
 try:
@@ -49,7 +49,7 @@ def generate_month_dates(year, month):
     _, num_days = calendar.monthrange(year, month)
     return [date(year, month, day) for day in range(1, num_days + 1)]
 
-def filter_bookings_for_day(bookings, target_date, is_direct=False):
+def filter_bookings_for_day(bookings, target_date):
     """Filter bookings active on the target date with status Pending or Follow-up."""
     filtered_bookings = []
     for booking in bookings:
@@ -61,8 +61,8 @@ def filter_bookings_for_day(bookings, target_date, is_direct=False):
             filtered_bookings.append(booking)
     return filtered_bookings
 
-def create_online_bookings_table(bookings):
-    """Create a DataFrame for online bookings with specified columns, including edit links."""
+def create_bookings_table(bookings):
+    """Create a DataFrame for bookings with specified columns, including edit links."""
     columns = [
         "Booking ID", "Guest Name", "Check-in Date", "Check-out Date", "Room No",
         "Advance MOP", "Balance MOP", "Total Tariff", "Advance Amount", "Balance Due",
@@ -71,6 +71,7 @@ def create_online_bookings_table(bookings):
     df_data = []
     for booking in bookings:
         booking_id = booking.get("booking_id", "")
+        # Create a clickable link for Booking ID
         booking_id_link = f'<a href="?page=Edit+Online+Reservations&booking_id={booking_id}" target="_self">{booking_id}</a>'
         df_data.append({
             "Booking ID": booking_id_link,
@@ -88,40 +89,13 @@ def create_online_bookings_table(bookings):
         })
     return pd.DataFrame(df_data, columns=columns)
 
-def create_direct_bookings_table(bookings):
-    """Create a DataFrame for direct bookings with specified columns, including edit links."""
-    columns = [
-        "Booking ID", "Guest Name", "Check-in Date", "Check-out Date", "Room Type",
-        "Total Tariff", "Advance Amount", "Booking Status"
-    ]
-    df_data = []
-    for booking in bookings:
-        booking_id = booking.get("booking_id", "")
-        booking_id_link = f'<a href="?page=Edit+Reservations&booking_id={booking_id}" target="_self">{booking_id}</a>'
-        df_data.append({
-            "Booking ID": booking_id_link,
-            "Guest Name": booking.get("guest_name", ""),
-            "Check-in Date": booking.get("check_in", ""),
-            "Check-out Date": booking.get("check_out", ""),
-            "Room Type": booking.get("room_type", ""),
-            "Total Tariff": booking.get("tariff", 0.0),
-            "Advance Amount": booking.get("advance", 0.0),
-            "Booking Status": booking.get("booking_status", "")
-        })
-    return pd.DataFrame(df_data, columns=columns)
-
 @st.cache_data
 def cached_load_online_reservations():
     """Cache the loading of online reservations."""
     return load_online_reservations_from_supabase()
 
-@st.cache_data
-def cached_load_direct_reservations():
-    """Cache the loading of direct reservations."""
-    return load_reservations_from_supabase()
-
 def show_dms():
-    """Display Daily Management Status page with Pending and Follow-up bookings."""
+    """Display Daily Management Status page with Pending and Follow-up online bookings."""
     st.title("📋 Daily Management Status")
     if st.button("🔄 Refresh Bookings"):
         st.cache_data.clear()
@@ -131,24 +105,16 @@ def show_dms():
     current_year = date.today().year
     year = st.selectbox("Select Year", list(range(current_year - 5, current_year + 6)), index=5)
     month = st.selectbox("Select Month", list(range(1, 13)), index=date.today().month - 1)
-    month_dates = generate_month_dates(year, month)
-    selected_date = st.selectbox("Select Date", month_dates, index=month_dates.index(date.today()) if date.today() in month_dates else 0)
     
-    # Load and cache reservations
-    online_bookings = cached_load_online_reservations()
-    direct_bookings = cached_load_direct_reservations()
-    
-    # Convert direct bookings to list of dicts for consistency
-    direct_bookings = direct_bookings.to_dict('records') if not direct_bookings.empty else []
-    
-    if not online_bookings and not direct_bookings:
-        st.info("No reservations (online or direct) available.")
+    # Load and cache online reservations
+    bookings = cached_load_online_reservations()
+    if not bookings:
+        st.info("No online reservations available.")
         return
     
     # Get unique properties
-    all_bookings = online_bookings + direct_bookings
-    df = pd.DataFrame(all_bookings)
-    properties = sorted(df.get("property", df.get("property_name", pd.Series())).dropna().unique().tolist())
+    df = pd.DataFrame(bookings)
+    properties = sorted(df["property"].dropna().unique().tolist())
     if not properties:
         st.info("No properties found in reservations.")
         return
@@ -158,39 +124,24 @@ def show_dms():
     
     for prop in properties:
         with st.expander(f"{prop}"):
-            # Filter online bookings
-            prop_online_bookings = [b for b in online_bookings if b.get("property") == prop and b.get("booking_status") in ["Pending", "Follow-up"]]
-            # Filter direct bookings
-            prop_direct_bookings = [b for b in direct_bookings if b.get("property_name") == prop and b.get("booking_status") in ["Pending", "Follow-up"]]
+            month_dates = generate_month_dates(year, month)
+            start_date = month_dates[0]
+            end_date = month_dates[-1] + timedelta(days=1)
             
-            st.subheader(f"{prop} - {selected_date.strftime('%B %d, %Y')}")
+            # Filter bookings for the property and Pending or Follow-up status
+            prop_bookings = [b for b in bookings if b.get("property") == prop and b.get("booking_status") in ["Pending", "Follow-up"]]
+            st.info(f"Total Pending and Follow-up bookings for {prop}: {len(prop_bookings)}")
             
-            # Online Bookings
-            st.write("**Online Reservations**")
-            daily_online_bookings = filter_bookings_for_day(prop_online_bookings, selected_date)
-            st.info(f"Total Pending and Follow-up online bookings: {len(daily_online_bookings)}")
-            if daily_online_bookings:
-                df_online = create_online_bookings_table(daily_online_bookings)
-                tooltip_columns = ['Guest Name', 'Room No', 'Remarks']
-                for col in tooltip_columns:
-                    if col in df_online.columns:
-                        df_online[col] = df_online[col].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x, str) else x)
-                table_html = df_online.to_html(escape=False, index=False)
-                st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
-            else:
-                st.info("No Pending or Follow-up online bookings on this day.")
-            
-            # Direct Bookings
-            st.write("**Direct Reservations**")
-            daily_direct_bookings = filter_bookings_for_day(prop_direct_bookings, selected_date, is_direct=True)
-            st.info(f"Total Pending and Follow-up direct bookings: {len(daily_direct_bookings)}")
-            if daily_direct_bookings:
-                df_direct = create_direct_bookings_table(daily_direct_bookings)
-                tooltip_columns = ['Guest Name', 'Room Type']
-                for col in tooltip_columns:
-                    if col in df_direct.columns:
-                        df_direct[col] = df_direct[col].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x, str) else x)
-                table_html = df_direct.to_html(escape=False, index=False)
-                st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
-            else:
-                st.info("No Pending or Follow-up direct bookings on this day.")
+            for day in month_dates:
+                daily_bookings = filter_bookings_for_day(prop_bookings, day)
+                st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
+                if daily_bookings:
+                    df = create_bookings_table(daily_bookings)
+                    tooltip_columns = ['Guest Name', 'Room No', 'Remarks']
+                    for col in tooltip_columns:
+                        if col in df.columns:
+                            df[col] = df[col].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x, str) else x)
+                    table_html = df.to_html(escape=False, index=False)
+                    st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
+                else:
+                    st.info("No Pending or Follow-up bookings on this day.")
