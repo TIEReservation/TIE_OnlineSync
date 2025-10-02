@@ -478,7 +478,7 @@ def show_new_reservation_form():
         with row7_col2:
             invoice_no = st.text_input("Invoice No", placeholder="Enter invoice number", key=f"{form_key}_invoice")
         with row7_col3:
-            booking_status = st.selectbox("Booking Status", ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"], index=1, key=f"{form_key}_status")
+            booking_status = st.selectbox("Booking Status", ["Confirmed", "Pending", "Follow-up", "Cancelled", "Completed", "No Show"], index=1, key=f"{form_key}_status")
         # Row 8: Remarks
         row8_col1, = st.columns(1)
         with row8_col1:
