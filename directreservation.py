@@ -80,9 +80,7 @@ def show_new_reservation_form():
             tariff = st.number_input("Tariff per Night", min_value=0.0, step=100.0)
             advance = st.number_input("Advance Paid", min_value=0.0, step=100.0)
             mob = st.selectbox("Mode of Booking", ["Direct", "OTA", "Stay-back"])
-            # Set submitted_by based on username
-            restricted_users = ["reservationteam", "management", "admin", "Shyam", "Nabees", "Praveen"]
-            submitted_by = st.session_state.username if st.session_state.username and st.session_state.username.lower() not in restricted_users else st.text_input("Submitted By")
+            submitted_by = st.text_input("Submitted By")
         
         if st.form_submit_button("💾 Save Reservation"):
             if guest_name and property_name:
@@ -141,9 +139,7 @@ def show_edit_reservations():
                 tariff = st.number_input("Tariff per Night", value=float(reservation["tariff"]), min_value=0.0, step=100.0)
                 advance = st.number_input("Advance Paid", value=float(reservation["advance"]), min_value=0.0, step=100.0)
                 mob = st.selectbox("Mode of Booking", ["Direct", "OTA", "Stay-back"], index=["Direct", "OTA", "Stay-back"].index(reservation["mob"]))
-                # Set modified_by based on username
-                restricted_users = ["reservationteam", "management", "admin", "Shyam", "Nabees", "Praveen"]
-                modified_by = st.session_state.username if st.session_state.username and st.session_state.username.lower() not in restricted_users else st.text_input("Modified By", value=reservation.get("modified_by", ""))
+                modified_by = st.text_input("Modified By", value=reservation.get("modified_by", ""))
             
             col1, col2 = st.columns(2)
             with col1:
@@ -158,8 +154,7 @@ def show_edit_reservations():
                         "tariff": tariff,
                         "advance": advance,
                         "mob": mob,
-                        "modified_by": modified_by,
-                        "modified_at": datetime.now().isoformat()
+                        "modified_by": modified_by
                     }
                     if update_reservation_in_supabase(selected_booking_id, reservation_data):
                         st.success(f"Reservation {selected_booking_id} updated successfully!")
