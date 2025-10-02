@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -353,6 +354,25 @@ def show_reservations():
 
     df = pd.DataFrame(st.session_state.reservations)
     
+    # Log available columns for debugging
+    st.write("Debug: Available columns in reservations DataFrame:", df.columns.tolist())
+    
+    # Define expected columns
+    expected_columns = [
+        "property_name", "booking_id", "guest_name", "check_in", "check_out",
+        "room_no", "room_type", "booking_status", "payment_status",
+        "total_tariff", "advance_amount", "balance_amount"
+    ]
+    
+    # Filter columns that exist in the DataFrame
+    display_columns = [col for col in expected_columns if col in df.columns]
+    if not display_columns:
+        st.error("No valid columns available to display. Please check the 'reservations' table schema.")
+        return
+    
+    if "booking_status" not in df.columns:
+        st.warning("Column 'booking_status' is missing in the reservations data. Displaying available columns.")
+    
     # Filters
     st.subheader("Filters")
     col1, col2, col3, col4 = st.columns(4)
@@ -361,29 +381,28 @@ def show_reservations():
     with col2:
         end_date = st.date_input("End Date (Check-In)", value=None)
     with col3:
-        filter_status = st.selectbox("Filter by Booking Status", ["All", "Pending", "Follow-up", "Confirmed", "Cancelled", "Completed", "No Show"])
+        # Only show status filter if booking_status exists
+        filter_status = st.selectbox("Filter by Booking Status", 
+                                     ["All", "Pending", "Follow-up", "Confirmed", "Cancelled", "Completed", "No Show"]
+                                     if "booking_status" in df.columns else ["All"],
+                                     disabled="booking_status" not in df.columns)
     with col4:
-        filter_property = st.selectbox("Filter by Property", ["All"] + sorted(df["property_name"].unique()))
+        filter_property = st.selectbox("Filter by Property", ["All"] + sorted(df["property_name"].unique()) if "property_name" in df.columns else ["All"],
+                                       disabled="property_name" not in df.columns)
 
     filtered_df = df.copy()
-    if start_date:
+    if start_date and "check_in" in df.columns:
         filtered_df = filtered_df[pd.to_datetime(filtered_df["check_in"]) >= pd.to_datetime(start_date)]
-    if end_date:
+    if end_date and "check_in" in df.columns:
         filtered_df = filtered_df[pd.to_datetime(filtered_df["check_in"]) <= pd.to_datetime(end_date)]
-    if filter_status != "All":
+    if filter_status != "All" and "booking_status" in df.columns:
         filtered_df = filtered_df[filtered_df["booking_status"] == filter_status]
-    if filter_property != "All":
+    if filter_property != "All" and "property_name" in df.columns:
         filtered_df = filtered_df[filtered_df["property_name"] == filter_property]
 
     if filtered_df.empty:
         st.warning("No reservations match the selected filters.")
     else:
-        # Display selected columns
-        display_columns = [
-            "property_name", "booking_id", "guest_name", "check_in", "check_out", 
-            "room_no", "room_type", "booking_status", "payment_status", 
-            "total_tariff", "advance_amount", "balance_amount"
-        ]
         st.dataframe(filtered_df[display_columns], use_container_width=True)
 
 def show_edit_reservations():
@@ -402,20 +421,24 @@ def show_edit_reservations():
         st.session_state.edit_index = None
 
     df = pd.DataFrame(st.session_state.reservations)
-    display_columns = ["property_name", "booking_id", "guest_name", "check_in", "check_out", "room_no", "room_type", "booking_status"]
+    
+    # Define display columns, excluding booking_status if missing
+    display_columns = ["property_name", "booking_id", "guest_name", "check_in", "check_out", "room_no", "room_type"]
+    if "booking_status" in df.columns:
+        display_columns.append("booking_status")
     
     st.subheader("Select Reservation to Edit")
     
     # Handle query parameters for pre-selecting booking ID
-    booking_ids = df["booking_id"].tolist()
+    booking_ids = df["booking_id"].tolist() if "booking_id" in df.columns else []
     query_params = st.query_params
     default_index = 0
     if query_params.get("booking_id") and query_params["booking_id"][0] in booking_ids:
         default_index = booking_ids.index(query_params["booking_id"][0])
     
-    selected_booking_id = st.selectbox("Select Booking ID", booking_ids, index=default_index)
+    selected_booking_id = st.selectbox("Select Booking ID", booking_ids, index=default_index) if booking_ids else st.text_input("Enter Booking ID")
     
-    if selected_booking_id:
+    if selected_booking_id and "booking_id" in df.columns:
         edit_index = df[df["booking_id"] == selected_booking_id].index[0]
         reservation = st.session_state.reservations[edit_index]
         st.session_state.edit_index = edit_index
@@ -425,14 +448,16 @@ def show_edit_reservations():
         edit_index = st.session_state.edit_index
         reservation = st.session_state.reservations[edit_index]
         
-        st.subheader(f"Editing Reservation: {reservation['booking_id']}")
+        st.subheader(f"Editing Reservation: {reservation.get('booking_id', 'Unknown')}")
         
         property_room_map = load_property_room_map()
         
         # Row 1: Property Name, Booking ID, Booking Date
         col1, col2, col3 = st.columns(3)
         with col1:
-            property_name = st.selectbox("Property Name", list(property_room_map.keys()), index=list(property_room_map.keys()).index(reservation.get("property_name", "")) if reservation.get("property_name") in property_room_map else 0)
+            property_name = st.selectbox("Property Name", list(property_room_map.keys()), 
+                                        index=list(property_room_map.keys()).index(reservation.get("property_name", "")) 
+                                        if reservation.get("property_name") in property_room_map else 0)
         with col2:
             booking_id = st.text_input("Booking ID", value=reservation.get("booking_id", ""), disabled=True)
         with col3:
@@ -442,10 +467,12 @@ def show_edit_reservations():
         col1, col2, col3 = st.columns(3)
         with col1:
             room_types = list(property_room_map[property_name].keys()) + ["Other"]
-            room_type = st.selectbox("Room Type", room_types, index=room_types.index(reservation.get("room_type", "")) if reservation.get("room_type") in room_types else len(room_types)-1)
+            room_type = st.selectbox("Room Type", room_types, 
+                                    index=room_types.index(reservation.get("room_type", "")) if reservation.get("room_type") in room_types else len(room_types)-1)
         with col2:
             room_numbers = property_room_map[property_name][room_type] if room_type != "Other" else []
-            room_no = st.selectbox("Room No", room_numbers, index=room_numbers.index(reservation.get("room_no", "")) if reservation.get("room_no") in room_numbers else 0) if room_numbers else st.text_input("Room No", value=reservation.get("room_no", ""))
+            room_no = st.selectbox("Room No", room_numbers, 
+                                  index=room_numbers.index(reservation.get("room_no", "")) if reservation.get("room_no") in room_numbers else 0) if room_numbers else st.text_input("Room No", value=reservation.get("room_no", ""))
         with col3:
             guest_name = st.text_input("Guest Name", value=reservation.get("guest_name", ""))
 
@@ -488,7 +515,8 @@ def show_edit_reservations():
             st.text_input("Balance Amount", value=balance_amount, disabled=True)
         with col2:
             advance_mop_options = ["Cash", "Card", "UPI", "Bank Transfer", "Other"]
-            advance_mop = st.selectbox("Advance MOP", advance_mop_options, index=advance_mop_options.index(reservation.get("advance_mop", "")) if reservation.get("advance_mop") in advance_mop_options else len(advance_mop_options)-1)
+            advance_mop = st.selectbox("Advance MOP", advance_mop_options, 
+                                      index=advance_mop_options.index(reservation.get("advance_mop", "")) if reservation.get("advance_mop") in advance_mop_options else len(advance_mop_options)-1)
         with col3:
             custom_advance_mop = st.text_input("Custom Advance MOP", value=reservation.get("advance_mop", "") if advance_mop == "Other" else "", disabled=advance_mop != "Other")
 
@@ -496,11 +524,15 @@ def show_edit_reservations():
         col1, col2, col3 = st.columns(3)
         with col1:
             mob_options = ["Direct", "Online", "Stay-back"]
-            mob_value = st.selectbox("MOB", mob_options, index=mob_options.index(reservation.get("mob", "")) if reservation.get("mob") in mob_options else 0)
+            mob_value = st.selectbox("MOB", mob_options, 
+                                    index=mob_options.index(reservation.get("mob", "")) if reservation.get("mob") in mob_options else 0)
         with col2:
             online_source_options = ["Booking.com", "Expedia", "Agoda", "Others"]
-            online_source = st.selectbox("Online Source", online_source_options, index=online_source_options.index(reservation.get("online_source", "")) if reservation.get("online_source") in online_source_options else len(online_source_options)-1, disabled=mob_value != "Online")
-            custom_online_source = st.text_input("Custom Online Source", value=reservation.get("online_source", "") if online_source == "Others" else "", disabled=online_source != "Others" or mob_value != "Online")
+            online_source = st.selectbox("Online Source", online_source_options, 
+                                        index=online_source_options.index(reservation.get("online_source", "")) if reservation.get("online_source") in online_source_options else len(online_source_options)-1, 
+                                        disabled=mob_value != "Online")
+            custom_online_source = st.text_input("Custom Online Source", value=reservation.get("online_source", "") if online_source == "Others" else "", 
+                                               disabled=online_source != "Others" or mob_value != "Online")
         with col3:
             invoice_no = st.text_input("Invoice No", value=reservation.get("invoice_no", ""))
 
@@ -511,7 +543,9 @@ def show_edit_reservations():
         with col2:
             breakfast = st.selectbox("Breakfast", ["Yes", "No"], index=["Yes", "No"].index(reservation.get("breakfast", "No")))
         with col3:
-            booking_status = st.selectbox("Booking Status", ["Pending", "Follow-up", "Confirmed", "Cancelled", "Completed", "No Show"], index=["Pending", "Follow-up", "Confirmed", "Cancelled", "Completed", "No Show"].index(reservation.get("booking_status", "Pending")))
+            booking_status_options = ["Pending", "Follow-up", "Confirmed", "Cancelled", "Completed", "No Show"]
+            booking_status = st.selectbox("Booking Status", booking_status_options, 
+                                         index=booking_status_options.index(reservation.get("booking_status", "Pending")) if reservation.get("booking_status") in booking_status_options else 0)
 
         # Row 9: Submitted By, Modified By
         col1, col2 = st.columns(2)
@@ -596,32 +630,34 @@ def show_analytics():
     df = pd.DataFrame(st.session_state.reservations)
     
     st.subheader("Filters")
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    col1, col2, col3, col5, col6 = st.columns(5)
     with col1:
         start_date = st.date_input("Start Date", value=None, key="analytics_filter_start_date", help="Filter by Check In date range (optional)")
     with col2:
         end_date = st.date_input("End Date", value=None, key="analytics_filter_end_date", help="Filter by Check In date range (optional)")
     with col3:
-        filter_status = st.selectbox("Filter by Status", ["All", "Pending", "Follow-up", "Confirmed", "Cancelled", "Completed", "No Show"], key="analytics_filter_status")
-    with col4:
-        filter_check_in_date = st.date_input("Check-in Date", value=None, key="analytics_filter_check_in_date")
+        filter_status = st.selectbox("Filter by Status", 
+                                     ["All", "Pending", "Follow-up", "Confirmed", "Cancelled", "Completed", "No Show"]
+                                     if "booking_status" in df.columns else ["All"],
+                                     key="analytics_filter_status",
+                                     disabled="booking_status" not in df.columns)
     with col5:
-        filter_check_out_date = st.date_input("Check-out Date", value=None, key="analytics_filter_check_out_date")
+        filter_check_in_date = st.date_input("Check-in Date", value=None, key="analytics_filter_check_in_date")
     with col6:
-        filter_property = st.selectbox("Filter by Property", ["All"] + sorted(df["property_name"].unique()), key="analytics_filter_property")
+        filter_property = st.selectbox("Filter by Property", ["All"] + sorted(df["property_name"].unique()) if "property_name" in df.columns else ["All"],
+                                       key="analytics_filter_property",
+                                       disabled="property_name" not in df.columns)
 
     filtered_df = df.copy()
-    if start_date:
+    if start_date and "check_in" in df.columns:
         filtered_df = filtered_df[pd.to_datetime(filtered_df["check_in"]) >= pd.to_datetime(start_date)]
-    if end_date:
+    if end_date and "check_in" in df.columns:
         filtered_df = filtered_df[pd.to_datetime(filtered_df["check_in"]) <= pd.to_datetime(end_date)]
-    if filter_status != "All":
+    if filter_status != "All" and "booking_status" in df.columns:
         filtered_df = filtered_df[filtered_df["booking_status"] == filter_status]
-    if filter_check_in_date:
+    if filter_check_in_date and "check_in" in df.columns:
         filtered_df = filtered_df[filtered_df["check_in"] == str(filter_check_in_date)]
-    if filter_check_out_date:
-        filtered_df = filtered_df[filtered_df["check_out"] == str(filter_check_out_date)]
-    if filter_property != "All":
+    if filter_property != "All" and "property_name" in df.columns:
         filtered_df = filtered_df[filtered_df["property_name"] == filter_property]
 
     if filtered_df.empty:
@@ -631,24 +667,26 @@ def show_analytics():
     st.subheader("Visualizations")
     col1, col2 = st.columns(2)
     with col1:
-        property_counts = filtered_df["property_name"].value_counts().reset_index()
-        property_counts.columns = ["property_name", "Reservation Count"]
-        fig_pie = px.pie(
-            property_counts,
-            values="Reservation Count",
-            names="property_name",
-            title="Reservation Distribution by Property",
-            height=400
-        )
-        st.plotly_chart(fig_pie, use_container_width=True, key="analytics_pie_chart")
+        property_counts = filtered_df["property_name"].value_counts().reset_index() if "property_name" in filtered_df.columns else pd.DataFrame()
+        property_counts.columns = ["property_name", "Reservation Count"] if not property_counts.empty else []
+        if not property_counts.empty:
+            fig_pie = px.pie(
+                property_counts,
+                values="Reservation Count",
+                names="property_name",
+                title="Reservation Distribution by Property",
+                height=400
+            )
+            st.plotly_chart(fig_pie, use_container_width=True, key="analytics_pie_chart")
     with col2:
-        revenue_by_property = filtered_df.groupby("property_name")["total_tariff"].sum().reset_index()
-        fig_bar = px.bar(
-            revenue_by_property,
-            x="property_name",
-            y="total_tariff",
-            title="Total Revenue by Property",
-            height=400,
-            labels={"total_tariff": "Revenue (₹)"}
-        )
-        st.plotly_chart(fig_bar, use_container_width=True, key="analytics_bar_chart")
+        revenue_by_property = filtered_df.groupby("property_name")["total_tariff"].sum().reset_index() if "property_name" in filtered_df.columns and "total_tariff" in filtered_df.columns else pd.DataFrame()
+        if not revenue_by_property.empty:
+            fig_bar = px.bar(
+                revenue_by_property,
+                x="property_name",
+                y="total_tariff",
+                title="Total Revenue by Property",
+                height=400,
+                labels={"total_tariff": "Revenue (₹)"}
+            )
+            st.plotly_chart(fig_bar, use_container_width=True, key="analytics_bar_chart")
