@@ -15,6 +15,7 @@ except KeyError as e:
 # Property synonym mapping
 property_mapping = {
     "La Millionaire Luxury Resort": "La Millionaire Resort",
+    "Le Poshe Beach View": "Le Poshe Beach view",
 }
 reverse_mapping = {}
 for variant, canonical in property_mapping.items():
