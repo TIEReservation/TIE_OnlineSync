@@ -72,135 +72,70 @@ def show_edit_online_reservations(selected_booking_id=None):
     display_columns = ["property", "booking_id", "guest_name", "check_in", "check_out", "room_no", "room_type", "booking_status"]
     
     st.subheader("Select Reservation to Edit")
-    booking_id_list = df["booking_id"].tolist()
-    default_index = booking_id_list.index(selected_booking_id) if selected_booking_id in booking_id_list else 0
-    selected_booking_id = st.selectbox("Select Booking ID", booking_id_list, index=default_index)
+    booking_ids = df["booking_id"].tolist()
+    if selected_booking_id and selected_booking_id in booking_ids:
+        edit_index = booking_ids.index(selected_booking_id)
+    else:
+        edit_index = st.selectbox("Select Booking ID", booking_ids, format_func=lambda x: x)
+        edit_index = booking_ids.index(edit_index)
     
-    if selected_booking_id:
-        edit_index = df[df["booking_id"] == selected_booking_id].index[0]
-        reservation = st.session_state.online_reservations[edit_index]
-        st.session_state.online_edit_index = edit_index
-        st.session_state.online_edit_mode = True
+    reservation = st.session_state.online_reservations[edit_index]
+    st.session_state.online_edit_mode = True
+    st.session_state.online_edit_index = edit_index
 
-    if st.session_state.online_edit_mode and st.session_state.online_edit_index is not None:
-        edit_index = st.session_state.online_edit_index
-        reservation = st.session_state.online_reservations[edit_index]
-        
-        st.subheader(f"Editing Reservation: {reservation['booking_id']}")
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            property_name = st.text_input("Property Name", value=reservation.get("property", ""), disabled=True)
-        with col2:
-            booking_id = st.text_input("Booking ID", value=reservation.get("booking_id", ""), disabled=True)
-        with col3:
-            booking_made_on = st.date_input("Booking Made On", value=date.fromisoformat(reservation.get("booking_made_on")) if reservation.get("booking_made_on") else None)
-
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            guest_name = st.text_input("Guest Name", value=reservation.get("guest_name", ""))
-        with col2:
-            guest_phone = st.text_input("Mobile No", value=reservation.get("guest_phone", ""))
-        with col3:
-            check_in = st.date_input("Check In", value=date.fromisoformat(reservation.get("check_in")) if reservation.get("check_in") else None)
-        with col4:
-            check_out = st.date_input("Check Out", value=date.fromisoformat(reservation.get("check_out")) if reservation.get("check_out") else None)
-
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            no_of_adults = st.number_input("No of Adults", value=safe_int(reservation.get("no_of_adults", 0)), min_value=0)
-        with col2:
-            no_of_children = st.number_input("No of Children", value=safe_int(reservation.get("no_of_children", 0)), min_value=0)
-        with col3:
-            no_of_infant = st.number_input("No of Infant", value=safe_int(reservation.get("no_of_infant", 0)), min_value=0)
-        with col4:
-            total_pax = no_of_adults + no_of_children + no_of_infant
-            st.text_input("Total Pax", value=total_pax, disabled=True)
-
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            room_no = st.text_input("Room No", value=reservation.get("room_no", ""))
-        with col2:
-            room_type = st.text_input("Room Type", value=reservation.get("room_type", ""))
-        with col3:
-            rate_plans = st.text_input("Breakfast", value=reservation.get("rate_plans", ""))
-        with col4:
-            booking_source = st.text_input("Booking Source", value=reservation.get("booking_source", ""))
-
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            segment = st.text_input("Segment", value=reservation.get("segment", ""))
-        with col2:
-            staflexi_status = st.text_input("Staflexi Status", value=reservation.get("staflexi_status", ""))
-        with col3:
-            booking_confirmed_on = st.date_input("Booking Confirmed on", value=date.fromisoformat(reservation.get("booking_confirmed_on")) if reservation.get("booking_confirmed_on") else None)
-
-        col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 1])
-        with col1:
-            booking_amount = st.number_input("Total Tariff", value=safe_float(reservation.get("booking_amount", 0.0)))
-        with col2:
-            total_payment_made = st.number_input("Advance Amount", value=safe_float(reservation.get("total_payment_made", 0.0)))
-        with col3:
-            advance_mop_options = ["Cash", "Card", "UPI", "Bank Transfer", "ClearTrip", "TIE Management", "Booking.com", "Pending", "Other", "Agoda", "MMT", "Expedia", "Cleartrip", "Goibibo"]
-            advance_mop = st.selectbox("Advance MOP", advance_mop_options, index=advance_mop_options.index(reservation.get("advance_mop", "Pending")) if reservation.get("advance_mop") in advance_mop_options else 7)
-            if advance_mop == "Other":
-                custom_advance_mop = st.text_input("Custom Advance MOP", value=reservation.get("advance_mop", "") if reservation.get("advance_mop") not in advance_mop_options else "")
-            else:
-                custom_advance_mop = None
-        with col4:
-            balance_due = booking_amount - total_payment_made
-            st.text_input("Balance Due", value=balance_due, disabled=True)
-        with col5:
-            balance_mop_options = ["Pending", "Cash", "Card", "UPI", "Bank Transfer", "Other"]
-            balance_mop = st.selectbox("Balance MOP", balance_mop_options, index=balance_mop_options.index(reservation.get("balance_mop", "Pending")) if reservation.get("balance_mop") in balance_mop_options else 0)
-            if balance_mop == "Other":
-                custom_balance_mop = st.text_input("Custom Balance MOP", value=reservation.get("balance_mop", "") if reservation.get("balance_mop") not in balance_mop_options else "")
-            else:
-                custom_balance_mop = None
-
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            current_mob = reservation.get("mode_of_booking", "") or reservation.get("booking_source", "")
-            mob_options = [booking_source, "Booking-Dir"] if booking_source else ["Booking-Dir"]
-            if current_mob and current_mob not in mob_options:
-                mob_options.insert(0, current_mob)
-            mob_options = list(dict.fromkeys(mob_options))
-            try:
-                mob_index = mob_options.index(current_mob) if current_mob in mob_options else 0
-            except ValueError:
-                mob_index = 0
-            mode_of_booking = st.selectbox("MOB", mob_options, index=mob_index)
-        with col2:
-            booking_status_options = ["Pending", "Follow-up", "Confirmed", "Cancelled", "Completed", "No Show"]
-            current_status = reservation.get("booking_status", "Pending")
-            try:
-                status_index = booking_status_options.index(current_status)
-            except ValueError:
-                status_index = 0
-            booking_status = st.selectbox("Booking Status", booking_status_options, index=status_index)
-        with col3:
-            payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], index=["Not Paid", "Fully Paid", "Partially Paid"].index(reservation.get("payment_status", "Not Paid")))
-
-        remarks = st.text_area("Remarks", value=reservation.get("remarks", ""))
-
+    with st.form("edit_online_reservation_form"):
         col1, col2 = st.columns(2)
         with col1:
-            submitted_by = st.text_input("Submitted by", value=reservation.get("submitted_by", ""))
+            property_name = st.selectbox("Property", st.session_state.properties, index=st.session_state.properties.index(reservation["property"]) if reservation["property"] in st.session_state.properties else 0)
+            booking_id = st.text_input("Booking ID", value=reservation["booking_id"], disabled=True)
+            booking_made_on = st.date_input("Booking Made On", value=parse_date(reservation.get("booking_made_on")) if reservation.get("booking_made_on") else None, min_value=date(2000, 1, 1))
+            guest_name = st.text_input("Guest Name", value=reservation.get("guest_name", ""))
+            guest_phone = st.text_input("Guest Phone", value=reservation.get("guest_phone", ""))
+            check_in = st.date_input("Check-in Date", value=parse_date(reservation.get("check_in")) if reservation.get("check_in") else None)
+            check_out = st.date_input("Check-out Date", value=parse_date(reservation.get("check_out")) if reservation.get("check_out") else None)
+            room_no = st.text_input("Room Number", value=reservation.get("room_no", ""))
+            room_type = st.text_input("Room Type", value=reservation.get("room_type", ""))
+            rate_plans = st.text_input("Rate Plans", value=reservation.get("rate_plans", ""))
         with col2:
-            modified_by = st.text_input("Modified by", value=reservation.get("modified_by", ""))
-
-        total_amount_with_services = safe_float(reservation.get("total_amount_with_services", 0.0))
-        ota_gross_amount = safe_float(reservation.get("ota_gross_amount", 0.0))
-        ota_commission = safe_float(reservation.get("ota_commission", 0.0))
-        ota_tax = safe_float(reservation.get("ota_tax", 0.0))
-        ota_net_amount = safe_float(reservation.get("ota_net_amount", 0.0))
-        room_revenue = safe_float(reservation.get("room_revenue", 0.0))
-
+            no_of_adults = st.number_input("Number of Adults", value=safe_int(reservation.get("no_of_adults", 0)), min_value=0)
+            no_of_children = st.number_input("Number of Children", value=safe_int(reservation.get("no_of_children", 0)), min_value=0)
+            no_of_infant = st.number_input("Number of Infants", value=safe_int(reservation.get("no_of_infant", 0)), min_value=0)
+            total_pax = no_of_adults + no_of_children + no_of_infant
+            st.text(f"Total Pax: {total_pax}")
+            booking_source = st.text_input("Booking Source", value=reservation.get("booking_source", ""))
+            segment = st.text_input("Segment", value=reservation.get("segment", ""))
+            staflexi_status = st.text_input("Staflexi Status", value=reservation.get("staflexi_status", ""))
+            booking_confirmed_on = st.date_input("Booking Confirmed On", value=parse_date(reservation.get("booking_confirmed_on")) if reservation.get("booking_confirmed_on") else None, min_value=date(2000, 1, 1))
+            booking_amount = st.number_input("Booking Amount", value=safe_float(reservation.get("booking_amount", 0.0)), min_value=0.0)
+            total_payment_made = st.number_input("Total Payment Made", value=safe_float(reservation.get("total_payment_made", 0.0)), min_value=0.0)
+            balance_due = st.number_input("Balance Due", value=safe_float(reservation.get("balance_due", 0.0)), min_value=0.0)
+        col3, col4 = st.columns(2)
+        with col3:
+            mode_of_booking = st.text_input("Mode of Booking", value=reservation.get("mode_of_booking", ""))
+            booking_status = st.selectbox("Booking Status", ["Pending", "Confirmed", "Cancelled", "Completed", "No Show"], index=["Pending", "Confirmed", "Cancelled", "Completed", "No Show"].index(reservation.get("booking_status", "Pending")))
+            payment_status = st.selectbox("Payment Status", ["Not Paid", "Partially Paid", "Fully Paid"], index=["Not Paid", "Partially Paid", "Fully Paid"].index(reservation.get("payment_status", "Not Paid")))
+            advance_mop = st.selectbox("Advance MOP", ["", "Cash", "Card", "UPI", "Bank Transfer", "Other"], index=["", "Cash", "Card", "UPI", "Bank Transfer", "Other"].index(reservation.get("advance_mop", "")) if reservation.get("advance_mop") else 0)
+            custom_advance_mop = st.text_input("Custom Advance MOP (if Other)", value=reservation.get("advance_mop", "") if reservation.get("advance_mop") not in ["", "Cash", "Card", "UPI", "Bank Transfer"] else "")
+        with col4:
+            balance_mop = st.selectbox("Balance MOP", ["", "Cash", "Card", "UPI", "Bank Transfer", "Other"], index=["", "Cash", "Card", "UPI", "Bank Transfer", "Other"].index(reservation.get("balance_mop", "")) if reservation.get("balance_mop") else 0)
+            custom_balance_mop = st.text_input("Custom Balance MOP (if Other)", value=reservation.get("balance_mop", "") if reservation.get("balance_mop") not in ["", "Cash", "Card", "UPI", "Bank Transfer"] else "")
+            remarks = st.text_area("Remarks", value=reservation.get("remarks", ""), max_chars=500)
+            submitted_by = st.text_input("Submitted By", value=reservation.get("submitted_by", ""))
+            modified_by = st.text_input("Modified By", value=reservation.get("modified_by", ""))
+        with st.expander("OTA and Revenue Details"):
+            total_amount_with_services = st.number_input("Total Amount with Services", value=safe_float(reservation.get("total_amount_with_services", 0.0)), min_value=0.0)
+            ota_gross_amount = st.number_input("OTA Gross Amount", value=safe_float(reservation.get("ota_gross_amount", 0.0)), min_value=0.0)
+            ota_commission = st.number_input("OTA Commission", value=safe_float(reservation.get("ota_commission", 0.0)), min_value=0.0)
+            ota_tax = st.number_input("OTA Tax", value=safe_float(reservation.get("ota_tax", 0.0)), min_value=0.0)
+            ota_net_amount = st.number_input("OTA Net Amount", value=safe_float(reservation.get("ota_net_amount", 0.0)), min_value=0.0)
+            room_revenue = st.number_input("Room Revenue", value=safe_float(reservation.get("room_revenue", 0.0)), min_value=0.0)
+        
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
-            if st.button("💾 Update Reservation", use_container_width=True):
+            if st.form_submit_button("💾 Save Reservation", use_container_width=True):
                 updated_reservation = {
                     "property": property_name,
+                    "booking_id": booking_id,
                     "booking_made_on": str(booking_made_on) if booking_made_on else None,
                     "guest_name": guest_name,
                     "guest_phone": guest_phone,
