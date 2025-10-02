@@ -159,9 +159,6 @@ def show_dms():
         if "property_name" in b:
             b["property_name"] = property_mapping.get(b["property_name"], b["property_name"])
     
-    # Debug: Log the number of bookings loaded
-    st.write(f"DEBUG: Loaded {len(online_bookings)} online bookings and {len(direct_bookings)} direct bookings")
-    
     if not online_bookings and not direct_bookings:
         st.info("No reservations available.")
         return
@@ -172,9 +169,6 @@ def show_dms():
     online_properties = sorted(online_df["property"].dropna().unique().tolist())
     direct_properties = sorted(direct_df["property_name"].dropna().unique().tolist())
     all_properties = sorted(list(set(online_properties + direct_properties)))
-    
-    # Debug: Log the properties
-    st.write(f"DEBUG: All properties: {all_properties}")
     
     if not all_properties:
         st.info("No properties found in reservations.")
@@ -193,9 +187,6 @@ def show_dms():
             prop_online_bookings = [b for b in online_bookings if b.get("property") == prop and b.get("booking_status") in ["Pending", "Follow-up"]]
             # Filter direct bookings for the property and Pending or Follow-up status
             prop_direct_bookings = [b for b in direct_bookings if b.get("property_name") == prop and b.get("booking_status") in ["Pending", "Follow-up"]]
-            
-            # Debug: Log the number of filtered bookings
-            st.write(f"DEBUG: {prop} - Online bookings: {len(prop_online_bookings)}, Direct bookings: {len(prop_direct_bookings)}")
             
             # Combine both
             prop_all_bookings = prop_online_bookings + prop_direct_bookings
