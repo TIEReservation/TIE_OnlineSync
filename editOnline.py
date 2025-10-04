@@ -20,7 +20,7 @@ def update_online_reservation_in_supabase(booking_id, updated_reservation):
             "property", "booking_id", "guest_name", "guest_phone", "room_no", 
             "room_type", "rate_plans", "booking_source", "segment", "staflexi_status",
             "mode_of_booking", "booking_status", "payment_status", "submitted_by", 
-            "modified_by"
+            "modified_by", "advance_mop", "balance_mop"
         ]
         for field in string_fields_50:
             if field in truncated_reservation:
@@ -138,15 +138,24 @@ def show_edit_online_reservations(selected_booking_id=None):
         with col3:
             booking_confirmed_on = st.date_input("Booking Confirmed on", value=date.fromisoformat(reservation.get("booking_confirmed_on")) if reservation.get("booking_confirmed_on") else None)
 
-        # Row 6: Total Tariff (booking_amount), Advance Amount, Balance Due
-        col1, col2, col3 = st.columns(3)
+        # Row 6: Total Tariff (booking_amount), Advance Amount, Advance Mop, Balance Due, Balance Mop
+        col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
             booking_amount = st.number_input("Total Tariff", value=safe_float(reservation.get("booking_amount", 0.0)))
         with col2:
             total_payment_made = st.number_input("Advance Amount", value=safe_float(reservation.get("total_payment_made", 0.0)))
         with col3:
+            mop_options = ["Cash", "Card", "UPI", "Bank Transfer", "Other"]
+            current_advance_mop = reservation.get("advance_mop", "")
+            advance_mop_index = mop_options.index(current_advance_mop) if current_advance_mop in mop_options else 0
+            advance_mop = st.selectbox("Advance Mop", mop_options, index=advance_mop_index)
+        with col4:
             balance_due = booking_amount - total_payment_made
             st.text_input("Balance Due", value=balance_due, disabled=True)
+        with col5:
+            current_balance_mop = reservation.get("balance_mop", "")
+            balance_mop_index = mop_options.index(current_balance_mop) if current_balance_mop in mop_options else 0
+            balance_mop = st.selectbox("Balance Mop", mop_options, index=balance_mop_index)
 
         # Row 7: MOB (mode_of_booking), Booking Status, Payment Status
         col1, col2, col3 = st.columns(3)
@@ -214,6 +223,8 @@ def show_edit_online_reservations(selected_booking_id=None):
                     "booking_amount": booking_amount,
                     "total_payment_made": total_payment_made,
                     "balance_due": balance_due,
+                    "advance_mop": advance_mop,
+                    "balance_mop": balance_mop,
                     "mode_of_booking": mode_of_booking,
                     "booking_status": booking_status,
                     "payment_status": payment_status,
