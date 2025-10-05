@@ -2,13 +2,27 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from supabase import create_client, Client
-from utils import safe_int, safe_float
+
+# Fallback utilities in case utils.py is missing
+def safe_int(value, default=0):
+    """Convert value to int, return default if invalid."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+def safe_float(value, default=0.0):
+    """Convert value to float, return default if invalid."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 # Initialize Supabase client
 try:
     supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
 except KeyError as e:
-    st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets configuration.")
+    st.error(f"Missing Supabase secret: {e}. Check secrets.toml.")
     st.stop()
 
 def update_online_reservation_in_supabase(booking_id, updated_reservation):
@@ -243,9 +257,9 @@ def show_edit_online_reservations(selected_booking_id=None):
                     st.session_state.online_edit_mode = False
                     st.session_state.online_edit_index = None
                     if "booking_id" in st.query_params:
-                        del st.query_params["booking_id"]  # Targeted del to preserve role
+                        del st.query_params["booking_id"]
                     if "page" in st.query_params:
-                        del st.query_params["page"]  # Optional: reset page param
+                        del st.query_params["page"]
                     st.success(f"✅ Reservation {reservation['booking_id']} updated successfully!")
                     st.rerun()
                 else:
@@ -258,9 +272,9 @@ def show_edit_online_reservations(selected_booking_id=None):
                         st.session_state.online_edit_mode = False
                         st.session_state.online_edit_index = None
                         if "booking_id" in st.query_params:
-                            del st.query_params["booking_id"]  # Targeted del to preserve role
+                            del st.query_params["booking_id"]
                         if "page" in st.query_params:
-                            del st.query_params["page"]  # Optional: reset page param
+                            del st.query_params["page"]
                         st.success(f"🗑️ Reservation {reservation['booking_id']} deleted successfully!")
                         st.rerun()
                     else:
