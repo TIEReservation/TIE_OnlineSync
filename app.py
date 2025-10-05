@@ -72,12 +72,46 @@ if not cookies.ready():
 if debug_enabled:
     st.write(f"Debug: Initial cookie auth_role = {cookies.get('auth_role')}")
 
+def init_session_state():
+    """Initialize all session state keys with defaults."""
+    defaults = {
+        'authenticated': False,
+        'role': None,
+        'reservations': [],
+        'online_reservations': [],
+        'edit_mode': False,
+        'edit_index': None,
+        'online_edit_mode': False,
+        'online_edit_index': None,
+        'current_page': "Direct Reservations",
+        'selected_booking_id': None,
+        'logout_triggered': False
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+    if debug_enabled:
+        st.write(f"Debug: Session state initialized: {dict(st.session_state)}")
+
 def clear_session_state():
-    """Clear all session state keys except logout_triggered."""
-    protected_keys = ['logout_triggered']
-    for key in list(st.session_state.keys()):
-        if key not in protected_keys:
-            del st.session_state[key]
+    """Reset session state to defaults."""
+    defaults = {
+        'authenticated': False,
+        'role': None,
+        'reservations': [],
+        'online_reservations': [],
+        'edit_mode': False,
+        'edit_index': None,
+        'online_edit_mode': False,
+        'online_edit_index': None,
+        'current_page': "Direct Reservations",
+        'selected_booking_id': None,
+        'logout_triggered': False
+    }
+    for key, value in defaults.items():
+        st.session_state[key] = value
+    if debug_enabled:
+        st.write(f"Debug: Session state reset: {dict(st.session_state)}")
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(0.2), retry=retry_if_exception_type(Exception))
 def delete_auth_cookie(cookies):
@@ -122,25 +156,14 @@ def logout():
     st.rerun()
 
 def check_authentication():
+    # Initialize session state
+    init_session_state()
+
     # Check for recent logout
-    if 'logout_triggered' in st.session_state and st.session_state.logout_triggered:
+    if st.session_state.get('logout_triggered', False):
         validate_post_logout_state()
         st.session_state.logout_triggered = False
         return
-
-    # Initialize session state
-    if 'authenticated' not in st.session_state:
-        st.session_state.authenticated = False
-        st.session_state.role = None
-        st.session_state.reservations = []
-        st.session_state.online_reservations = []
-        st.session_state.edit_mode = False
-        st.session_state.edit_index = None
-        st.session_state.online_edit_mode = False
-        st.session_state.online_edit_index = None
-        st.session_state.current_page = "Direct Reservations"
-        st.session_state.selected_booking_id = None
-        st.session_state.logout_triggered = False
 
     # Check cookie for persistent auth
     saved_role = cookies.get('auth_role')
@@ -233,7 +256,7 @@ def main():
     st.markdown("---")
     st.sidebar.title("Navigation")
     page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status"]
-    if st.session_state.role == "Management":
+    if st.session_state.get('role') == "Management":
         page_options.append("Analytics")
     
     page = st.sidebar.selectbox("Choose a page", page_options, index=page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0, key="page_select")
@@ -255,9 +278,9 @@ def main():
                 del st.query_params["booking_id"]
     elif page == "Daily Status":
         show_daily_status()
-    elif page == "Daily Management Status" and st.session_state.role == "Management":
+    elif page == "Daily Management Status" and st.session_state.get('role') == "Management":
         show_dms()
-    elif page == "Analytics" and st.session_state.role == "Management":
+    elif page == "Analytics" and st.session_state.get('role') == "Management":
         show_analytics()
 
     st.sidebar.markdown("---")
