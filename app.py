@@ -59,11 +59,6 @@ except KeyError:
     pass
 
 # Initialize cookie manager
-# For Streamlit Cloud, ensure secrets.toml has:
-# [cookies]
-# password = "your_secure_password"
-# Or set env var COOKIE_PASSWORD
-# Note: streamlit-cookies-manager may not support max_age; cookies persist until deleted
 cookies = EncryptedCookieManager(prefix="tie_reservations_", password=get_cookie_password())
 if not cookies.ready():
     st.error("Cookie manager not ready. Check secrets or environment configuration.")
@@ -86,7 +81,7 @@ def init_session_state():
         'current_page': "Direct Reservations",
         'selected_booking_id': None,
         'logout_triggered': False,
-        'last_logout_time': 0.0  # Timestamp for click lock
+        'last_logout_time': 0.0
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -115,14 +110,14 @@ def clear_session_state():
     if debug_enabled:
         st.write(f"Debug: Session state reset: {dict(st.session_state)}")
 
-@retry(stop=stop_after_attempt(3), wait=wait_fixed(0.2), retry=retry_if_exception_type(Exception))
+@retry(stop=stop_after_attempt(2), wait=wait_fixed(0.1), retry=retry_if_exception_type(Exception))
 def delete_auth_cookie(cookies):
-    """Clear all cookies with retry (3 attempts, 0.2s delay)."""
+    """Clear all cookies with retry (2 attempts, 0.1s delay)."""
     if not cookies.ready():
         raise Exception("Cookie manager not ready")
     cookies.clear()
     cookies.save()
-    time.sleep(0.1)
+    time.sleep(0.05)  # Reduced sync delay
     if debug_enabled:
         st.write(f"Debug: All cookies cleared, auth_role = {cookies.get('auth_role')}")
 
@@ -134,7 +129,7 @@ def validate_post_logout_state():
         try:
             cookies.clear()
             cookies.save()
-            time.sleep(0.1)
+            time.sleep(0.05)
             if debug_enabled:
                 st.write(f"Debug: Cleared stale auth_role cookie post-logout")
         except Exception as e:
@@ -149,32 +144,27 @@ def logout():
             st.write("Debug: Logout skipped due to click lock")
         return
     st.session_state.last_logout_time = current_time
-    st.info("Logging out...")
-    try:
-        delete_auth_cookie(cookies)
-    except Exception as e:
+    with st.spinner("Logging out..."):  # Non-blocking feedback
+        try:
+            delete_auth_cookie(cookies)
+        except Exception as e:
+            if debug_enabled:
+                st.write(f"Debug: Cookie deletion failed: {e}")
+        clear_session_state()
+        st.session_state.logout_triggered = True
+        validate_post_logout_state()
+        st.query_params.clear()
         if debug_enabled:
-            st.write(f"Debug: Cookie deletion failed: {e}")
-    clear_session_state()
-    st.session_state.logout_triggered = True
-    validate_post_logout_state()
-    st.query_params.clear()
-    if debug_enabled:
-        st.write(f"Debug: Post-logout, auth_role = {cookies.get('auth_role')}, session = {dict(st.session_state)}")
-    st.rerun()
+            st.write(f"Debug: Post-logout, auth_role = {cookies.get('auth_role')}, session = {dict(st.session_state)}")
+        st.rerun()
 
 def check_authentication():
-    # Initialize session state
     init_session_state()
-
-    # Check for recent logout (within 5s)
     current_time = time.time()
     if st.session_state.get('logout_triggered', False) or st.session_state.get('last_logout_time', 0.0) > current_time - 5:
         validate_post_logout_state()
         st.session_state.logout_triggered = False
         return
-
-    # Check cookie for persistent auth
     saved_role = cookies.get('auth_role')
     if saved_role in ["Management", "ReservationTeam"]:
         st.session_state.authenticated = True
@@ -186,7 +176,6 @@ def check_authentication():
             st.session_state.reservations = []
             st.session_state.online_reservations = []
             st.warning(f"Failed to fetch reservations: {e}")
-        # Preserve page and booking
         query_params = st.query_params
         query_page = query_params.get("page", [st.session_state.current_page])[0]
         if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
@@ -195,7 +184,6 @@ def check_authentication():
         if query_booking_id:
             st.session_state.selected_booking_id = query_booking_id
         return
-
     if not st.session_state.authenticated:
         st.title("🔐 TIE Reservations Login")
         st.write("Please select your role and enter the password to access the system.")
@@ -206,15 +194,15 @@ def check_authentication():
                 st.session_state.authenticated = True
                 st.session_state.role = "Management"
                 try:
-                    cookies['auth_role'] = {"value": "Management", "max_age": 2592000}  # 30 days
+                    cookies['auth_role'] = {"value": "Management", "max_age": 2592000}
                     cookies.save()
-                    time.sleep(0.1)
+                    time.sleep(0.05)
                 except Exception as e:
                     if debug_enabled:
                         st.write(f"Debug: Failed to set cookie max_age: {e}")
                     cookies['auth_role'] = "Management"
                     cookies.save()
-                    time.sleep(0.1)
+                    time.sleep(0.05)
                 try:
                     st.session_state.reservations = load_reservations_from_supabase()
                     st.session_state.online_reservations = load_online_reservations_from_supabase()
@@ -228,15 +216,15 @@ def check_authentication():
                 st.session_state.authenticated = True
                 st.session_state.role = "ReservationTeam"
                 try:
-                    cookies['auth_role'] = {"value": "ReservationTeam", "max_age": 2592000}  # 30 days
+                    cookies['auth_role'] = {"value": "ReservationTeam", "max_age": 2592000}
                     cookies.save()
-                    time.sleep(0.1)
+                    time.sleep(0.05)
                 except Exception as e:
                     if debug_enabled:
                         st.write(f"Debug: Failed to set cookie max_age: {e}")
                     cookies['auth_role'] = "ReservationTeam"
                     cookies.save()
-                    time.sleep(0.1)
+                    time.sleep(0.05)
                 try:
                     st.session_state.reservations = load_reservations_from_supabase()
                     st.session_state.online_reservations = load_online_reservations_from_supabase()
@@ -249,8 +237,6 @@ def check_authentication():
             else:
                 st.error("❌ Invalid password. Please try again.")
         st.stop()
-
-    # Preserve current page and booking ID
     query_params = st.query_params
     query_page = query_params.get("page", [st.session_state.current_page])[0]
     if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
@@ -267,10 +253,8 @@ def main():
     page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status"]
     if st.session_state.get('role') == "Management":
         page_options.append("Analytics")
-    
     page = st.sidebar.selectbox("Choose a page", page_options, index=page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0, key="page_select")
     st.session_state.current_page = page
-
     if page == "Direct Reservations":
         show_new_reservation_form()
     elif page == "View Reservations":
@@ -291,7 +275,6 @@ def main():
         show_dms()
     elif page == "Analytics" and st.session_state.get('role') == "Management":
         show_analytics()
-
     st.sidebar.markdown("---")
     if st.sidebar.button("Log Out"):
         logout()
