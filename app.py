@@ -85,7 +85,8 @@ def init_session_state():
         'online_edit_index': None,
         'current_page': "Direct Reservations",
         'selected_booking_id': None,
-        'logout_triggered': False
+        'logout_triggered': False,
+        'last_logout_time': 0.0  # Timestamp for click lock
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -106,7 +107,8 @@ def clear_session_state():
         'online_edit_index': None,
         'current_page': "Direct Reservations",
         'selected_booking_id': None,
-        'logout_triggered': False
+        'logout_triggered': False,
+        'last_logout_time': time.time()
     }
     for key, value in defaults.items():
         st.session_state[key] = value
@@ -115,15 +117,14 @@ def clear_session_state():
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(0.2), retry=retry_if_exception_type(Exception))
 def delete_auth_cookie(cookies):
-    """Delete auth_role cookie with retry (3 attempts, 0.2s delay)."""
+    """Clear all cookies with retry (3 attempts, 0.2s delay)."""
     if not cookies.ready():
         raise Exception("Cookie manager not ready")
-    if 'auth_role' in cookies:
-        del cookies['auth_role']
-        cookies.save()
-        time.sleep(0.1)  # Sync delay
-        if debug_enabled:
-            st.write(f"Debug: Cookie deletion attempt, auth_role = {cookies.get('auth_role')}")
+    cookies.clear()
+    cookies.save()
+    time.sleep(0.1)
+    if debug_enabled:
+        st.write(f"Debug: All cookies cleared, auth_role = {cookies.get('auth_role')}")
 
 def validate_post_logout_state():
     """Ensure no residual auth state post-logout."""
@@ -131,7 +132,7 @@ def validate_post_logout_state():
         clear_session_state()
     if cookies.get('auth_role'):
         try:
-            del cookies['auth_role']
+            cookies.clear()
             cookies.save()
             time.sleep(0.1)
             if debug_enabled:
@@ -141,12 +142,19 @@ def validate_post_logout_state():
                 st.write(f"Debug: Failed to clear stale cookie: {e}")
 
 def logout():
-    """Handle logout with retries and full state reset."""
+    """Handle logout with click lock and full state reset."""
+    current_time = time.time()
+    if st.session_state.get('last_logout_time', 0.0) > current_time - 2:  # 2s cooldown
+        if debug_enabled:
+            st.write("Debug: Logout skipped due to click lock")
+        return
+    st.session_state.last_logout_time = current_time
+    st.info("Logging out...")
     try:
         delete_auth_cookie(cookies)
     except Exception as e:
         if debug_enabled:
-            st.write(f"Debug: Cookie deletion failed after retries: {e}")
+            st.write(f"Debug: Cookie deletion failed: {e}")
     clear_session_state()
     st.session_state.logout_triggered = True
     validate_post_logout_state()
@@ -159,8 +167,9 @@ def check_authentication():
     # Initialize session state
     init_session_state()
 
-    # Check for recent logout
-    if st.session_state.get('logout_triggered', False):
+    # Check for recent logout (within 5s)
+    current_time = time.time()
+    if st.session_state.get('logout_triggered', False) or st.session_state.get('last_logout_time', 0.0) > current_time - 5:
         validate_post_logout_state()
         st.session_state.logout_triggered = False
         return
@@ -199,11 +208,11 @@ def check_authentication():
                 try:
                     cookies['auth_role'] = {"value": "Management", "max_age": 2592000}  # 30 days
                     cookies.save()
-                    time.sleep(0.1)  # Sync delay
+                    time.sleep(0.1)
                 except Exception as e:
                     if debug_enabled:
                         st.write(f"Debug: Failed to set cookie max_age: {e}")
-                    cookies['auth_role'] = "Management"  # Fallback without max_age
+                    cookies['auth_role'] = "Management"
                     cookies.save()
                     time.sleep(0.1)
                 try:
@@ -225,7 +234,7 @@ def check_authentication():
                 except Exception as e:
                     if debug_enabled:
                         st.write(f"Debug: Failed to set cookie max_age: {e}")
-                    cookies['auth_role'] = "ReservationTeam"  # Fallback without max_age
+                    cookies['auth_role'] = "ReservationTeam"
                     cookies.save()
                     time.sleep(0.1)
                 try:
