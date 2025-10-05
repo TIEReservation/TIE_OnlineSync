@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import os
 from supabase import create_client, Client
@@ -50,6 +49,7 @@ def check_authentication():
             if role_from_query in ["Management", "ReservationTeam"]:
                 st.session_state.authenticated = True
                 st.session_state.role = role_from_query
+                st.query_params["role"] = role_from_query  # Reinforce role in query params
                 try:
                     st.session_state.reservations = load_reservations_from_supabase()
                     st.session_state.online_reservations = load_online_reservations_from_supabase()
@@ -153,7 +153,8 @@ def main():
         # Clear selected booking ID after displaying the page to prevent stale selections
         if st.session_state.selected_booking_id:
             st.session_state.selected_booking_id = None
-            st.query_params.clear()
+            if "booking_id" in st.query_params:
+                del st.query_params["booking_id"]  # Targeted del to preserve role
     elif page == "Daily Status":
         show_daily_status()
     elif page == "Daily Management Status" and st.session_state.role == "Management":
@@ -175,7 +176,7 @@ def main():
         st.session_state.current_page = "Direct Reservations"
         st.session_state.selected_booking_id = None
         if "role" in st.query_params:
-            del st.query_params["role"]
+            del st.query_params["role"]  # Explicitly remove role to ensure logout
         st.query_params.clear()
         st.rerun()
 
