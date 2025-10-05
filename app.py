@@ -24,13 +24,11 @@ try:
     supabase: Client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 except Exception as e:
     st.error(f"Failed to initialize Supabase client: {e}")
-    st.write("DEBUG: Supabase initialization failed, stopping app")
     st.stop()
 
 def check_authentication():
     # Initialize session state if not already set
     if 'authenticated' not in st.session_state:
-        st.write("DEBUG: Initializing session state")
         st.session_state.authenticated = False
         st.session_state.role = None
         st.session_state.reservations = []
@@ -49,7 +47,6 @@ def check_authentication():
         role = st.selectbox("Select Role", ["Management", "ReservationTeam"])
         password = st.text_input("Enter password:", type="password")
         if st.button("🔑 Login"):
-            st.write("DEBUG: Login button clicked")
             if role == "Management" and password == "TIE2024":
                 st.session_state.authenticated = True
                 st.session_state.role = "Management"
@@ -136,7 +133,6 @@ def main():
         show_analytics()
 
     if st.sidebar.button("Log Out"):
-        st.write("DEBUG: Logout button clicked")
         st.cache_data.clear()
         st.cache_resource.clear()
         for key in list(st.session_state.keys()):
