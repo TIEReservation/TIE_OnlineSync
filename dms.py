@@ -88,12 +88,14 @@ def create_bookings_table(bookings):
         "Booking Status", "Remarks"
     ]
     df_data = []
+    role = st.session_state.get("role", "")  # Get current role to preserve in links
+    role_param = f"&role={role}" if role else ""  # Append to href to prevent loss on navigation
     for booking in bookings:
         booking_id = booking.get("booking_id", "")
         source = booking.get("source", "online")  # From filter_bookings_for_day
         # Create a clickable link for Booking ID (route to appropriate edit page)
         edit_page = "Edit+Online+Reservations" if source == "online" else "Edit+Reservations"
-        booking_id_link = f'<a href="?page={edit_page}&booking_id={booking_id}" target="_self">{booking_id}</a>'
+        booking_id_link = f'<a href="?page={edit_page}&booking_id={booking_id}{role_param}" target="_self">{booking_id}</a>'
         
         # Unified field mapping for online vs. direct
         total_tariff = booking.get("booking_amount", booking.get("total_tariff", 0.0))
