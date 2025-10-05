@@ -9,9 +9,7 @@ from online_reservation import show_online_reservations, load_online_reservation
 from inventory import show_daily_status
 from dms import show_dms
 
-# Import editOnline with error handling
 def log_import_error(module, error):
-    """Log import errors and stop execution."""
     st.error(f"Failed to import {module}: {error}. Check file existence or dependencies.")
     st.stop()
 
@@ -20,17 +18,14 @@ try:
 except Exception as e:
     log_import_error("editOnline", e)
 
-# Page config
 st.set_page_config(
     page_title="TIE Reservations",
     page_icon="https://github.com/TIEReservation/TIEReservation-System/raw/main/TIE_Logo_Icon.png",
     layout="wide"
 )
 
-# Display logo
 st.image("https://github.com/TIEReservation/TIEReservation-System/raw/main/TIE_Logo_Icon.png", width=100)
 
-# Initialize Supabase client
 try:
     os.environ["SUPABASE_URL"] = "https://oxbrezracnmazucnnqox.supabase.co"
     os.environ["SUPABASE_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94YnJlenJhY25tYXp1Y25ucW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjUxMTgsImV4cCI6MjA2OTM0MTExOH0.nqBK2ZxntesLY9qYClpoFPVnXOW10KrzF-UI_DKjbKo"
@@ -39,9 +34,7 @@ except Exception as e:
     st.error(f"Failed to initialize Supabase client: {e}")
     st.stop()
 
-# Get cookie password
 def get_cookie_password():
-    """Get cookie password from secrets, env, or default (local dev only)."""
     try:
         return st.secrets["cookies"]["password"]
     except KeyError:
@@ -51,14 +44,12 @@ def get_cookie_password():
         st.warning("No cookie password in secrets or env. Using default (not secure for production).")
         return "default_secure_pass_123"
 
-# Debug mode
 debug_enabled = os.environ.get("DEBUG", "false").lower() == "true"
 try:
     debug_enabled = debug_enabled or st.secrets["debug"]["enabled"]
 except KeyError:
     pass
 
-# Initialize cookie manager
 cookies = EncryptedCookieManager(prefix="tie_reservations_", password=get_cookie_password())
 if not cookies.ready():
     st.error("Cookie manager not ready. Check secrets or environment configuration.")
@@ -68,7 +59,6 @@ if debug_enabled:
     st.write(f"Debug: Initial cookie auth_role = {cookies.get('auth_role')}")
 
 def init_session_state():
-    """Initialize all session state keys with defaults."""
     defaults = {
         'authenticated': False,
         'role': None,
@@ -90,7 +80,6 @@ def init_session_state():
         st.write(f"Debug: Session state initialized: {dict(st.session_state)}")
 
 def clear_session_state():
-    """Reset session state to defaults."""
     defaults = {
         'authenticated': False,
         'role': None,
@@ -110,26 +99,24 @@ def clear_session_state():
     if debug_enabled:
         st.write(f"Debug: Session state reset: {dict(st.session_state)}")
 
-@retry(stop=stop_after_attempt(2), wait=wait_fixed(0.1), retry=retry_if_exception_type(Exception))
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(0.2), retry=retry_if_exception_type(Exception))
 def delete_auth_cookie(cookies):
-    """Clear all cookies with retry (2 attempts, 0.1s delay)."""
     if not cookies.ready():
         raise Exception("Cookie manager not ready")
     cookies.clear()
     cookies.save()
-    time.sleep(0.05)  # Reduced sync delay
+    time.sleep(0.1)
     if debug_enabled:
         st.write(f"Debug: All cookies cleared, auth_role = {cookies.get('auth_role')}")
 
 def validate_post_logout_state():
-    """Ensure no residual auth state post-logout."""
     if st.session_state.get('authenticated', False) or st.session_state.get('role'):
         clear_session_state()
     if cookies.get('auth_role'):
         try:
             cookies.clear()
             cookies.save()
-            time.sleep(0.05)
+            time.sleep(0.1)
             if debug_enabled:
                 st.write(f"Debug: Cleared stale auth_role cookie post-logout")
         except Exception as e:
@@ -137,26 +124,25 @@ def validate_post_logout_state():
                 st.write(f"Debug: Failed to clear stale cookie: {e}")
 
 def logout():
-    """Handle logout with click lock and full state reset."""
     current_time = time.time()
-    if st.session_state.get('last_logout_time', 0.0) > current_time - 2:  # 2s cooldown
+    if st.session_state.get('last_logout_time', 0.0) > current_time - 2:
         if debug_enabled:
             st.write("Debug: Logout skipped due to click lock")
         return
     st.session_state.last_logout_time = current_time
-    with st.spinner("Logging out..."):  # Non-blocking feedback
-        try:
-            delete_auth_cookie(cookies)
-        except Exception as e:
-            if debug_enabled:
-                st.write(f"Debug: Cookie deletion failed: {e}")
-        clear_session_state()
-        st.session_state.logout_triggered = True
-        validate_post_logout_state()
-        st.query_params.clear()
+    st.info("Logging out...")
+    try:
+        delete_auth_cookie(cookies)
+    except Exception as e:
         if debug_enabled:
-            st.write(f"Debug: Post-logout, auth_role = {cookies.get('auth_role')}, session = {dict(st.session_state)}")
-        st.rerun()
+            st.write(f"Debug: Cookie deletion failed: {e}")
+    clear_session_state()
+    st.session_state.logout_triggered = True
+    validate_post_logout_state()
+    st.query_params.clear()
+    if debug_enabled:
+        st.write(f"Debug: Post-logout, auth_role = {cookies.get('auth_role')}, session = {dict(st.session_state)}")
+    st.rerun()
 
 def check_authentication():
     init_session_state()
@@ -196,13 +182,13 @@ def check_authentication():
                 try:
                     cookies['auth_role'] = {"value": "Management", "max_age": 2592000}
                     cookies.save()
-                    time.sleep(0.05)
+                    time.sleep(0.1)
                 except Exception as e:
                     if debug_enabled:
                         st.write(f"Debug: Failed to set cookie max_age: {e}")
                     cookies['auth_role'] = "Management"
                     cookies.save()
-                    time.sleep(0.05)
+                    time.sleep(0.1)
                 try:
                     st.session_state.reservations = load_reservations_from_supabase()
                     st.session_state.online_reservations = load_online_reservations_from_supabase()
@@ -218,13 +204,13 @@ def check_authentication():
                 try:
                     cookies['auth_role'] = {"value": "ReservationTeam", "max_age": 2592000}
                     cookies.save()
-                    time.sleep(0.05)
+                    time.sleep(0.1)
                 except Exception as e:
                     if debug_enabled:
                         st.write(f"Debug: Failed to set cookie max_age: {e}")
                     cookies['auth_role'] = "ReservationTeam"
                     cookies.save()
-                    time.sleep(0.05)
+                    time.sleep(0.1)
                 try:
                     st.session_state.reservations = load_reservations_from_supabase()
                     st.session_state.online_reservations = load_online_reservations_from_supabase()
