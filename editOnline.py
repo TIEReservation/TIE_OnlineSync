@@ -4,14 +4,12 @@ from datetime import date
 from supabase import create_client, Client
 
 def safe_int(value, default=0):
-    """Convert value to int, return default if invalid."""
     try:
         return int(value)
     except (TypeError, ValueError):
         return default
 
 def safe_float(value, default=0.0):
-    """Convert value to float, return default if invalid."""
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -24,7 +22,6 @@ except KeyError as e:
     st.stop()
 
 def update_online_reservation_in_supabase(booking_id, updated_reservation):
-    """Update an online reservation in Supabase."""
     try:
         truncated_reservation = updated_reservation.copy()
         string_fields_50 = [
@@ -45,7 +42,6 @@ def update_online_reservation_in_supabase(booking_id, updated_reservation):
         return False
 
 def delete_online_reservation_in_supabase(booking_id):
-    """Delete an online reservation from Supabase."""
     try:
         response = supabase.table("online_reservations").delete().eq("booking_id", booking_id).execute()
         return bool(response.data)
@@ -55,7 +51,6 @@ def delete_online_reservation_in_supabase(booking_id):
 
 @st.cache_data(ttl=300)
 def load_online_reservations_from_supabase():
-    """Load online reservations from Supabase with caching (5min TTL)."""
     try:
         response = supabase.table("online_reservations").select("*").order("check_in", desc=True).execute()
         return response.data if response.data else []
@@ -64,7 +59,6 @@ def load_online_reservations_from_supabase():
         return []
 
 def show_edit_online_reservations(selected_booking_id=None):
-    """Display edit online reservations page."""
     st.title("✏️ Edit Online Reservations")
     if 'online_reservations' not in st.session_state:
         st.session_state.online_reservations = load_online_reservations_from_supabase()
