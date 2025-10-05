@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import date
 from supabase import create_client, Client
 
-# Fallback utilities in case utils.py is missing
+# Fallback utilities
 def safe_int(value, default=0):
     """Convert value to int, return default if invalid."""
     try:
@@ -28,7 +28,6 @@ except KeyError as e:
 def update_online_reservation_in_supabase(booking_id, updated_reservation):
     """Update an online reservation in Supabase."""
     try:
-        # Truncate string fields to prevent database errors
         truncated_reservation = updated_reservation.copy()
         string_fields_50 = [
             "property", "booking_id", "guest_name", "guest_phone", "room_no", 
@@ -100,7 +99,6 @@ def show_edit_online_reservations(selected_booking_id=None):
         
         st.subheader(f"Editing Reservation: {reservation['booking_id']}")
         
-        # Row 1: Property Name, Booking ID, Booking Made On
         col1, col2, col3 = st.columns(3)
         with col1:
             property_name = st.text_input("Property Name", value=reservation.get("property", ""), disabled=True)
@@ -109,7 +107,6 @@ def show_edit_online_reservations(selected_booking_id=None):
         with col3:
             booking_made_on = st.date_input("Booking Made On", value=date.fromisoformat(reservation.get("booking_made_on")) if reservation.get("booking_made_on") else None)
 
-        # Row 2: Guest Name, Mobile No, Check In, Check Out
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             guest_name = st.text_input("Guest Name", value=reservation.get("guest_name", ""))
@@ -120,7 +117,6 @@ def show_edit_online_reservations(selected_booking_id=None):
         with col4:
             check_out = st.date_input("Check Out", value=date.fromisoformat(reservation.get("check_out")) if reservation.get("check_out") else None)
 
-        # Row 3: No of Adults, No of Children, No of Infant, Total Pax
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             no_of_adults = st.number_input("No of Adults", value=safe_int(reservation.get("no_of_adults", 0)), min_value=0)
@@ -132,7 +128,6 @@ def show_edit_online_reservations(selected_booking_id=None):
             total_pax = no_of_adults + no_of_children + no_of_infant
             st.text_input("Total Pax", value=total_pax, disabled=True)
 
-        # Row 4: Room No, Room Type, Breakfast (rate_plans), Booking Source
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             room_no = st.text_input("Room No", value=reservation.get("room_no", ""))
@@ -143,7 +138,6 @@ def show_edit_online_reservations(selected_booking_id=None):
         with col4:
             booking_source = st.text_input("Booking Source", value=reservation.get("booking_source", ""))
 
-        # Row 5: Segment, Staflexi Status, Booking Confirmed on
         col1, col2, col3 = st.columns(3)
         with col1:
             segment = st.text_input("Segment", value=reservation.get("segment", ""))
@@ -152,7 +146,6 @@ def show_edit_online_reservations(selected_booking_id=None):
         with col3:
             booking_confirmed_on = st.date_input("Booking Confirmed on", value=date.fromisoformat(reservation.get("booking_confirmed_on")) if reservation.get("booking_confirmed_on") else None)
 
-        # Row 6: Total Tariff (booking_amount), Advance Amount, Advance Mop, Balance Due, Balance Mop
         col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
             booking_amount = st.number_input("Total Tariff", value=safe_float(reservation.get("booking_amount", 0.0)))
@@ -171,7 +164,6 @@ def show_edit_online_reservations(selected_booking_id=None):
             balance_mop_index = mop_options.index(current_balance_mop) if current_balance_mop in mop_options else 0
             balance_mop = st.selectbox("Balance Mop", mop_options, index=balance_mop_index)
 
-        # Row 7: MOB (mode_of_booking), Booking Status, Payment Status
         col1, col2, col3 = st.columns(3)
         with col1:
             current_mob = reservation.get("mode_of_booking", "") or reservation.get("booking_source", "")
@@ -195,17 +187,14 @@ def show_edit_online_reservations(selected_booking_id=None):
         with col3:
             payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], index=["Not Paid", "Fully Paid", "Partially Paid"].index(reservation.get("payment_status", "Not Paid")))
 
-        # Row 8: Remarks
         remarks = st.text_area("Remarks", value=reservation.get("remarks", ""))
 
-        # Row 9: Submitted by, Modified by
         col1, col2 = st.columns(2)
         with col1:
             submitted_by = st.text_input("Submitted by", value=reservation.get("submitted_by", ""))
         with col2:
             modified_by = st.text_input("Modified by", value=reservation.get("modified_by", ""))
 
-        # Hidden/Other fields
         total_amount_with_services = safe_float(reservation.get("total_amount_with_services", 0.0))
         ota_gross_amount = safe_float(reservation.get("ota_gross_amount", 0.0))
         ota_commission = safe_float(reservation.get("ota_commission", 0.0))
