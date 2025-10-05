@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import pandas as pd
 from datetime import date
@@ -269,4 +268,3 @@ def show_edit_online_reservations(selected_booking_id=None):
                         st.rerun()
                     else:
                         st.error("❌ Failed to delete reservation")
-```
