@@ -3,6 +3,7 @@ import os
 import time
 from supabase import create_client, Client
 from streamlit_cookies_manager import EncryptedCookieManager
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 from directreservation import show_new_reservation_form, show_reservations, show_edit_reservations, show_analytics, load_reservations_from_supabase
 from online_reservation import show_online_reservations, load_online_reservations_from_supabase
 from inventory import show_daily_status
@@ -71,31 +72,59 @@ if not cookies.ready():
 if debug_enabled:
     st.write(f"Debug: Initial cookie auth_role = {cookies.get('auth_role')}")
 
-def logout():
-    """Handle logout: clear cookie, session, and params."""
-    if cookies.ready() and 'auth_role' in cookies:
+def clear_session_state():
+    """Clear all session state keys except logout_triggered."""
+    protected_keys = ['logout_triggered']
+    for key in list(st.session_state.keys()):
+        if key not in protected_keys:
+            del st.session_state[key]
+
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(0.2), retry=retry_if_exception_type(Exception))
+def delete_auth_cookie(cookies):
+    """Delete auth_role cookie with retry (3 attempts, 0.2s delay)."""
+    if not cookies.ready():
+        raise Exception("Cookie manager not ready")
+    if 'auth_role' in cookies:
         del cookies['auth_role']
         cookies.save()
-        time.sleep(0.1)  # Ensure cookie sync
-    if debug_enabled:
-        st.write(f"Debug: After logout, auth_role = {cookies.get('auth_role')}, session.authenticated = {st.session_state.get('authenticated', False)}")
-    st.session_state.authenticated = False
-    st.session_state.role = None
-    st.session_state.reservations = []
-    st.session_state.online_reservations = []
-    st.session_state.edit_mode = False
-    st.session_state.edit_index = None
-    st.session_state.online_edit_mode = False
-    st.session_state.online_edit_index = None
-    st.session_state.current_page = "Direct Reservations"
-    st.session_state.selected_booking_id = None
-    st.session_state.logout_triggered = True  # Prevent re-auth on rerun
+        time.sleep(0.1)  # Sync delay
+        if debug_enabled:
+            st.write(f"Debug: Cookie deletion attempt, auth_role = {cookies.get('auth_role')}")
+
+def validate_post_logout_state():
+    """Ensure no residual auth state post-logout."""
+    if st.session_state.get('authenticated', False) or st.session_state.get('role'):
+        clear_session_state()
+    if cookies.get('auth_role'):
+        try:
+            del cookies['auth_role']
+            cookies.save()
+            time.sleep(0.1)
+            if debug_enabled:
+                st.write(f"Debug: Cleared stale auth_role cookie post-logout")
+        except Exception as e:
+            if debug_enabled:
+                st.write(f"Debug: Failed to clear stale cookie: {e}")
+
+def logout():
+    """Handle logout with retries and full state reset."""
+    try:
+        delete_auth_cookie(cookies)
+    except Exception as e:
+        if debug_enabled:
+            st.write(f"Debug: Cookie deletion failed after retries: {e}")
+    clear_session_state()
+    st.session_state.logout_triggered = True
+    validate_post_logout_state()
     st.query_params.clear()
+    if debug_enabled:
+        st.write(f"Debug: Post-logout, auth_role = {cookies.get('auth_role')}, session = {dict(st.session_state)}")
     st.rerun()
 
 def check_authentication():
     # Check for recent logout
     if 'logout_triggered' in st.session_state and st.session_state.logout_triggered:
+        validate_post_logout_state()
         st.session_state.logout_triggered = False
         return
 
@@ -144,9 +173,16 @@ def check_authentication():
             if role == "Management" and password == "TIE2024":
                 st.session_state.authenticated = True
                 st.session_state.role = "Management"
-                cookies['auth_role'] = "Management"
-                cookies.save()
-                time.sleep(0.1)  # Ensure cookie sync
+                try:
+                    cookies['auth_role'] = {"value": "Management", "max_age": 2592000}  # 30 days
+                    cookies.save()
+                    time.sleep(0.1)  # Sync delay
+                except Exception as e:
+                    if debug_enabled:
+                        st.write(f"Debug: Failed to set cookie max_age: {e}")
+                    cookies['auth_role'] = "Management"  # Fallback without max_age
+                    cookies.save()
+                    time.sleep(0.1)
                 try:
                     st.session_state.reservations = load_reservations_from_supabase()
                     st.session_state.online_reservations = load_online_reservations_from_supabase()
@@ -159,9 +195,16 @@ def check_authentication():
             elif role == "ReservationTeam" and password == "TIE123":
                 st.session_state.authenticated = True
                 st.session_state.role = "ReservationTeam"
-                cookies['auth_role'] = "ReservationTeam"
-                cookies.save()
-                time.sleep(0.1)  # Ensure cookie sync
+                try:
+                    cookies['auth_role'] = {"value": "ReservationTeam", "max_age": 2592000}  # 30 days
+                    cookies.save()
+                    time.sleep(0.1)
+                except Exception as e:
+                    if debug_enabled:
+                        st.write(f"Debug: Failed to set cookie max_age: {e}")
+                    cookies['auth_role'] = "ReservationTeam"  # Fallback without max_age
+                    cookies.save()
+                    time.sleep(0.1)
                 try:
                     st.session_state.reservations = load_reservations_from_supabase()
                     st.session_state.online_reservations = load_online_reservations_from_supabase()
