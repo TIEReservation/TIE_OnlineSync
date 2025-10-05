@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import os
 import time
@@ -6,9 +5,19 @@ from supabase import create_client, Client
 from streamlit_cookies_manager import EncryptedCookieManager
 from directreservation import show_new_reservation_form, show_reservations, show_edit_reservations, show_analytics, load_reservations_from_supabase
 from online_reservation import show_online_reservations, load_online_reservations_from_supabase
-from editOnline import show_edit_online_reservations
 from inventory import show_daily_status
 from dms import show_dms
+
+# Import editOnline with error handling
+def log_import_error(module, error):
+    """Log import errors and stop execution."""
+    st.error(f"Failed to import {module}: {error}. Check file existence or dependencies.")
+    st.stop()
+
+try:
+    from editOnline import show_edit_online_reservations
+except Exception as e:
+    log_import_error("editOnline", e)
 
 # Page config
 st.set_page_config(
@@ -20,7 +29,7 @@ st.set_page_config(
 # Display logo in top-left corner
 st.image("https://github.com/TIEReservation/TIEReservation-System/raw/main/TIE_Logo_Icon.png", width=100)
 
-# Initialize Supabase client with environment variables
+# Initialize Supabase client
 try:
     os.environ["SUPABASE_URL"] = "https://oxbrezracnmazucnnqox.supabase.co"
     os.environ["SUPABASE_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94YnJlenJhY25tYXp1Y25ucW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjUxMTgsImV4cCI6MjA2OTM0MTExOH0.nqBK2ZxntesLY9qYClpoFPVnXOW10KrzF-UI_DKjbKo"
@@ -29,16 +38,19 @@ except Exception as e:
     st.error(f"Failed to initialize Supabase client: {e}")
     st.stop()
 
-# Cookie manager for persistent authentication
-cookies = EncryptedCookieManager(
-    prefix="tie_reservations_",
-    password=st.secrets["cookies"]["password"]  # Set in Streamlit secrets
-)
-if not cookies.ready():
+# Initialize cookie manager
+# Ensure secrets.toml has: [cookies] password = "your_secure_password"
+try:
+    cookies = EncryptedCookieManager(prefix="tie_reservations_", password=st.secrets["cookies"]["password"])
+    if not cookies.ready():
+        st.error("Cookie manager not ready. Check secrets configuration.")
+        st.stop()
+except KeyError as e:
+    st.error(f"Missing cookie secret: {e}. Add [cookies] password in secrets.toml.")
     st.stop()
 
 def check_authentication():
-    # Initialize session state if not already set
+    # Initialize session state
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
         st.session_state.role = None
@@ -71,7 +83,7 @@ def check_authentication():
         query_booking_id = query_params.get("booking_id", [None])[0]
         if query_booking_id:
             st.session_state.selected_booking_id = query_booking_id
-        return  # Already authenticated via cookie
+        return
 
     if not st.session_state.authenticated:
         st.title("🔐 TIE Reservations Login")
@@ -85,7 +97,14 @@ def check_authentication():
                 cookies['auth_role'] = "Management"
                 cookies.save()
                 time.sleep(0.1)  # Ensure cookie sync
-                # ... (load reservations, success, rerun as before)
+                try:
+                    st.session_state.reservations = load_reservations_from_supabase()
+                    st.session_state.online_reservations = load_online_reservations_from_supabase()
+                    st.success("✅ Management login successful! Reservations fetched.")
+                except Exception as e:
+                    st.session_state.reservations = []
+                    st.session_state.online_reservations = []
+                    st.warning(f"✅ Management login successful, but failed to fetch reservations: {e}")
                 st.rerun()
             elif role == "ReservationTeam" and password == "TIE123":
                 st.session_state.authenticated = True
@@ -93,19 +112,61 @@ def check_authentication():
                 cookies['auth_role'] = "ReservationTeam"
                 cookies.save()
                 time.sleep(0.1)  # Ensure cookie sync
-                # ... (load, success, rerun as before)
+                try:
+                    st.session_state.reservations = load_reservations_from_supabase()
+                    st.session_state.online_reservations = load_online_reservations_from_supabase()
+                    st.success("✅ Agent login successful! Reservations fetched.")
+                except Exception as e:
+                    st.session_state.reservations = []
+                    st.session_state.online_reservations = []
+                    st.warning(f"✅ Agent login successful, but failed to fetch reservations: {e}")
                 st.rerun()
             else:
                 st.error("❌ Invalid password. Please try again.")
         st.stop()
 
-    # If authenticated (non-cookie path), preserve query params as before
+    # Preserve current page and booking ID if authenticated
+    query_params = st.query_params
+    query_page = query_params.get("page", [st.session_state.current_page])[0]
+    if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
+        st.session_state.current_page = query_page
+    query_booking_id = query_params.get("booking_id", [None])[0]
+    if query_booking_id:
+        st.session_state.selected_booking_id = query_booking_id
 
 def main():
     check_authentication()
-    # ... (title, sidebar, page selection as before)
+    st.title("🏢 TIE Reservations")
+    st.markdown("---")
+    st.sidebar.title("Navigation")
+    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status"]
+    if st.session_state.role == "Management":
+        page_options.append("Analytics")
+    
+    page = st.sidebar.selectbox("Choose a page", page_options, index=page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0, key="page_select")
+    st.session_state.current_page = page
 
-    # Logout button
+    if page == "Direct Reservations":
+        show_new_reservation_form()
+    elif page == "View Reservations":
+        show_reservations()
+    elif page == "Edit Reservations":
+        show_edit_reservations()
+    elif page == "Online Reservations":
+        show_online_reservations()
+    elif page == "Edit Online Reservations":
+        show_edit_online_reservations(st.session_state.selected_booking_id)
+        if st.session_state.selected_booking_id:
+            st.session_state.selected_booking_id = None
+            if "booking_id" in st.query_params:
+                del st.query_params["booking_id"]
+    elif page == "Daily Status":
+        show_daily_status()
+    elif page == "Daily Management Status" and st.session_state.role == "Management":
+        show_dms()
+    elif page == "Analytics" and st.session_state.role == "Management":
+        show_analytics()
+
     st.sidebar.markdown("---")
     if st.sidebar.button("Log Out"):
         if 'auth_role' in cookies:
@@ -114,7 +175,16 @@ def main():
             time.sleep(0.1)
         st.session_state.authenticated = False
         st.session_state.role = None
-        # ... (clear other state, query_params.clear(), rerun as before)
+        st.session_state.reservations = []
+        st.session_state.online_reservations = []
+        st.session_state.edit_mode = False
+        st.session_state.edit_index = None
+        st.session_state.online_edit_mode = False
+        st.session_state.online_edit_index = None
+        st.session_state.current_page = "Direct Reservations"
+        st.session_state.selected_booking_id = None
+        st.query_params.clear()
+        st.rerun()
 
 if __name__ == "__main__":
     main()
