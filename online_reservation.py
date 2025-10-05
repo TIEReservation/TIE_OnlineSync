@@ -1,7 +1,6 @@
 import streamlit as st
 from supabase import create_client, Client
 
-# Initialize Supabase client
 try:
     supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
 except KeyError as e:
