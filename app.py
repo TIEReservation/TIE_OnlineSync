@@ -41,8 +41,32 @@ def check_authentication():
         st.session_state.current_page = "Direct Reservations"
         st.session_state.selected_booking_id = None
 
-    # Preserve current page and selected booking ID from query params if authenticated
     query_params = st.query_params
+
+    # Auto-login if role is in query params (persists across refreshes)
+    if not st.session_state.authenticated:
+        if "role" in query_params:
+            role_from_query = query_params["role"][0]
+            if role_from_query in ["Management", "ReservationTeam"]:
+                st.session_state.authenticated = True
+                st.session_state.role = role_from_query
+                try:
+                    st.session_state.reservations = load_reservations_from_supabase()
+                    st.session_state.online_reservations = load_online_reservations_from_supabase()
+                except Exception as e:
+                    st.session_state.reservations = []
+                    st.session_state.online_reservations = []
+                    st.warning(f"Failed to fetch reservations: {e}")
+                # Preserve intended page and booking ID from query params
+                query_page = query_params.get("page", ["Direct Reservations"])[0]
+                if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
+                    st.session_state.current_page = query_page
+                query_booking_id = query_params.get("booking_id", [None])[0]
+                if query_booking_id:
+                    st.session_state.selected_booking_id = query_booking_id
+                st.rerun()
+
+    # Preserve current page and selected booking ID from query params if authenticated
     if st.session_state.authenticated:
         query_page = query_params.get("page", [st.session_state.current_page])[0]
         if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
@@ -60,6 +84,8 @@ def check_authentication():
             if role == "Management" and password == "TIE2024":
                 st.session_state.authenticated = True
                 st.session_state.role = "Management"
+                # Set role in query params to persist across refreshes
+                st.query_params["role"] = "Management"
                 # Preserve intended page and booking ID from query params after login
                 query_page = query_params.get("page", ["Direct Reservations"])[0]
                 if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
@@ -79,6 +105,8 @@ def check_authentication():
             elif role == "ReservationTeam" and password == "TIE123":
                 st.session_state.authenticated = True
                 st.session_state.role = "ReservationTeam"
+                # Set role in query params to persist across refreshes
+                st.query_params["role"] = "ReservationTeam"
                 # Preserve intended page and booking ID from query params after login
                 query_page = query_params.get("page", ["Direct Reservations"])[0]
                 if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status"]:
@@ -133,7 +161,8 @@ def main():
     elif page == "Analytics" and st.session_state.role == "Management":
         show_analytics()
 
-    # Logout button
+    # Logout button at the bottom of the sidebar
+    st.sidebar.markdown("---")  # Separator for visual bottom placement
     if st.sidebar.button("Log Out"):
         st.session_state.authenticated = False
         st.session_state.role = None
@@ -145,6 +174,8 @@ def main():
         st.session_state.online_edit_index = None
         st.session_state.current_page = "Direct Reservations"
         st.session_state.selected_booking_id = None
+        if "role" in st.query_params:
+            del st.query_params["role"]
         st.query_params.clear()
         st.rerun()
 
