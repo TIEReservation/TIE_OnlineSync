@@ -55,8 +55,9 @@ def delete_online_reservation_in_supabase(booking_id):
         st.error(f"Error deleting online reservation: {e}")
         return False
 
+@st.cache_data(ttl=300)
 def load_online_reservations_from_supabase():
-    """Load online reservations from Supabase."""
+    """Load online reservations from Supabase with caching (5min TTL)."""
     try:
         response = supabase.table("online_reservations").select("*").order("check_in", desc=True).execute()
         return response.data if response.data else []
