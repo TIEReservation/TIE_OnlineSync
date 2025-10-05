@@ -61,16 +61,44 @@ except KeyError:
 # For Streamlit Cloud, ensure secrets.toml has:
 # [cookies]
 # password = "your_secure_password"
-# Or set env var COOKIE_PASSWORD for non-Cloud deployments
+# Or set env var COOKIE_PASSWORD
+# Note: streamlit-cookies-manager may not support max_age; cookies persist until deleted
 cookies = EncryptedCookieManager(prefix="tie_reservations_", password=get_cookie_password())
 if not cookies.ready():
     st.error("Cookie manager not ready. Check secrets or environment configuration.")
     st.stop()
 
 if debug_enabled:
-    st.write(f"Debug: Cookie auth_role = {cookies.get('auth_role')}")
+    st.write(f"Debug: Initial cookie auth_role = {cookies.get('auth_role')}")
+
+def logout():
+    """Handle logout: clear cookie, session, and params."""
+    if cookies.ready() and 'auth_role' in cookies:
+        del cookies['auth_role']
+        cookies.save()
+        time.sleep(0.1)  # Ensure cookie sync
+    if debug_enabled:
+        st.write(f"Debug: After logout, auth_role = {cookies.get('auth_role')}, session.authenticated = {st.session_state.get('authenticated', False)}")
+    st.session_state.authenticated = False
+    st.session_state.role = None
+    st.session_state.reservations = []
+    st.session_state.online_reservations = []
+    st.session_state.edit_mode = False
+    st.session_state.edit_index = None
+    st.session_state.online_edit_mode = False
+    st.session_state.online_edit_index = None
+    st.session_state.current_page = "Direct Reservations"
+    st.session_state.selected_booking_id = None
+    st.session_state.logout_triggered = True  # Prevent re-auth on rerun
+    st.query_params.clear()
+    st.rerun()
 
 def check_authentication():
+    # Check for recent logout
+    if 'logout_triggered' in st.session_state and st.session_state.logout_triggered:
+        st.session_state.logout_triggered = False
+        return
+
     # Initialize session state
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
@@ -83,6 +111,7 @@ def check_authentication():
         st.session_state.online_edit_index = None
         st.session_state.current_page = "Direct Reservations"
         st.session_state.selected_booking_id = None
+        st.session_state.logout_triggered = False
 
     # Check cookie for persistent auth
     saved_role = cookies.get('auth_role')
@@ -190,22 +219,7 @@ def main():
 
     st.sidebar.markdown("---")
     if st.sidebar.button("Log Out"):
-        if 'auth_role' in cookies:
-            del cookies['auth_role']
-            cookies.save()
-            time.sleep(0.1)
-        st.session_state.authenticated = False
-        st.session_state.role = None
-        st.session_state.reservations = []
-        st.session_state.online_reservations = []
-        st.session_state.edit_mode = False
-        st.session_state.edit_index = None
-        st.session_state.online_edit_mode = False
-        st.session_state.online_edit_index = None
-        st.session_state.current_page = "Direct Reservations"
-        st.session_state.selected_booking_id = None
-        st.query_params.clear()
-        st.rerun()
+        logout()
 
 if __name__ == "__main__":
     main()
