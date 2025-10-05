@@ -242,7 +242,10 @@ def show_edit_online_reservations(selected_booking_id=None):
                     st.session_state.online_reservations[edit_index] = {**reservation, **updated_reservation}
                     st.session_state.online_edit_mode = False
                     st.session_state.online_edit_index = None
-                    st.query_params.clear()
+                    if "booking_id" in st.query_params:
+                        del st.query_params["booking_id"]  # Targeted del to preserve role
+                    if "page" in st.query_params:
+                        del st.query_params["page"]  # Optional: reset page param
                     st.success(f"✅ Reservation {reservation['booking_id']} updated successfully!")
                     st.rerun()
                 else:
@@ -254,7 +257,10 @@ def show_edit_online_reservations(selected_booking_id=None):
                         st.session_state.online_reservations.pop(edit_index)
                         st.session_state.online_edit_mode = False
                         st.session_state.online_edit_index = None
-                        st.query_params.clear()
+                        if "booking_id" in st.query_params:
+                            del st.query_params["booking_id"]  # Targeted del to preserve role
+                        if "page" in st.query_params:
+                            del st.query_params["page"]  # Optional: reset page param
                         st.success(f"🗑️ Reservation {reservation['booking_id']} deleted successfully!")
                         st.rerun()
                     else:
