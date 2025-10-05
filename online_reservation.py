@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 from supabase import create_client, Client
 
 try:
@@ -25,4 +26,5 @@ def show_online_reservations():
         st.info("No online reservations available.")
         return
     st.write("### Online Reservations")
-    st.dataframe(reservations)
+    df = pd.DataFrame(reservations)
+    st.dataframe(df, use_container_width=True)
