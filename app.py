@@ -26,7 +26,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Display logo in top-left corner
+# Display logo
 st.image("https://github.com/TIEReservation/TIEReservation-System/raw/main/TIE_Logo_Icon.png", width=100)
 
 # Initialize Supabase client
@@ -38,16 +38,37 @@ except Exception as e:
     st.error(f"Failed to initialize Supabase client: {e}")
     st.stop()
 
-# Initialize cookie manager
-# Ensure secrets.toml has: [cookies] password = "your_secure_password"
+# Get cookie password
+def get_cookie_password():
+    """Get cookie password from secrets, env, or default (local dev only)."""
+    try:
+        return st.secrets["cookies"]["password"]
+    except KeyError:
+        env_password = os.environ.get("COOKIE_PASSWORD")
+        if env_password:
+            return env_password
+        st.warning("No cookie password in secrets or env. Using default (not secure for production).")
+        return "default_secure_pass_123"
+
+# Debug mode
+debug_enabled = os.environ.get("DEBUG", "false").lower() == "true"
 try:
-    cookies = EncryptedCookieManager(prefix="tie_reservations_", password=st.secrets["cookies"]["password"])
-    if not cookies.ready():
-        st.error("Cookie manager not ready. Check secrets configuration.")
-        st.stop()
-except KeyError as e:
-    st.error(f"Missing cookie secret: {e}. Add [cookies] password in secrets.toml.")
+    debug_enabled = debug_enabled or st.secrets["debug"]["enabled"]
+except KeyError:
+    pass
+
+# Initialize cookie manager
+# For Streamlit Cloud, ensure secrets.toml has:
+# [cookies]
+# password = "your_secure_password"
+# Or set env var COOKIE_PASSWORD for non-Cloud deployments
+cookies = EncryptedCookieManager(prefix="tie_reservations_", password=get_cookie_password())
+if not cookies.ready():
+    st.error("Cookie manager not ready. Check secrets or environment configuration.")
     st.stop()
+
+if debug_enabled:
+    st.write(f"Debug: Cookie auth_role = {cookies.get('auth_role')}")
 
 def check_authentication():
     # Initialize session state
@@ -63,7 +84,7 @@ def check_authentication():
         st.session_state.current_page = "Direct Reservations"
         st.session_state.selected_booking_id = None
 
-    # Check for persistent cookie
+    # Check cookie for persistent auth
     saved_role = cookies.get('auth_role')
     if saved_role in ["Management", "ReservationTeam"]:
         st.session_state.authenticated = True
@@ -75,7 +96,7 @@ def check_authentication():
             st.session_state.reservations = []
             st.session_state.online_reservations = []
             st.warning(f"Failed to fetch reservations: {e}")
-        # Preserve page and booking from query params
+        # Preserve page and booking
         query_params = st.query_params
         query_page = query_params.get("page", [st.session_state.current_page])[0]
         if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
@@ -125,7 +146,7 @@ def check_authentication():
                 st.error("❌ Invalid password. Please try again.")
         st.stop()
 
-    # Preserve current page and booking ID if authenticated
+    # Preserve current page and booking ID
     query_params = st.query_params
     query_page = query_params.get("page", [st.session_state.current_page])[0]
     if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
