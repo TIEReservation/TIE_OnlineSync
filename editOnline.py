@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 import pandas as pd
 from datetime import date
@@ -254,7 +255,7 @@ def show_edit_online_reservations(selected_booking_id=None):
                 else:
                     st.error("❌ Failed to update reservation")
         with col_btn2:
-            if st.session_state.role == "Management":
+            if st.session_state.get("role") == "Management":
                 if st.button("🗑️ Delete Reservation", use_container_width=True):
                     if delete_online_reservation_in_supabase(reservation["booking_id"]):
                         st.session_state.online_reservations.pop(edit_index)
@@ -268,3 +269,4 @@ def show_edit_online_reservations(selected_booking_id=None):
                         st.rerun()
                     else:
                         st.error("❌ Failed to delete reservation")
+```
