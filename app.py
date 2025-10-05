@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import os
 from supabase import create_client, Client
@@ -25,11 +24,13 @@ try:
     supabase: Client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 except Exception as e:
     st.error(f"Failed to initialize Supabase client: {e}")
+    st.write("DEBUG: Supabase initialization failed, stopping app")
     st.stop()
 
 def check_authentication():
     # Initialize session state if not already set
     if 'authenticated' not in st.session_state:
+        st.write("DEBUG: Initializing session state")
         st.session_state.authenticated = False
         st.session_state.role = None
         st.session_state.reservations = []
@@ -41,26 +42,18 @@ def check_authentication():
         st.session_state.current_page = "Direct Reservations"
         st.session_state.selected_booking_id = None
 
-    # Preserve current page and selected booking ID from query params if authenticated
-    query_params = st.query_params
-    if st.session_state.authenticated:
-        query_page = query_params.get("page", [st.session_state.current_page])[0]
-        if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
-            st.session_state.current_page = query_page
-        query_booking_id = query_params.get("booking_id", [None])[0]
-        if query_booking_id:
-            st.session_state.selected_booking_id = query_booking_id
-
+    # If not authenticated, show login page and stop
     if not st.session_state.authenticated:
         st.title("🔐 TIE Reservations Login")
         st.write("Please select your role and enter the password to access the system.")
         role = st.selectbox("Select Role", ["Management", "ReservationTeam"])
         password = st.text_input("Enter password:", type="password")
         if st.button("🔑 Login"):
+            st.write("DEBUG: Login button clicked")
             if role == "Management" and password == "TIE2024":
                 st.session_state.authenticated = True
                 st.session_state.role = "Management"
-                # Preserve intended page and booking ID from query params after login
+                query_params = st.query_params
                 query_page = query_params.get("page", ["Direct Reservations"])[0]
                 if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
                     st.session_state.current_page = query_page
@@ -79,7 +72,7 @@ def check_authentication():
             elif role == "ReservationTeam" and password == "TIE123":
                 st.session_state.authenticated = True
                 st.session_state.role = "ReservationTeam"
-                # Preserve intended page and booking ID from query params after login
+                query_params = st.query_params
                 query_page = query_params.get("page", ["Direct Reservations"])[0]
                 if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status"]:
                     st.session_state.current_page = query_page
@@ -98,6 +91,17 @@ def check_authentication():
             else:
                 st.error("❌ Invalid password. Please try again.")
         st.stop()
+    else:
+        # Preserve query params for authenticated users
+        query_params = st.query_params
+        if st.session_state.current_page not in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
+            st.session_state.current_page = "Direct Reservations"
+        query_page = query_params.get("page", [st.session_state.current_page])[0]
+        if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
+            st.session_state.current_page = query_page
+        query_booking_id = query_params.get("booking_id", [None])[0]
+        if query_booking_id:
+            st.session_state.selected_booking_id = query_booking_id
 
 def main():
     check_authentication()
@@ -108,7 +112,6 @@ def main():
     if st.session_state.role == "Management":
         page_options.append("Analytics")
     
-    # Use session state for current page as default
     page = st.sidebar.selectbox("Choose a page", page_options, index=page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0, key="page_select")
     st.session_state.current_page = page
 
@@ -122,7 +125,6 @@ def main():
         show_online_reservations()
     elif page == "Edit Online Reservations":
         show_edit_online_reservations(st.session_state.selected_booking_id)
-        # Clear selected booking ID after displaying the page to prevent stale selections
         if st.session_state.selected_booking_id:
             st.session_state.selected_booking_id = None
             st.query_params.clear()
@@ -133,8 +135,12 @@ def main():
     elif page == "Analytics" and st.session_state.role == "Management":
         show_analytics()
 
-    # Logout button
     if st.sidebar.button("Log Out"):
+        st.write("DEBUG: Logout button clicked")
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
         st.session_state.authenticated = False
         st.session_state.role = None
         st.session_state.reservations = []
