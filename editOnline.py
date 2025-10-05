@@ -3,7 +3,6 @@ import pandas as pd
 from datetime import date
 from supabase import create_client, Client
 
-# Fallback utilities
 def safe_int(value, default=0):
     """Convert value to int, return default if invalid."""
     try:
@@ -18,7 +17,6 @@ def safe_float(value, default=0.0):
     except (TypeError, ValueError):
         return default
 
-# Initialize Supabase client
 try:
     supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
 except KeyError as e:
@@ -68,38 +66,29 @@ def load_online_reservations_from_supabase():
 def show_edit_online_reservations(selected_booking_id=None):
     """Display edit online reservations page."""
     st.title("✏️ Edit Online Reservations")
-    
     if 'online_reservations' not in st.session_state:
         st.session_state.online_reservations = load_online_reservations_from_supabase()
-    
     if not st.session_state.online_reservations:
         st.info("No online reservations available to edit.")
         return
-
     if 'online_edit_mode' not in st.session_state:
         st.session_state.online_edit_mode = False
         st.session_state.online_edit_index = None
-
     df = pd.DataFrame(st.session_state.online_reservations)
     display_columns = ["property", "booking_id", "guest_name", "check_in", "check_out", "room_no", "room_type", "booking_status"]
-    
     st.subheader("Select Reservation to Edit")
     booking_id_list = df["booking_id"].tolist()
     default_index = booking_id_list.index(selected_booking_id) if selected_booking_id in booking_id_list else 0
     selected_booking_id = st.selectbox("Select Booking ID", booking_id_list, index=default_index)
-    
     if selected_booking_id:
         edit_index = df[df["booking_id"] == selected_booking_id].index[0]
         reservation = st.session_state.online_reservations[edit_index]
         st.session_state.online_edit_index = edit_index
         st.session_state.online_edit_mode = True
-
     if st.session_state.online_edit_mode and st.session_state.online_edit_index is not None:
         edit_index = st.session_state.online_edit_index
         reservation = st.session_state.online_reservations[edit_index]
-        
         st.subheader(f"Editing Reservation: {reservation['booking_id']}")
-        
         col1, col2, col3 = st.columns(3)
         with col1:
             property_name = st.text_input("Property Name", value=reservation.get("property", ""), disabled=True)
@@ -107,7 +96,6 @@ def show_edit_online_reservations(selected_booking_id=None):
             booking_id = st.text_input("Booking ID", value=reservation.get("booking_id", ""), disabled=True)
         with col3:
             booking_made_on = st.date_input("Booking Made On", value=date.fromisoformat(reservation.get("booking_made_on")) if reservation.get("booking_made_on") else None)
-
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             guest_name = st.text_input("Guest Name", value=reservation.get("guest_name", ""))
@@ -117,7 +105,6 @@ def show_edit_online_reservations(selected_booking_id=None):
             check_in = st.date_input("Check In", value=date.fromisoformat(reservation.get("check_in")) if reservation.get("check_in") else None)
         with col4:
             check_out = st.date_input("Check Out", value=date.fromisoformat(reservation.get("check_out")) if reservation.get("check_out") else None)
-
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             no_of_adults = st.number_input("No of Adults", value=safe_int(reservation.get("no_of_adults", 0)), min_value=0)
@@ -128,7 +115,6 @@ def show_edit_online_reservations(selected_booking_id=None):
         with col4:
             total_pax = no_of_adults + no_of_children + no_of_infant
             st.text_input("Total Pax", value=total_pax, disabled=True)
-
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             room_no = st.text_input("Room No", value=reservation.get("room_no", ""))
@@ -138,7 +124,6 @@ def show_edit_online_reservations(selected_booking_id=None):
             rate_plans = st.text_input("Breakfast", value=reservation.get("rate_plans", ""))
         with col4:
             booking_source = st.text_input("Booking Source", value=reservation.get("booking_source", ""))
-
         col1, col2, col3 = st.columns(3)
         with col1:
             segment = st.text_input("Segment", value=reservation.get("segment", ""))
@@ -146,7 +131,6 @@ def show_edit_online_reservations(selected_booking_id=None):
             staflexi_status = st.text_input("Staflexi Status", value=reservation.get("staflexi_status", ""))
         with col3:
             booking_confirmed_on = st.date_input("Booking Confirmed on", value=date.fromisoformat(reservation.get("booking_confirmed_on")) if reservation.get("booking_confirmed_on") else None)
-
         col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
             booking_amount = st.number_input("Total Tariff", value=safe_float(reservation.get("booking_amount", 0.0)))
@@ -164,7 +148,6 @@ def show_edit_online_reservations(selected_booking_id=None):
             current_balance_mop = reservation.get("balance_mop", "")
             balance_mop_index = mop_options.index(current_balance_mop) if current_balance_mop in mop_options else 0
             balance_mop = st.selectbox("Balance Mop", mop_options, index=balance_mop_index)
-
         col1, col2, col3 = st.columns(3)
         with col1:
             current_mob = reservation.get("mode_of_booking", "") or reservation.get("booking_source", "")
@@ -187,22 +170,18 @@ def show_edit_online_reservations(selected_booking_id=None):
             booking_status = st.selectbox("Booking Status", booking_status_options, index=status_index)
         with col3:
             payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], index=["Not Paid", "Fully Paid", "Partially Paid"].index(reservation.get("payment_status", "Not Paid")))
-
         remarks = st.text_area("Remarks", value=reservation.get("remarks", ""))
-
         col1, col2 = st.columns(2)
         with col1:
             submitted_by = st.text_input("Submitted by", value=reservation.get("submitted_by", ""))
         with col2:
             modified_by = st.text_input("Modified by", value=reservation.get("modified_by", ""))
-
         total_amount_with_services = safe_float(reservation.get("total_amount_with_services", 0.0))
         ota_gross_amount = safe_float(reservation.get("ota_gross_amount", 0.0))
         ota_commission = safe_float(reservation.get("ota_commission", 0.0))
         ota_tax = safe_float(reservation.get("ota_tax", 0.0))
         ota_net_amount = safe_float(reservation.get("ota_net_amount", 0.0))
         room_revenue = safe_float(reservation.get("room_revenue", 0.0))
-
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             if st.button("💾 Update Reservation", use_container_width=True):
