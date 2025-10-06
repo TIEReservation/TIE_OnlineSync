@@ -145,7 +145,7 @@ def show_edit_online_reservations(selected_booking_id=None):
         with col2:
             total_payment_made = st.number_input("Advance Amount", value=safe_float(reservation.get("total_payment_made", 0.0)))
         with col3:
-            mop_options = ["", "Cash", "Card", "UPI", "Bank Transfer", "Other"]
+            mop_options = ["", "Cash", "Card", "UPI", "Bank Transfer", "Other", "MMT","Cleartrip","Agoda","Goibibo","Expedia","Booking"]
             current_advance_mop = reservation.get("advance_mop", "")
             advance_mop_index = mop_options.index(current_advance_mop) if current_advance_mop in mop_options else 0
             advance_mop = st.selectbox("Advance Mop", mop_options, index=advance_mop_index)
