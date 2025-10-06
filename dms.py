@@ -67,17 +67,23 @@ def generate_month_dates(year, month):
     return [date(year, month, day) for day in range(1, num_days + 1)]
 
 def filter_bookings_for_day(bookings, target_date):
-    """Filter bookings active on the target date with status Pending or Follow-up."""
+    """Filter bookings active on the target date with status Pending, Follow-up, or (Confirmed and Not Paid)."""
     filtered_bookings = []
     for booking in bookings:
-        if booking.get("booking_status") not in ["Pending", "Follow-up"]:
-            continue
-        check_in = date.fromisoformat(booking["check_in"]) if booking.get("check_in") else None
-        check_out = date.fromisoformat(booking["check_out"]) if booking.get("check_out") else None
-        if check_in and check_out and check_in <= target_date < check_out:
-            # Add source identifier for unified display
-            booking["source"] = "direct" if "property_name" in booking else "online"
-            filtered_bookings.append(booking)
+        # Check for Pending or Follow-up status
+        if booking.get("booking_status") in ["Pending", "Follow-up"]:
+            check_in = date.fromisoformat(booking["check_in"]) if booking.get("check_in") else None
+            check_out = date.fromisoformat(booking["check_out"]) if booking.get("check_out") else None
+            if check_in and check_out and check_in <= target_date < check_out:
+                booking["source"] = "direct" if "property_name" in booking else "online"
+                filtered_bookings.append(booking)
+        # Check for Confirmed status with Not Paid payment status
+        elif booking.get("booking_status") == "Confirmed" and booking.get("payment_status") == "Not Paid":
+            check_in = date.fromisoformat(booking["check_in"]) if booking.get("check_in") else None
+            check_out = date.fromisoformat(booking["check_out"]) if booking.get("check_out") else None
+            if check_in and check_out and check_in <= target_date < check_out:
+                booking["source"] = "direct" if "property_name" in booking else "online"
+                filtered_bookings.append(booking)
     return filtered_bookings
 
 def create_bookings_table(bookings):
@@ -130,7 +136,7 @@ def cached_load_direct_reservations():
     return load_direct_reservations_from_supabase()
 
 def show_dms():
-    """Display Daily Management Status page with Pending and Follow-up bookings from both online and direct sources."""
+    """Display Daily Management Status page with Pending, Follow-up, and Confirmed/Not Paid bookings from both online and direct sources."""
     st.title("📋 Daily Management Status")
     
     if st.button("🔄 Refresh Bookings"):
@@ -174,7 +180,7 @@ def show_dms():
         st.info("No properties found in reservations.")
         return
     
-    st.subheader("Pending and Follow-up Bookings by Property")
+    st.subheader("Pending, Follow-up, and Confirmed/Not Paid Bookings by Property")
     st.markdown(TABLE_CSS, unsafe_allow_html=True)
     
     for prop in all_properties:
@@ -183,14 +189,18 @@ def show_dms():
             start_date = month_dates[0]
             end_date = month_dates[-1] + timedelta(days=1)
             
-            # Filter online bookings for the property and Pending or Follow-up status
-            prop_online_bookings = [b for b in online_bookings if b.get("property") == prop and b.get("booking_status") in ["Pending", "Follow-up"]]
-            # Filter direct bookings for the property and Pending or Follow-up status
-            prop_direct_bookings = [b for b in direct_bookings if b.get("property_name") == prop and b.get("booking_status") in ["Pending", "Follow-up"]]
+            # Filter online bookings for the property and desired statuses
+            prop_online_bookings = [b for b in online_bookings if b.get("property") == prop and 
+                                   (b.get("booking_status") in ["Pending", "Follow-up"] or 
+                                    (b.get("booking_status") == "Confirmed" and b.get("payment_status") == "Not Paid"))]
+            # Filter direct bookings for the property and desired statuses
+            prop_direct_bookings = [b for b in direct_bookings if b.get("property_name") == prop and 
+                                   (b.get("booking_status") in ["Pending", "Follow-up"] or 
+                                    (b.get("booking_status") == "Confirmed" and b.get("payment_status") == "Not Paid"))]
             
             # Combine both
             prop_all_bookings = prop_online_bookings + prop_direct_bookings
-            st.info(f"Total Pending and Follow-up bookings for {prop}: {len(prop_all_bookings)} (Online: {len(prop_online_bookings)}, Direct: {len(prop_direct_bookings)})")
+            st.info(f"Total Pending, Follow-up, and Confirmed/Not Paid bookings for {prop}: {len(prop_all_bookings)} (Online: {len(prop_online_bookings)}, Direct: {len(prop_direct_bookings)})")
             
             for day in month_dates:
                 daily_bookings = filter_bookings_for_day(prop_all_bookings, day)
@@ -204,4 +214,4 @@ def show_dms():
                     table_html = df.to_html(escape=False, index=False)
                     st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
                 else:
-                    st.info("No Pending or Follow-up bookings on this day.")
+                    st.info("No Pending, Follow-up, or Confirmed/Not Paid bookings on this day.")
