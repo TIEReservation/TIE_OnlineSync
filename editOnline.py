@@ -51,6 +51,20 @@ def load_online_reservations_from_supabase():
         st.error(f"Error loading online reservations: {e}")
         return []
 
+def load_properties():
+    """Load unique properties from reservations table (direct reservations)."""
+    try:
+        res_direct = supabase.table("reservations").select("property_name").execute().data
+        properties = set()
+        for r in res_direct:
+            prop = r['property_name']
+            if prop:
+                properties.add(prop)
+        return sorted(properties)
+    except Exception as e:
+        st.error(f"Error loading properties: {e}")
+        return []
+
 def show_edit_online_reservations(selected_booking_id=None):
     """Display edit online reservations page."""
     st.title("✏️ Edit Online Reservations")
@@ -94,6 +108,14 @@ def show_edit_online_reservations(selected_booking_id=None):
             booking_id = st.text_input("Booking ID", value=reservation.get("booking_id", ""), disabled=True)
         with col3:
             booking_made_on = st.date_input("Booking Made On", value=date.fromisoformat(reservation.get("booking_made_on")) if reservation.get("booking_made_on") else None)
+
+        # Add Transfer to Property dropdown (optional)
+        properties = load_properties()
+        transfer_property = st.selectbox("Transfer to Property (Optional)", ["None"] + properties)
+
+        # If transfer_property is selected, override property_name
+        if transfer_property != "None":
+            property_name = transfer_property
 
         # Row 2: Guest Name, Mobile No, Check In, Check Out
         col1, col2, col3, col4 = st.columns(4)
