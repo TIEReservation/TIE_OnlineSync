@@ -112,6 +112,17 @@ def main():
     page = st.sidebar.selectbox("Choose a page", page_options, index=page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0, key="page_select")
     st.session_state.current_page = page
 
+    # Add global refresh button in sidebar
+    if st.sidebar.button("🔄 Refresh All Data"):  # Added: Global refresh button
+        st.cache_data.clear()  # Clear app-wide cache
+        try:
+            st.session_state.reservations = load_reservations_from_supabase()
+            st.session_state.online_reservations = load_online_reservations_from_supabase()
+            st.success("✅ Data refreshed from database!")
+        except Exception as e:
+            st.warning(f"⚠️ Data refresh partially failed: {e}")
+        st.rerun()  # Rerun to reflect changes
+
     if page == "Direct Reservations":
         show_new_reservation_form()
     elif page == "View Reservations":
