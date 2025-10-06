@@ -111,40 +111,58 @@ def process_and_sync_excel(uploaded_file):
         inserted = 0
         skipped = 0
         for _, row in df.iterrows():
-            property_name = get_property_name(row.get("Property"))
-            booking_id = truncate_string(row.get("Booking ID"))
-            guest_name = truncate_string(row.get("Guest Name"))
-            guest_phone = truncate_string(row.get("Mobile No"))
-            check_in = parse_date(row.get("Check In"))
-            check_out = parse_date(row.get("Check Out"))
-            adults, children, infants = parse_pax(row.get("Pax"))
-            total_pax = adults + children + infants
-            room_no = truncate_string(row.get("Room No"))
-            room_type = truncate_string(row.get("Room Type"))
-            rate_plans = truncate_string(row.get("Breakfast"))
-            booking_source = truncate_string(row.get("Booking Source"))
-            segment = truncate_string(row.get("Segment"))
-            staflexi_status = truncate_string(row.get("Staflexi Status"))
-            booking_made_on = parse_date(row.get("Booking Made On"))
-            booking_confirmed_on = parse_date(row.get("Booking Confirmed On"))
-            booking_amount = safe_float(row.get("Total Tariff"))
-            total_payment_made = safe_float(row.get("Advance Amount"))
-            balance_due = booking_amount - total_payment_made
-            advance_mop = truncate_string(row.get("Advance Mop"))
-            balance_mop = truncate_string(row.get("Balance Mop"))
-            mode_of_booking = truncate_string(row.get("MOB"))
-            booking_status = truncate_string(row.get("Booking Status", "Pending"))
-            payment_status = truncate_string(row.get("Payment Status", "Not Paid"))
-            remarks = truncate_string(row.get("Remarks"), 500)
-            submitted_by = truncate_string(row.get("Submitted by"))
-            modified_by = truncate_string(row.get("Modified by"))
-            total_amount_with_services = safe_float(row.get("Total Amount with Services"))
-            ota_gross_amount = safe_float(row.get("OTA Gross Amount"))
-            ota_commission = safe_float(row.get("OTA Commission"))
-            ota_tax = safe_float(row.get("OTA Tax"))
-            ota_net_amount = safe_float(row.get("OTA Net Amount"))
-            room_revenue = safe_float(row.get("Room Revenue"))
-
+            hotel_id = str(safe_int(row.get("hotel id", "")))
+            property_name = get_property_name(hotel_id)
+            if property_name == "Unknown Property":
+                property_name = str(row.get("hotel name", "")).split("-")[0].strip() if row.get("hotel name") else ""
+            booking_id = str(row.get("booking id", ""))
+            if not booking_id:
+                continue  # Skip if no booking_id
+            if booking_id in existing_ids:
+                skipped += 1
+                continue
+            booking_made_on = parse_date(row.get("booking_made_on"))
+            guest_name = truncate_string(row.get("customer_name", ""), 50)
+            guest_phone = truncate_string(row.get("customer_phone", ""), 50)
+            check_in = parse_date(row.get("checkin"))
+            check_out = parse_date(row.get("checkout"))
+            pax_str = str(row.get("pax", ""))
+            no_of_adults, no_of_children, no_of_infant = parse_pax(pax_str)
+            total_pax = no_of_adults + no_of_children + no_of_infant
+            room_no = truncate_string(row.get("room ids", ""), 50)
+            room_type = truncate_string(row.get("room types", ""), 50)
+            rate_plans = truncate_string(row.get("rate_plans", ""), 50)
+            booking_source = truncate_string(row.get("booking_source", ""), 50)
+            segment = truncate_string(row.get("segment", ""), 50)
+            staflexi_status = truncate_string(row.get("status", ""), 50)
+            booking_confirmed_on = None  # Editable, default None
+            booking_amount = safe_float(row.get("booking_amount"))
+            total_payment_made = safe_float(row.get("Total Payment Made"))
+            balance_due = safe_float(row.get("balance_due"))
+            
+            # Set mode_of_booking to booking_source by default (truncated)
+            mode_of_booking = truncate_string(booking_source, 50)
+            
+            # Always set booking_status to Pending by default
+            # Reservation agent will change it if required
+            booking_status = "Pending"
+            
+            # Compute payment_status
+            if total_payment_made >= booking_amount:
+                payment_status = "Fully Paid"
+            elif total_payment_made > 0:
+                payment_status = "Partially Paid"
+            else:
+                payment_status = "Not Paid"
+            remarks = truncate_string(row.get("special_requests", ""), 500)  # Longer limit for remarks
+            submitted_by = ""  # Editable
+            modified_by = ""  # Editable
+            total_amount_with_services = safe_float(row.get("total_amount_with_services"))
+            ota_gross_amount = safe_float(row.get("ota_gross_amount"))
+            ota_commission = safe_float(row.get("ota_commission"))
+            ota_tax = safe_float(row.get("ota_tax"))
+            ota_net_amount = safe_float(row.get("ota_net_amount"))
+            room_revenue = safe_float(row.get("room_revenue"))
             reservation = {
                 "property": property_name,
                 "booking_id": booking_id,
@@ -153,9 +171,9 @@ def process_and_sync_excel(uploaded_file):
                 "guest_phone": guest_phone,
                 "check_in": str(check_in) if check_in else None,
                 "check_out": str(check_out) if check_out else None,
-                "no_of_adults": adults,
-                "no_of_children": children,
-                "no_of_infant": infants,
+                "no_of_adults": no_of_adults,
+                "no_of_children": no_of_children,
+                "no_of_infant": no_of_infant,
                 "total_pax": total_pax,
                 "room_no": room_no,
                 "room_type": room_type,
@@ -163,12 +181,10 @@ def process_and_sync_excel(uploaded_file):
                 "booking_source": booking_source,
                 "segment": segment,
                 "staflexi_status": staflexi_status,
-                "booking_confirmed_on": str(booking_confirmed_on) if booking_confirmed_on else None,
+                "booking_confirmed_on": booking_confirmed_on,  # Fixed: lowercase 'c'
                 "booking_amount": booking_amount,
                 "total_payment_made": total_payment_made,
                 "balance_due": balance_due,
-                "advance_mop": advance_mop,
-                "balance_mop": balance_mop,
                 "mode_of_booking": mode_of_booking,
                 "booking_status": booking_status,
                 "payment_status": payment_status,
@@ -182,9 +198,6 @@ def process_and_sync_excel(uploaded_file):
                 "ota_net_amount": ota_net_amount,
                 "room_revenue": room_revenue
             }
-            if reservation["booking_id"] in existing_ids:
-                skipped += 1
-                continue
             if insert_online_reservation(reservation):
                 inserted += 1
                 st.session_state.online_reservations.append(reservation)
@@ -207,10 +220,8 @@ def show_online_reservations():
             with st.spinner("Processing and syncing..."):
                 inserted, skipped = process_and_sync_excel(uploaded_file)
                 st.success(f"✅ Synced successfully! Inserted: {inserted}, Skipped (duplicates): {skipped}")
-                # Reload to reflect changes, clear cache for other pages
-                st.cache_data.clear()  # Added: Clear app-wide cache after data change
-                st.session_state.online_reservations = load_online_reservations_from_supabase()  # Added: Fully reload from DB
-                st.rerun()  # Added: Rerun to immediately reflect
+                # Reload to reflect changes
+                st.session_state.online_reservations = load_online_reservations_from_supabase()
 
     # View section
     st.subheader("View Online Reservations")
