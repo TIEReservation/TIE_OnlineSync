@@ -217,7 +217,7 @@ def show_new_reservation_form():
                     "balance_amount": balance_amount,
                     "advance_mop": advance_mop,
                     "balance_mop": balance_mop,
-                    "booking_status": booking_status,
+                    "status": booking_status,
                     "payment_status": payment_status,
                     "plan_status": plan_status,
                     "remarks": remarks,
@@ -225,10 +225,8 @@ def show_new_reservation_form():
                     "modified_by": modified_by
                 }
                 if insert_reservation_in_supabase(new_reservation):
-                    st.cache_data.clear()  # Added: Clear app-wide cache after insert
-                    st.session_state.reservations = load_reservations_from_supabase()  # Added: Fully reload from DB
+                    st.session_state.reservations.append(new_reservation)
                     show_confirmation_dialog(new_reservation["booking_id"])
-                    st.rerun()  # Added: Rerun to reflect changes
                 else:
                     st.error("❌ Failed to create reservation")
 
@@ -260,7 +258,7 @@ def show_reservations():
     if end_date:
         filtered_df = filtered_df[pd.to_datetime(filtered_df["check_in"]) <= pd.to_datetime(end_date)]
     if filter_status != "All":
-        filtered_df = filtered_df[filtered_df["booking_status"] == filter_status]
+        filtered_df = filtered_df[filtered_df["status"] == filter_status]
     if filter_property != "All":
         filtered_df = filtered_df[filtered_df["property_name"] == filter_property]
 
@@ -269,7 +267,7 @@ def show_reservations():
     else:
         display_columns = [
             "property_name", "booking_id", "guest_name", "check_in", "check_out",
-            "room_no", "room_type", "booking_status", "payment_status", "total_tariff",
+            "room_no", "room_type", "status", "payment_status", "total_tariff",
             "advance_amount", "balance_amount"
         ]
         st.dataframe(filtered_df[display_columns], use_container_width=True)
@@ -341,7 +339,7 @@ def show_edit_reservations(selected_booking_id=None):
 
             col7, col8, col9 = st.columns(3)
             with col7:
-                booking_status = st.selectbox("Booking Status", ["Pending", "Confirmed", "Cancelled", "Follow-up", "Completed", "No Show"], index=["Pending", "Confirmed", "Cancelled", "Follow-up", "Completed", "No Show"].index(reservation.get("booking_status", "Pending")))
+                booking_status = st.selectbox("Booking Status", ["Pending", "Confirmed", "Cancelled", "Follow-up", "Completed", "No Show"], index=["Pending", "Confirmed", "Cancelled", "Follow-up", "Completed", "No Show"].index(reservation.get("status", "Pending")))
             with col8:
                 payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], index=["Not Paid", "Fully Paid", "Partially Paid"].index(reservation.get("payment_status", "Not Paid")))
             with col9:
@@ -376,7 +374,7 @@ def show_edit_reservations(selected_booking_id=None):
                         "balance_amount": balance_amount,
                         "advance_mop": advance_mop,
                         "balance_mop": balance_mop,
-                        "booking_status": booking_status,
+                        "status": booking_status,
                         "payment_status": payment_status,
                         "plan_status": plan_status,
                         "remarks": remarks,
@@ -384,26 +382,21 @@ def show_edit_reservations(selected_booking_id=None):
                         "modified_by": modified_by
                     }
                     if update_reservation_in_supabase(reservation["booking_id"], updated_reservation):
-                        st.cache_data.clear()  # Added: Clear app-wide cache after update
-                        st.session_state.reservations = load_reservations_from_supabase()  # Added: Fully reload from DB
+                        st.session_state.reservations[st.session_state.edit_index] = {**reservation, **updated_reservation, "booking_id": reservation["booking_id"]}
                         st.session_state.edit_mode = False
                         st.session_state.edit_index = None
                         st.query_params.clear()
                         show_confirmation_dialog(reservation["booking_id"], is_update=True)
-                        st.rerun()  # Added: Rerun to reflect changes
                     else:
                         st.error("❌ Failed to update reservation")
             with col_btn2:
                 if st.session_state.role == "Management":
                     if st.form_submit_button("🗑️ Delete Reservation"):
                         if delete_reservation_in_supabase(reservation["booking_id"]):
-                            st.cache_data.clear()  # Added: Clear app-wide cache after delete
-                            st.session_state.reservations = load_reservations_from_supabase()  # Added: Fully reload from DB
+                            st.session_state.reservations.pop(st.session_state.edit_index)
                             st.session_state.edit_mode = False
                             st.session_state.edit_index = None
-                            st.query_params.clear()
                             st.success(f"🗑️ Reservation {reservation['booking_id']} deleted successfully!")
-                            st.rerun()  # Added: Rerun to reflect changes
                         else:
                             st.error("❌ Failed to delete reservation")
 
@@ -439,7 +432,7 @@ def show_analytics():
     if end_date:
         filtered_df = filtered_df[pd.to_datetime(filtered_df["check_in"]) <= pd.to_datetime(end_date)]
     if filter_status != "All":
-        filtered_df = filtered_df[filtered_df["booking_status"] == filter_status]
+        filtered_df = filtered_df[filtered_df["status"] == filter_status]
     if filter_check_in_date:
         filtered_df = filtered_df[filtered_df["check_in"] == str(filter_check_in_date)]
     if filter_check_out_date:
@@ -467,7 +460,7 @@ def show_analytics():
         revenue_by_property = filtered_df.groupby("property_name")["total_tariff"].sum().reset_index()
         fig_bar = px.bar(
             revenue_by_property,
-            x="Property Name",
+            x="property_name",
             y="total_tariff",
             title="Total Revenue by Property",
             height=400,
