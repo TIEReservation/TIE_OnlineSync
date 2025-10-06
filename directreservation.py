@@ -137,6 +137,7 @@ def show_confirmation_dialog(booking_id, is_update=False):
         st.rerun()
 
 def update_balance():
+    """Update balance_amount in session_state when total_tariff or advance_amount changes."""
     if 'total_tariff' in st.session_state and 'advance_amount' in st.session_state:
         st.session_state.balance_amount = st.session_state.total_tariff - st.session_state.advance_amount
 
@@ -171,6 +172,7 @@ def show_new_reservation_form():
             booking_made_on = st.date_input("Booking Made On", value=date.today())
             booking_confirmed_on = st.date_input("Booking Confirmed On", value=None)
         with col5:
+            # Initialize session state for tariff and amount fields
             st.session_state.setdefault('total_tariff', 0.0)
             st.session_state.setdefault('advance_amount', 0.0)
             st.session_state.setdefault('balance_amount', 0.0)
@@ -335,11 +337,12 @@ def show_edit_reservations(selected_booking_id=None):
                 booking_made_on = st.date_input("Booking Made On", value=date.fromisoformat(reservation["booking_made_on"]) if reservation.get("booking_made_on") else None)
                 booking_confirmed_on = st.date_input("Booking Confirmed On", value=date.fromisoformat(reservation["booking_confirmed_on"]) if reservation.get("booking_confirmed_on") else None)
             with col5:
-                st.session_state.setdefault('total_tariff', reservation.get("total_tariff", 0.0))
-                st.session_state.setdefault('advance_amount', reservation.get("advance_amount", 0.0))
-                st.session_state.setdefault('balance_amount', reservation.get("balance_amount", 0.0))
-                total_tariff = st.number_input("Total Tariff", value=st.session_state.total_tariff, min_value=0.0, step=100.0, key="total_tariff_edit", on_change=update_balance)
-                advance_amount = st.number_input("Advance Amount", value=st.session_state.advance_amount, min_value=0.0, step=100.0, key="advance_amount_edit", on_change=update_balance)
+                # Initialize session state with existing reservation values
+                st.session_state.setdefault('total_tariff', float(reservation.get("total_tariff", 0.0)))
+                st.session_state.setdefault('advance_amount', float(reservation.get("advance_amount", 0.0)))
+                st.session_state.setdefault('balance_amount', float(reservation.get("balance_amount", 0.0)))
+                total_tariff = st.number_input("Total Tariff", min_value=0.0, step=100.0, value=st.session_state.total_tariff, key=f"total_tariff_edit_{reservation['booking_id']}", on_change=update_balance)
+                advance_amount = st.number_input("Advance Amount", min_value=0.0, step=100.0, value=st.session_state.advance_amount, key=f"advance_amount_edit_{reservation['booking_id']}", on_change=update_balance)
                 st.text_input("Balance Amount", value=st.session_state.balance_amount, disabled=True)
             with col6:
                 mop_options = ["", "Cash", "Card", "UPI", "Bank Transfer", "Other"]
@@ -469,7 +472,7 @@ def show_analytics():
         revenue_by_property = filtered_df.groupby("property_name")["total_tariff"].sum().reset_index()
         fig_bar = px.bar(
             revenue_by_property,
-            x="Property Name",
+            x="property_name",
             y="total_tariff",
             title="Total Revenue by Property",
             height=400,
