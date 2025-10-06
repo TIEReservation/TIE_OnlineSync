@@ -261,25 +261,23 @@ def show_edit_online_reservations(selected_booking_id=None):
                     "room_revenue": room_revenue
                 }
                 if update_online_reservation_in_supabase(reservation["booking_id"], updated_reservation):
-                    st.cache_data.clear()  # Added: Clear app-wide cache after update
-                    st.session_state.online_reservations = load_online_reservations_from_supabase()  # Changed: Fully reload from DB instead of in-place update
+                    st.session_state.online_reservations[edit_index] = {**reservation, **updated_reservation}
                     st.session_state.online_edit_mode = False
                     st.session_state.online_edit_index = None
                     st.query_params.clear()
                     st.success(f"✅ Reservation {reservation['booking_id']} updated successfully!")
-                    st.rerun()  # Added: Rerun to reflect changes
+                    st.rerun()
                 else:
                     st.error("❌ Failed to update reservation")
         with col_btn2:
             if st.session_state.role == "Management":
                 if st.button("🗑️ Delete Reservation", use_container_width=True):
                     if delete_online_reservation_in_supabase(reservation["booking_id"]):
-                        st.cache_data.clear()  # Added: Clear app-wide cache after delete
-                        st.session_state.online_reservations = load_online_reservations_from_supabase()  # Added: Fully reload from DB
+                        st.session_state.online_reservations.pop(edit_index)
                         st.session_state.online_edit_mode = False
                         st.session_state.online_edit_index = None
                         st.query_params.clear()
                         st.success(f"🗑️ Reservation {reservation['booking_id']} deleted successfully!")
-                        st.rerun()  # Added: Rerun to reflect changes
+                        st.rerun()
                     else:
                         st.error("❌ Failed to delete reservation")
