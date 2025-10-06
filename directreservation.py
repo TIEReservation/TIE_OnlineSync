@@ -464,7 +464,7 @@ def show_new_reservation_form():
             st.text_input("Balance Amount", value=f"₹{balance_amount:.2f}", disabled=True, key=f"{form_key}_balance_amount", help="Total Tariff - Advance Amount")
         with row6_col2:
             balance_mop = st.selectbox("Balance MOP",
-                                       ["Pending", "Cash", "Card", "UPI", "Bank Transfer", "Other"],
+                                       ["","Pending", "Cash", "Card", "UPI", "Bank Transfer", "Other"],
                                        index=0,
                                        key=f"{form_key}_balmop")
             if balance_mop == "Other":
