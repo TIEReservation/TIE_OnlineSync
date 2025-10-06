@@ -338,11 +338,11 @@ def show_edit_reservations(selected_booking_id=None):
                 booking_confirmed_on = st.date_input("Booking Confirmed On", value=date.fromisoformat(reservation["booking_confirmed_on"]) if reservation.get("booking_confirmed_on") else None)
             with col5:
                 # Initialize session state with existing reservation values
-                st.session_state.setdefault('total_tariff', float(reservation.get("total_tariff", 0.0)))
-                st.session_state.setdefault('advance_amount', float(reservation.get("advance_amount", 0.0)))
-                st.session_state.setdefault('balance_amount', float(reservation.get("balance_amount", 0.0)))
-                total_tariff = st.number_input("Total Tariff", min_value=0.0, step=100.0, value=st.session_state.total_tariff, key=f"total_tariff_edit_{reservation['booking_id']}", on_change=update_balance)
-                advance_amount = st.number_input("Advance Amount", min_value=0.0, step=100.0, value=st.session_state.advance_amount, key=f"advance_amount_edit_{reservation['booking_id']}", on_change=update_balance)
+                st.session_state.setdefault('total_tariff', reservation.get("total_tariff", 0.0))
+                st.session_state.setdefault('advance_amount', reservation.get("advance_amount", 0.0))
+                st.session_state.setdefault('balance_amount', reservation.get("balance_amount", 0.0))
+                total_tariff = st.number_input("Total Tariff", min_value=0.0, step=100.0, value=st.session_state.total_tariff, key="total_tariff_edit", on_change=update_balance)
+                advance_amount = st.number_input("Advance Amount", min_value=0.0, step=100.0, value=st.session_state.advance_amount, key="advance_amount_edit", on_change=update_balance)
                 st.text_input("Balance Amount", value=st.session_state.balance_amount, disabled=True)
             with col6:
                 mop_options = ["", "Cash", "Card", "UPI", "Bank Transfer", "Other"]
@@ -436,29 +436,24 @@ def show_analytics():
     with col5:
         filter_check_out_date = st.date_input("Check-out Date", value=None, key="analytics_filter_check_out_date")
     with col6:
-        filter_property = st.selectbox("Filter by Property", ["All"] + sorted(df["property_name"].unique()), key="analytics_filter_property")
-    
-    filtered_df = df.copy()
-    if start_date:
-        filtered_df = filtered_df[pd.to_datetime(filtered_df["check_in"]) >= pd.to_datetime(start_date)]
-    if end_date:
-        filtered_df = filtered_df[pd.to_datetime(filtered_df["check_in"]) <= pd.to_datetime(end_date)]
+        filter_property = st.selectbox("Filter by Property", ["All"] + sorted(df["Property Name"].unique()), key="analytics_filter_property")
+    filtered_df = display_filtered_analysis(df, start_date, end_date, view_mode=False)
+   
     if filter_status != "All":
-        filtered_df = filtered_df[filtered_df["booking_status"] == filter_status]
+        filtered_df = filtered_df[filtered_df["Booking Status"] == filter_status]
     if filter_check_in_date:
-        filtered_df = filtered_df[filtered_df["check_in"] == str(filter_check_in_date)]
+        filtered_df = filtered_df[filtered_df["Check In"] == filter_check_in_date]
     if filter_check_out_date:
-        filtered_df = filtered_df[filtered_df["check_out"] == str(filter_check_out_date)]
+        filtered_df = filtered_df[filtered_df["Check Out"] == filter_check_out_date]
     if filter_property != "All":
-        filtered_df = filtered_df[filtered_df["property_name"] == filter_property]
-    
+        filtered_df = filtered_df[filtered_df["Property Name"] == filter_property]
     if filtered_df.empty:
         st.warning("No reservations match the selected filters.")
         return
     st.subheader("Visualizations")
     col1, col2 = st.columns(2)
     with col1:
-        property_counts = filtered_df["property_name"].value_counts().reset_index()
+        property_counts = filtered_df["Property Name"].value_counts().reset_index()
         property_counts.columns = ["Property Name", "Reservation Count"]
         fig_pie = px.pie(
             property_counts,
@@ -469,13 +464,13 @@ def show_analytics():
         )
         st.plotly_chart(fig_pie, use_container_width=True, key="analytics_pie_chart")
     with col2:
-        revenue_by_property = filtered_df.groupby("property_name")["total_tariff"].sum().reset_index()
+        revenue_by_property = filtered_df.groupby("Property Name")["Total Tariff"].sum().reset_index()
         fig_bar = px.bar(
             revenue_by_property,
-            x="property_name",
-            y="total_tariff",
+            x="Property Name",
+            y="Total Tariff",
             title="Total Revenue by Property",
             height=400,
-            labels={"total_tariff": "Revenue (₹)"}
+            labels={"Total Tariff": "Revenue (₹)"}
         )
         st.plotly_chart(fig_bar, use_container_width=True, key="analytics_bar_chart")
