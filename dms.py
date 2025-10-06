@@ -73,22 +73,9 @@ def filter_bookings_for_day(bookings, target_date):
         check_in = date.fromisoformat(booking.get("check_in")) if booking.get("check_in") else None
         check_out = date.fromisoformat(booking.get("check_out")) if booking.get("check_out") else None
         if check_in and check_out and check_in <= target_date < check_out:
-            booking_status = booking.get("booking_status") or booking.get("status", "")
+            booking_status = booking.get("booking_status")
             payment_status = booking.get("payment_status", "Not Paid")
             if booking_status in ["Pending", "Follow-up"] or (booking_status == "Confirmed" and payment_status == "Not Paid"):
-                # Ensure all required fields are present with defaults
-                booking.setdefault("guest_name", "")
-                booking.setdefault("room_no", "")
-                booking.setdefault("remarks", "")
-                booking.setdefault("booking_id", "")
-                booking.setdefault("check_in", "")
-                booking.setdefault("check_out", "")
-                booking.setdefault("advance_mop", "")
-                booking.setdefault("balance_mop", "")
-                booking.setdefault("total_tariff", 0.0)
-                booking.setdefault("advance_amount", 0.0)
-                booking.setdefault("balance_amount", 0.0)
-                booking.setdefault("booking_status", booking.get("status", ""))
                 filtered_bookings.append(booking)
     return filtered_bookings
 
@@ -97,24 +84,20 @@ def normalize_property(property):
     return property_mapping.get(property, property)
 
 def create_bookings_table(daily_bookings):
-    """Create a DataFrame for the daily bookings with all requested columns."""
+    """Create a DataFrame for the daily bookings."""
     rows = []
     for booking in daily_bookings:
         source = "Online" if booking.get("property") else "Direct"
+        guest_name = booking.get("guest_name", "")
+        room_no = booking.get("room_no", "")
+        remarks = booking.get("remarks", "")
+        booking_id = booking.get("booking_id", "")
         row = {
             "Source": source,
-            "Booking ID": f'<a href="?page=Edit%20{source}%20Reservations&booking_id={booking["booking_id"]}">{booking["booking_id"]}</a>' if booking["booking_id"] else "",
-            "Guest Name": booking.get("guest_name", ""),
-            "Check-in Date": booking.get("check_in", ""),
-            "Check-out Date": booking.get("check_out", ""),
-            "Room No": booking.get("room_no", ""),
-            "Advance MOP": booking.get("advance_mop", ""),
-            "Balance MOP": booking.get("balance_mop", ""),
-            "Total Tariff": float(booking.get("total_tariff", 0.0)),
-            "Advance Amount": float(booking.get("advance_amount", 0.0)),
-            "Balance Due": float(booking.get("balance_amount", 0.0)),
-            "Booking Status": booking.get("booking_status") or booking.get("status", ""),
-            "Remarks": booking.get("remarks", "")
+            "Guest Name": guest_name,
+            "Room No": room_no,
+            "Remarks": remarks,
+            "Booking ID": f'<a href="?page=Edit%20{source}%20Reservations&booking_id={booking_id}">{booking_id}</a>' if booking_id else ""
         }
         rows.append(row)
     return pd.DataFrame(rows)
@@ -157,9 +140,9 @@ def show_dms():
             start_date = month_dates[0]
             end_date = month_dates[-1] + timedelta(days=1)
             
-            # Filter online bookings for the property and relevant statuses
-            prop_online_bookings = [b for b in online_bookings if b.get("property") == prop and (b.get("status") in ["Pending", "Follow-up"] or (b.get("status") == "Confirmed" and b.get("payment_status") == "Not Paid"))]
-            # Filter direct bookings for the property and relevant statuses
+            # Filter online bookings for the property and Pending, Follow-up, or Confirmed with Not Paid
+            prop_online_bookings = [b for b in online_bookings if b.get("property") == prop and (b.get("booking_status") in ["Pending", "Follow-up"] or (b.get("booking_status") == "Confirmed" and b.get("payment_status") == "Not Paid"))]
+            # Filter direct bookings for the property and Pending, Follow-up, or Confirmed with Not Paid
             prop_direct_bookings = [b for b in direct_bookings if b.get("property_name") == prop and (b.get("booking_status") in ["Pending", "Follow-up"] or (b.get("booking_status") == "Confirmed" and b.get("payment_status") == "Not Paid"))]
             
             # Combine both
