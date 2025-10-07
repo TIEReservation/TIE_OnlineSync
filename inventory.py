@@ -1,4 +1,3 @@
-
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date, timedelta
@@ -157,16 +156,38 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
     booking_status_field = 'booking_status' if is_online else 'plan_status'
     booking_status = sanitize_string(booking.get(booking_status_field))
     try:
+        check_in = date.fromisoformat(booking.get('check_in')) if booking.get('check_in') else None
+        check_out = date.fromisoformat(booking.get('check_out')) if booking.get('check_out') else None
+        days = booking.get('room_nights' if is_online else 'no_of_days')
+        room_charges = booking.get('ota_net_amount' if is_online else 'total_tariff')
+        total = booking.get('booking_amount' if is_online else 'total_tariff')
+        receivable = booking.get('room_revenue' if is_online else 'total_tariff')
         normalized = {
             'booking_id': booking_id,
             'room_no': sanitize_string(booking.get('room_no')),
             'guest_name': sanitize_string(booking.get('guest_name')),
             'mobile_no': sanitize_string(booking.get('guest_phone') if is_online else booking.get('mobile_no')),
             'total_pax': booking.get('total_pax'),
-            'check_in': date.fromisoformat(booking.get('check_in')) if booking.get('check_in') else None,
-            'check_out': date.fromisoformat(booking.get('check_out')) if booking.get('check_out') else None,
+            'check_in': check_in,
+            'check_out': check_out,
+            'days': days,
+            'mob': sanitize_string(booking.get('mode_of_booking' if is_online else 'mob')),
+            'room_charges': room_charges,
+            'gst': sanitize_string(booking.get('ota_tax') if is_online else 'N/A'),
+            'total': total,
+            'commission': sanitize_string(booking.get('ota_commission') if is_online else 'N/A'),
+            'tax_deduction': sanitize_string(booking.get('ota_tax') if is_online else 'N/A'),
+            'receivable': receivable,
+            'per_night': float(room_charges) / days if room_charges and days and days > 0 else 0,
+            'advance': booking.get('total_payment_made' if is_online else 'advance_amount'),
+            'advance_mop': sanitize_string(booking.get('advance_mop')),
+            'balance': booking.get('balance_due' if is_online else 'balance_amount'),
+            'balance_mop': sanitize_string(booking.get('balance_mop')),
+            'plan': sanitize_string(booking.get('rate_plans' if is_online else 'breakfast')),
             'booking_status': booking_status,
             'payment_status': payment_status,
+            'submitted_by': sanitize_string(booking.get('submitted_by')),
+            'modified_by': sanitize_string(booking.get('modified_by')),
             'remarks': sanitize_string(booking.get('remarks')),
             'type': 'online' if is_online else 'direct'
         }
@@ -323,8 +344,13 @@ def assign_inventory_numbers(bookings: List[Dict], property: str) -> tuple[List[
 
 def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], property: str) -> pd.DataFrame:
     """Create a DataFrame with inventory numbers, bookings, and overbookings with hyperlinks."""
-    columns = ["Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No", "Total Pax",
-               "Check-in Date", "Check-out Date", "Days", "Booking Status", "Payment Status", "Remarks"]
+    columns = [
+        "Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No", "Total Pax",
+        "Check In", "Check Out", "Days", "MOB", "Room Charges", "GST", "Total",
+        "Commision", "Tax Deduction", "Receivable", "Per Night", "Advance",
+        "Advance Mop", "Balance", "Balance Mop", "Plan", "Booking Status",
+        "Payment Status", "Submitted by", "Modified by", "Remarks"
+    ]
     fallback = {"all": ["Unknown"], "three_bedroom": []}
     inventory = PROPERTY_INVENTORY.get(property, fallback)
     df_data = [{col: "" for col in columns} for _ in inventory["all"]]
@@ -336,25 +362,67 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
             for row in df_data:
                 if row["Inventory No"] == inv:
                     row.update({
+                        "Inventory No": inv,
                         "Room No": sanitize_string(b["room_no"]),
                         "Booking ID": format_booking_id(b),
                         "Guest Name": sanitize_string(b["guest_name"]),
                         "Mobile No": sanitize_string(b["mobile_no"]),
                         "Total Pax": sanitize_string(b["total_pax"]),
-                        "Check-in Date": b["check_in"],
-                        "Check-out Date": b["check_out"],
-                        "Days": (b["check_out"] - b["check_in"]).days if b["check_in"] and b["check_out"] else "",
+                        "Check In": b["check_in"],
+                        "Check Out": b["check_out"],
+                        "Days": b["days"],
+                        "MOB": sanitize_string(b["mob"]),
+                        "Room Charges": sanitize_string(b["room_charges"]),
+                        "GST": sanitize_string(b["gst"]),
+                        "Total": sanitize_string(b["total"]),
+                        "Commision": sanitize_string(b["commission"]),
+                        "Tax Deduction": sanitize_string(b["tax_deduction"]),
+                        "Receivable": sanitize_string(b["receivable"]),
+                        "Per Night": f"{b['per_night']:.2f}" if b["per_night"] else "0.00",
+                        "Advance": sanitize_string(b["advance"]),
+                        "Advance Mop": sanitize_string(b["advance_mop"]),
+                        "Balance": sanitize_string(b["balance"]),
+                        "Balance Mop": sanitize_string(b["balance_mop"]),
+                        "Plan": sanitize_string(b["plan"]),
                         "Booking Status": sanitize_string(b["booking_status"]),
                         "Payment Status": sanitize_string(b["payment_status"]),
+                        "Submitted by": sanitize_string(b["submitted_by"]),
+                        "Modified by": sanitize_string(b["modified_by"]),
                         "Remarks": sanitize_string(b["remarks"])
                     })
     # Add overbookings row with hyperlinks
     if overbookings:
         overbooking_ids = ", ".join(format_booking_id(b) for b in overbookings)
         overbooking_str = ", ".join(f"{sanitize_string(b['room_no'])} ({sanitize_string(b['booking_id'])}, {sanitize_string(b['guest_name'])})" for b in overbookings)
-        df_data.append({"Inventory No": "Overbookings", "Room No": overbooking_str, "Booking ID": overbooking_ids,
-                        "Guest Name": "", "Mobile No": "", "Total Pax": "", "Check-in Date": "", "Check-out Date": "",
-                        "Days": "", "Booking Status": "", "Payment Status": "", "Remarks": ""})
+        df_data.append({
+            "Inventory No": "Overbookings",
+            "Room No": overbooking_str,
+            "Booking ID": overbooking_ids,
+            "Guest Name": "",
+            "Mobile No": "",
+            "Total Pax": "",
+            "Check In": "",
+            "Check Out": "",
+            "Days": "",
+            "MOB": "",
+            "Room Charges": "",
+            "GST": "",
+            "Total": "",
+            "Commision": "",
+            "Tax Deduction": "",
+            "Receivable": "",
+            "Per Night": "",
+            "Advance": "",
+            "Advance Mop": "",
+            "Balance": "",
+            "Balance Mop": "",
+            "Plan": "",
+            "Booking Status": "",
+            "Payment Status": "",
+            "Submitted by": "",
+            "Modified by": "",
+            "Remarks": ""
+        })
     return pd.DataFrame(df_data, columns=columns)
 
 @st.cache_data
@@ -394,7 +462,7 @@ def show_daily_status():
                 if daily_bookings:
                     daily_bookings, overbookings = assign_inventory_numbers(daily_bookings, prop)
                     df = create_inventory_table(daily_bookings, overbookings, prop)
-                    tooltip_columns = ['Guest Name', 'Room No', 'Remarks', 'Mobile No']
+                    tooltip_columns = ['Guest Name', 'Room No', 'Remarks', 'Mobile No', 'MOB', 'Plan', 'Submitted by', 'Modified by']
                     for col in tooltip_columns:
                         if col in df.columns:
                             df[col] = df[col].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x, str) else x)
