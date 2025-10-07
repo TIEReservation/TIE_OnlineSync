@@ -30,7 +30,7 @@ def update_online_reservation_in_supabase(booking_id, updated_reservation):
         response = supabase.table("online_reservations").update(truncated_reservation).eq("booking_id", booking_id).execute()
         return bool(response.data)
     except Exception as e:
-        st.error(f"Error updating online reservation: {e}")
+        st.error(f"Error updating online reservation {booking_id}: {e}")
         return False
 
 def delete_online_reservation_in_supabase(booking_id):
@@ -39,14 +39,19 @@ def delete_online_reservation_in_supabase(booking_id):
         response = supabase.table("online_reservations").delete().eq("booking_id", booking_id).execute()
         return bool(response.data)
     except Exception as e:
-        st.error(f"Error deleting online reservation: {e}")
+        st.error(f"Error deleting online reservation {booking_id}: {e}")
         return False
 
+@st.cache_data
 def load_online_reservations_from_supabase():
-    """Load online reservations from Supabase."""
+    """Load all online reservations from Supabase."""
     try:
-        response = supabase.table("online_reservations").select("*").order("check_in", desc=True).execute()
-        return response.data if response.data else []
+        response = supabase.table("online_reservations").select("*").execute()
+        data = response.data if response.data else []
+        st.info(f"Loaded {len(data)} online reservations from Supabase")
+        if not data:
+            st.warning("No online reservations found in the database.")
+        return data
     except Exception as e:
         st.error(f"Error loading online reservations: {e}")
         return []
@@ -60,6 +65,7 @@ def load_properties():
             prop = r['property_name']
             if prop:
                 properties.add(prop)
+        st.info(f"Loaded {len(properties)} unique properties")
         return sorted(properties)
     except Exception as e:
         st.error(f"Error loading properties: {e}")
@@ -69,6 +75,14 @@ def show_edit_online_reservations(selected_booking_id=None):
     """Display edit online reservations page."""
     st.title("✏️ Edit Online Reservations")
     
+    # Add refresh button to clear cache and reload data
+    if st.button("🔄 Refresh Reservations"):
+        st.cache_data.clear()
+        st.session_state.pop('online_reservations', None)
+        st.success("Cache cleared! Refreshing reservations...")
+        st.rerun()
+
+    # Load reservations if not in session state
     if 'online_reservations' not in st.session_state:
         st.session_state.online_reservations = load_online_reservations_from_supabase()
     
@@ -85,14 +99,18 @@ def show_edit_online_reservations(selected_booking_id=None):
     
     st.subheader("Select Reservation to Edit")
     booking_id_list = df["booking_id"].tolist()
+    # Ensure selected_booking_id is in the list, or default to first item
     default_index = booking_id_list.index(selected_booking_id) if selected_booking_id in booking_id_list else 0
-    selected_booking_id = st.selectbox("Select Booking ID", booking_id_list, index=default_index)
+    selected_booking_id = st.selectbox("Select Booking ID", booking_id_list, index=default_index, key="booking_id_select")
     
     if selected_booking_id:
-        edit_index = df[df["booking_id"] == selected_booking_id].index[0]
-        reservation = st.session_state.online_reservations[edit_index]
-        st.session_state.online_edit_index = edit_index
-        st.session_state.online_edit_mode = True
+        try:
+            edit_index = df[df["booking_id"] == selected_booking_id].index[0]
+            st.session_state.online_edit_index = edit_index
+            st.session_state.online_edit_mode = True
+        except IndexError:
+            st.error(f"Booking ID {selected_booking_id} not found in loaded data.")
+            return
 
     if st.session_state.online_edit_mode and st.session_state.online_edit_index is not None:
         edit_index = st.session_state.online_edit_index
@@ -270,7 +288,7 @@ def show_edit_online_reservations(selected_booking_id=None):
                 else:
                     st.error("❌ Failed to update reservation")
         with col_btn2:
-            if st.session_state.role == "Management":
+            if st.session_state.get('role') == "Management":
                 if st.button("🗑️ Delete Reservation", use_container_width=True):
                     if delete_online_reservation_in_supabase(reservation["booking_id"]):
                         st.session_state.online_reservations.pop(edit_index)
