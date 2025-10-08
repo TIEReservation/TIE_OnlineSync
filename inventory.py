@@ -161,7 +161,15 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
         days = booking.get('room_nights' if is_online else 'no_of_days')
         room_charges = booking.get('ota_net_amount' if is_online else 'total_tariff')
         total = booking.get('booking_amount' if is_online else 'total_tariff')
-        receivable = booking.get('room_revenue' if is_online else 'total_tariff')
+        # Determine receivable based on booking source for online bookings
+        if is_online:
+            booking_source = sanitize_string(booking.get('booking_source'))
+            if booking_source in ["STAYFLEXI_GHA", "Stayflexi Booking Engine"]:
+                receivable = booking.get('room_revenue', 0)
+            else:
+                receivable = booking.get('ota_net_amount', 0)
+        else:
+            receivable = booking.get('total_tariff', 0)
         normalized = {
             'booking_id': booking_id,
             'room_no': sanitize_string(booking.get('room_no')),
