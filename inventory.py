@@ -340,8 +340,8 @@ def parse_inventory_numbers(room_no: str, property: str, available: List[str], t
                 if inv in available:
                     available.remove(inv)
             elif num in available:
-                valid.append(room)
-                available.remove(room)
+                valid.append(num)
+                available.remove(num)
             else:
                 invalid.append(num)
     return valid, invalid
