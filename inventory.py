@@ -27,7 +27,7 @@ TABLE_CSS = """
     min-width: 800px;
 }
 .custom-scrollable-table table {
-    table-layout: auto;
+    table_layout: auto;
     border-collapse: collapse;
 }
 .custom-scrollable-table td, .custom-scrollable-table th {
@@ -76,7 +76,7 @@ PROPERTY_INVENTORY = {
         "three_bedroom": []
     },
     "Le Royce Villa": {
-        "all": ["101", "102", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
+        "all": ["繼101", "102", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
         "three_bedroom": []
     },
     "La Tamara Luxury": {
@@ -158,24 +158,32 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
     try:
         check_in = date.fromisoformat(booking.get('check_in')) if booking.get('check_in') else None
         check_out = date.fromisoformat(booking.get('check_out')) if booking.get('check_out') else None
-        days = booking.get('room_nights' if is_online else 'no_of_days')
+        # Calculate days from check_in and check_out if available
+        days = None
+        if check_in and check_out:
+            days = (check_out - check_in).days
+            if days <= 0:
+                st.warning(f"Invalid date range for booking {booking_id}: check_in {check_in}, check_out {check_out}")
+                days = None
+        # Fallback to room_nights (online) or no_of_days (direct) if available
+        if days is None:
+            days_field = booking.get('room_nights' if is_online else 'no_of_days')
+            try:
+                days = int(days_field) if days_field is not None else 0
+            except (ValueError, TypeError):
+                days = 0
+                st.warning(f"Missing or invalid days for booking {booking_id}")
         room_charges = booking.get('ota_net_amount' if is_online else 'total_tariff')
         total = booking.get('booking_amount' if is_online else 'total_tariff')
-        # Determine receivable and commission based on booking source for online bookings
+        # Determine receivable based on booking source for online bookings
         if is_online:
             booking_source = sanitize_string(booking.get('booking_source'))
             if booking_source in ["STAYFLEXI_GHA", "Stayflexi Booking Engine"]:
                 receivable = booking.get('room_revenue', 0)
-                commission = total - receivable if total and receivable else 0
-                per_night = receivable / days if receivable and days and days > 0 else 0
             else:
                 receivable = booking.get('ota_net_amount', 0)
-                commission = booking.get('ota_commission', 0)
-                per_night = room_charges / days if room_charges and days and days > 0 else 0
         else:
             receivable = booking.get('total_tariff', 0)
-            commission = 'N/A'
-            per_night = room_charges / days if room_charges and days and days > 0 else 0
         normalized = {
             'booking_id': booking_id,
             'room_no': sanitize_string(booking.get('room_no')),
@@ -189,10 +197,10 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
             'room_charges': room_charges,
             'gst': sanitize_string(booking.get('ota_tax') if is_online else 'N/A'),
             'total': total,
-            'commission': commission,
+            'commission': sanitize_string(booking.get('ota_commission') if is_online else 'N/A'),
             'tax_deduction': sanitize_string(booking.get('ota_tax') if is_online else 'N/A'),
             'receivable': receivable,
-            'per_night': per_night,
+            'per_night': float(room_charges) / days if room_charges and days and days > 0 else 0,
             'advance': booking.get('total_payment_made' if is_online else 'advance_amount'),
             'advance_mop': sanitize_string(booking.get('advance_mop')),
             'balance': booking.get('balance_due' if is_online else 'balance_amount'),
