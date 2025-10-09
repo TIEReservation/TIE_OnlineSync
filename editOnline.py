@@ -44,14 +44,22 @@ def delete_online_reservation_in_supabase(booking_id):
 
 @st.cache_data
 def load_online_reservations_from_supabase():
-    """Load all online reservations from Supabase."""
+    """Load all online reservations from Supabase without limit."""
     try:
-        response = supabase.table("online_reservations").select("*").execute()
-        data = response.data if response.data else []
-        st.info(f"Loaded {len(data)} online reservations from Supabase")
-        if not data:
+        all_data = []
+        offset = 0
+        limit = 1000  # Supabase default max rows per request
+        while True:
+            response = supabase.table("online_reservations").select("*").range(offset, offset + limit - 1).execute()
+            data = response.data if response.data else []
+            all_data.extend(data)
+            if len(data) < limit:  # If fewer rows than limit, we've reached the end
+                break
+            offset += limit
+        st.info(f"Loaded {len(all_data)} online reservations from Supabase")
+        if not all_data:
             st.warning("No online reservations found in the database.")
-        return data
+        return all_data
     except Exception as e:
         st.error(f"Error loading online reservations: {e}")
         return []
