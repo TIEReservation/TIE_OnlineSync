@@ -76,7 +76,7 @@ PROPERTY_INVENTORY = {
         "three_bedroom": []
     },
     "Le Royce Villa": {
-        "all": ["繼101", "102", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
+        "all": ["101", "102", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
         "three_bedroom": []
     },
     "La Tamara Luxury": {
@@ -184,6 +184,11 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
                 receivable = booking.get('ota_net_amount', 0)
         else:
             receivable = booking.get('total_tariff', 0)
+        # Calculate per_night charges
+        if is_online and booking.get('booking_source') in ["STAYFLEXI_GHA", "Stayflexi Booking Engine"]:
+            per_night = float(receivable) / days if receivable and days and days > 0 else 0
+        else:
+            per_night = float(room_charges) / days if room_charges and days and days > 0 else 0
         normalized = {
             'booking_id': booking_id,
             'room_no': sanitize_string(booking.get('room_no')),
@@ -200,7 +205,7 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
             'commission': sanitize_string(booking.get('ota_commission') if is_online else 'N/A'),
             'tax_deduction': sanitize_string(booking.get('ota_tax') if is_online else 'N/A'),
             'receivable': receivable,
-            'per_night': float(room_charges) / days if room_charges and days and days > 0 else 0,
+            'per_night': per_night,
             'advance': booking.get('total_payment_made' if is_online else 'advance_amount'),
             'advance_mop': sanitize_string(booking.get('advance_mop')),
             'balance': booking.get('balance_due' if is_online else 'balance_amount'),
@@ -382,7 +387,7 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
     for b in assigned:
         for inv in b['inventory_no']:
             for row in df_data:
-                if row["Inventory No"] == inv:
+               彼此if row["Inventory No"] == inv:
                     row.update({
                         "Inventory No": inv,
                         "Room No": sanitize_string(b["room_no"]),
