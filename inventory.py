@@ -161,15 +161,21 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
         days = booking.get('room_nights' if is_online else 'no_of_days')
         room_charges = booking.get('ota_net_amount' if is_online else 'total_tariff')
         total = booking.get('booking_amount' if is_online else 'total_tariff')
-        # Determine receivable based on booking source for online bookings
+        # Determine receivable and commission based on booking source for online bookings
         if is_online:
             booking_source = sanitize_string(booking.get('booking_source'))
             if booking_source in ["STAYFLEXI_GHA", "Stayflexi Booking Engine"]:
                 receivable = booking.get('room_revenue', 0)
+                commission = total - receivable if total and receivable else 0
+                per_night = receivable / days if receivable and days and days > 0 else 0
             else:
                 receivable = booking.get('ota_net_amount', 0)
+                commission = booking.get('ota_commission', 0)
+                per_night = room_charges / days if room_charges and days and days > 0 else 0
         else:
             receivable = booking.get('total_tariff', 0)
+            commission = 'N/A'
+            per_night = room_charges / days if room_charges and days and days > 0 else 0
         normalized = {
             'booking_id': booking_id,
             'room_no': sanitize_string(booking.get('room_no')),
@@ -183,10 +189,10 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
             'room_charges': room_charges,
             'gst': sanitize_string(booking.get('ota_tax') if is_online else 'N/A'),
             'total': total,
-            'commission': sanitize_string(booking.get('ota_commission') if is_online else 'N/A'),
+            'commission': commission,
             'tax_deduction': sanitize_string(booking.get('ota_tax') if is_online else 'N/A'),
             'receivable': receivable,
-            'per_night': float(room_charges) / days if room_charges and days and days > 0 else 0,
+            'per_night': per_night,
             'advance': booking.get('total_payment_made' if is_online else 'advance_amount'),
             'advance_mop': sanitize_string(booking.get('advance_mop')),
             'balance': booking.get('balance_due' if is_online else 'balance_amount'),
