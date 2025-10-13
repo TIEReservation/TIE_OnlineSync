@@ -164,13 +164,12 @@ def safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 def normalize_booking(booking: Dict, is_online: bool) -> Dict:
-    """Normalize booking dict to common schema."""
+    """Normalize booking dict to common schema, silently skipping invalid bookings."""
     # Sanitize inputs to prevent f-string and HTML issues
     booking_id = sanitize_string(booking.get('booking_id'))
     payment_status = sanitize_string(booking.get('payment_status')).title()
     if payment_status not in ["Fully Paid", "Partially Paid"]:
-        st.warning(f"Skipping booking {booking_id} with invalid payment status: {payment_status}")
-        return None
+        return None  # Silently skip invalid payment status
     booking_status_field = 'booking_status' if is_online else 'plan_status'
     booking_status = sanitize_string(booking.get(booking_status_field))
     try:
@@ -181,8 +180,7 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
         if check_in and check_out:
             days = (check_out - check_in).days
             if days <= 0:
-                st.warning(f"Invalid check-out date for booking {booking_id}")
-                return None
+                return None  # Silently skip invalid dates
         # Unified field mapping
         property_name = sanitize_string(booking.get('property', booking.get('property_name', '')))
         property_name = property_mapping.get(property_name, property_name)
@@ -241,9 +239,8 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
             "remarks": remarks
         }
         return normalized
-    except ValueError as e:
-        st.warning(f"Skipping booking {booking_id} due to date parsing error: {e}")
-        return None
+    except ValueError:
+        return None  # Silently skip date parsing errors
 
 def load_combined_bookings(property: str, start_date: date, end_date: date) -> List[Dict]:
     """Load and combine bookings from both tables for the date range."""
