@@ -267,13 +267,15 @@ def generate_month_dates(year: int, month: int) -> List[date]:
     return [date(year, month, day) for day in range(1, num_days + 1)]
 
 def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dict]:
-    """Filter active bookings on target_date."""
+    """Filter active bookings on target_date, adding target_date for financial display logic."""
     filtered = []
     for b in bookings:
         check_in = date.fromisoformat(b["check_in"]) if b["check_in"] else None
         check_out = date.fromisoformat(b["check_out"]) if b["check_out"] else None
         if check_in and check_out and check_in <= target_date < check_out:
-            filtered.append(b)
+            b_copy = b.copy()
+            b_copy['target_date'] = target_date  # Add target_date for later use
+            filtered.append(b_copy)
     return filtered
 
 def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple[List[Dict], List[Dict]]:
@@ -317,7 +319,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple
     return assigned, overbookings
 
 def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], property: str) -> pd.DataFrame:
-    """Create inventory table DataFrame, showing financial fields only for primary room."""
+    """Create inventory table DataFrame, showing financial fields only for primary room on first date."""
     columns = [
         "Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No",
         "Total Pax", "Check In", "Check Out", "Days", "MOB", "Room Charges",
@@ -336,7 +338,7 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
     for i, inv in enumerate(inventory):
         df_data[i]["Inventory No"] = inv
 
-    # Financial fields to display only for primary room
+    # Financial fields to display only for primary room on first date
     financial_fields = ["Room Charges", "GST", "Total", "Commision", "Receivable", 
                        "Advance", "Advance Mop", "Balance"]
 
@@ -353,6 +355,10 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
                 st.warning(f"Inventory number {inv} not found in DataFrame for booking {b.get('booking_id', 'Unknown')}")
                 continue
             row = df_data[row_indices[0]]
+            # Determine if this is the first date of the stay
+            check_in = date.fromisoformat(b["check_in"]) if b["check_in"] else None
+            target_date = b.get('target_date')
+            is_first_date = check_in == target_date if check_in and target_date else False
             try:
                 row.update({
                     "Inventory No": inv,
@@ -373,8 +379,8 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
                     "Modified by": sanitize_string(b.get("modified_by", "")),
                     "Remarks": sanitize_string(b.get("remarks", ""))
                 })
-                # Only populate financial fields for primary room
-                if b.get('is_primary', False):
+                # Only populate financial fields for primary room on the first date
+                if b.get('is_primary', False) and is_first_date:
                     row.update({
                         "Room Charges": sanitize_string(b.get("room_charges", "")),
                         "GST": sanitize_string(b.get("gst", "")),
