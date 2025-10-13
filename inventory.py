@@ -149,6 +149,20 @@ def sanitize_string(value: Any, default: str = "Unknown") -> str:
     """Convert value to string, handling None and non-string types."""
     return str(value) if value is not None else default
 
+def safe_int(value: Any, default: int = 0) -> int:
+    """Safely convert value to int, return default if conversion fails."""
+    try:
+        return int(value) if value is not None else default
+    except (ValueError, TypeError):
+        return default
+
+def safe_float(value: Any, default: float = 0.0) -> float:
+    """Safely convert value to float, return default if conversion fails."""
+    try:
+        return float(value) if value is not None else default
+    except (ValueError, TypeError):
+        return default
+
 def normalize_booking(booking: Dict, is_online: bool) -> Dict:
     """Normalize booking dict to common schema."""
     # Sanitize inputs to prevent f-string and HTML issues
@@ -261,13 +275,6 @@ def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dic
         if check_in and check_out and check_in <= target_date < check_out:
             filtered.append(b)
     return filtered
-
-def safe_int(value: Any, default: int = 0) -> int:
-    """Safely convert value to int, return default if conversion fails."""
-    try:
-        return int(value) if value is not None else default
-    except (ValueError, TypeError):
-        return default
 
 def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple[List[Dict], List[Dict]]:
     """Assign inventory numbers, handling multi-room bookings by duplicating and apportioning."""
