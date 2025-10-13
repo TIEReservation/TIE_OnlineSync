@@ -277,7 +277,7 @@ def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dic
     return filtered
 
 def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple[List[Dict], List[Dict]]:
-    """Assign inventory numbers, handling multi-room bookings by duplicating and apportioning."""
+    """Assign inventory numbers, handling multi-room bookings by duplicating and apportioning only total_pax."""
     assigned = []
     overbookings = []
     inventory = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
@@ -298,19 +298,13 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple
         else:
             # Sort inventory_no for consistent ordering
             inventory_no.sort()
-            # Apportion pax
+            # Apportion only pax
             base_pax = b['total_pax'] // num_rooms
             remainder_pax = b['total_pax'] % num_rooms
-            # Financial fields to apportion
-            financial_fields = ['room_charges', 'gst', 'total', 'commission', 'receivable', 'per_night', 'advance', 'balance']
-            per_room_values = {f: b.get(f, 0.0) / num_rooms for f in financial_fields}
             for idx, inv in enumerate(inventory_no):
                 new_b = b.copy()
                 new_b['inventory_no'] = [inv]
-                new_b['room_no'] = inv  # Update room_no to reflect single room
                 new_b['total_pax'] = base_pax + (1 if idx < remainder_pax else 0)
-                for f in financial_fields:
-                    new_b[f] = per_room_values[f]
                 assigned.append(new_b)
     return assigned, overbookings
 
