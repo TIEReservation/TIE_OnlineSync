@@ -277,7 +277,7 @@ def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dic
     return filtered
 
 def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple[List[Dict], List[Dict]]:
-    """Assign inventory numbers, handling multi-room bookings by duplicating and apportioning only total_pax."""
+    """Assign inventory numbers, handling multi-room bookings by duplicating and apportioning total_pax, marking one room as primary for financial fields."""
     assigned = []
     overbookings = []
     inventory = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
@@ -292,24 +292,32 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple
             overbookings.append(b)
             continue
         num_rooms = len(inventory_no)
+        # Sort inventory_no for consistent ordering
+        inventory_no.sort()
+        # Apportion pax
+        base_pax = b['total_pax'] // num_rooms
+        remainder_pax = b['total_pax'] % num_rooms
+        # Calculate per-night rate per room
+        days = b.get('days', 1) or 1  # Avoid division by zero
+        per_night_per_room = b.get('room_charges', 0.0) / num_rooms / days
         if num_rooms == 1:
             b['inventory_no'] = inventory_no
+            b['per_night'] = per_night_per_room
+            b['is_primary'] = True  # Mark as primary for single-room bookings
             assigned.append(b)
         else:
-            # Sort inventory_no for consistent ordering
-            inventory_no.sort()
-            # Apportion only pax
-            base_pax = b['total_pax'] // num_rooms
-            remainder_pax = b['total_pax'] % num_rooms
             for idx, inv in enumerate(inventory_no):
                 new_b = b.copy()
                 new_b['inventory_no'] = [inv]
+                new_b['room_no'] = inv  # Update room_no to reflect single room
                 new_b['total_pax'] = base_pax + (1 if idx < remainder_pax else 0)
+                new_b['per_night'] = per_night_per_room
+                new_b['is_primary'] = (idx == 0)  # Only first room is primary
                 assigned.append(new_b)
     return assigned, overbookings
 
 def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], property: str) -> pd.DataFrame:
-    """Create inventory table DataFrame."""
+    """Create inventory table DataFrame, showing financial fields only for primary room."""
     columns = [
         "Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No",
         "Total Pax", "Check In", "Check Out", "Days", "MOB", "Room Charges",
@@ -327,6 +335,10 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
     df_data = [{col: "" for col in columns} for _ in inventory]
     for i, inv in enumerate(inventory):
         df_data[i]["Inventory No"] = inv
+
+    # Financial fields to display only for primary room
+    financial_fields = ["Room Charges", "GST", "Total", "Commision", "Receivable", 
+                       "Advance", "Advance Mop", "Balance"]
 
     # Fill assigned bookings
     for b in assigned:
@@ -353,16 +365,7 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
                     "Check Out": b.get("check_out", ""),
                     "Days": b.get("days", 0),
                     "MOB": sanitize_string(b.get("mob", "")),
-                    "Room Charges": sanitize_string(b.get("room_charges", "")),
-                    "GST": sanitize_string(b.get("gst", "")),
-                    "Total": sanitize_string(b.get("total", "")),
-                    "Commision": sanitize_string(b.get("commission", "")),
-                    "Receivable": sanitize_string(b.get("receivable", "")),
                     "Per Night": f"{b.get('per_night', 0):.2f}" if b.get("per_night") is not None else "0.00",
-                    "Advance": sanitize_string(b.get("advance", "")),
-                    "Advance Mop": sanitize_string(b.get("advance_mop", "")),
-                    "Balance": sanitize_string(b.get("balance", "")),
-                    "Balance Mop": sanitize_string(b.get("balance_mop", "")),
                     "Plan": sanitize_string(b.get("plan", "")),
                     "Booking Status": sanitize_string(b.get("booking_status", "")),
                     "Payment Status": sanitize_string(b.get("payment_status", "")),
@@ -370,6 +373,18 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
                     "Modified by": sanitize_string(b.get("modified_by", "")),
                     "Remarks": sanitize_string(b.get("remarks", ""))
                 })
+                # Only populate financial fields for primary room
+                if b.get('is_primary', False):
+                    row.update({
+                        "Room Charges": sanitize_string(b.get("room_charges", "")),
+                        "GST": sanitize_string(b.get("gst", "")),
+                        "Total": sanitize_string(b.get("total", "")),
+                        "Commision": sanitize_string(b.get("commission", "")),
+                        "Receivable": sanitize_string(b.get("receivable", "")),
+                        "Advance": sanitize_string(b.get("advance", "")),
+                        "Advance Mop": sanitize_string(b.get("advance_mop", "")),
+                        "Balance": sanitize_string(b.get("balance", ""))
+                    })
             except Exception as e:
                 st.error(f"Error updating row for inventory {inv} in booking {b.get('booking_id', 'Unknown')}: {e}")
                 continue
