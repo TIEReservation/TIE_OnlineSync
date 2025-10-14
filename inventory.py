@@ -297,36 +297,34 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple
             if inv_lower in inventory_lower:
                 normalized_inventory_no.append(inventory_lower[inv_lower])
             else:
-                normalized_inventory_no.append(inv)  # Keep original if no match
-        inventory_no = normalized_inventory_no
-        # Validate each room number against the property's inventory (case-sensitive match after normalization)
-        valid = all(inv in inventory for inv in inventory_no)
-        if not valid:
-            overbookings.append(b)
-            continue
-        num_rooms = len(inventory_no)
-        # Sort inventory_no for consistent ordering
-        inventory_no.sort()
-        # Apportion pax
-        base_pax = b['total_pax'] // num_rooms if num_rooms > 0 else b['total_pax']
-        remainder_pax = b['total_pax'] % num_rooms if num_rooms > 0 else 0
-        # Calculate per-night rate per room based on receivable
-        days = b.get('days', 1) or 1  # Avoid division by zero
-        per_night_per_room = b.get('receivable', 0.0) / num_rooms / days if num_rooms > 0 else b.get('receivable', 0.0) / days
-        if num_rooms == 1:
-            b['inventory_no'] = inventory_no
-            b['per_night'] = per_night_per_room
-            b['is_primary'] = True  # Mark as primary for single-room bookings
-            assigned.append(b)
+                overbookings.append(b)
+                break  # Skip entire booking if any room_no is invalid
         else:
-            for idx, inv in enumerate(inventory_no):
-                new_b = b.copy()
-                new_b['inventory_no'] = [inv]
-                new_b['room_no'] = inv  # Update room_no to reflect single room
-                new_b['total_pax'] = base_pax + (1 if idx < remainder_pax else 0)
-                new_b['per_night'] = per_night_per_room
-                new_b['is_primary'] = (idx == 0)  # Only first room is primary
-                assigned.append(new_b)
+            # Only proceed if all room numbers are valid
+            inventory_no = normalized_inventory_no
+            num_rooms = len(inventory_no)
+            # Sort inventory_no for consistent ordering
+            inventory_no.sort()
+            # Apportion pax
+            base_pax = b['total_pax'] // num_rooms if num_rooms > 0 else b['total_pax']
+            remainder_pax = b['total_pax'] % num_rooms if num_rooms > 0 else 0
+            # Calculate per-night rate per room based on receivable
+            days = b.get('days', 1) or 1  # Avoid division by zero
+            per_night_per_room = b.get('receivable', 0.0) / num_rooms / days if num_rooms > 0 else b.get('receivable', 0.0) / days
+            if num_rooms == 1:
+                b['inventory_no'] = inventory_no
+                b['per_night'] = per_night_per_room
+                b['is_primary'] = True  # Mark as primary for single-room bookings
+                assigned.append(b)
+            else:
+                for idx, inv in enumerate(inventory_no):
+                    new_b = b.copy()
+                    new_b['inventory_no'] = [inv]
+                    new_b['room_no'] = inv  # Update room_no to reflect single room
+                    new_b['total_pax'] = base_pax + (1 if idx < remainder_pax else 0)
+                    new_b['per_night'] = per_night_per_room
+                    new_b['is_primary'] = (idx == 0)  # Only first room is primary
+                    assigned.append(new_b)
     return assigned, overbookings
 
 def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], property: str) -> pd.DataFrame:
