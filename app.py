@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 from supabase import create_client, Client
-from directreservation import show_add_reservations as show_new_reservation_form, show_edit_reservations as show_reservations, show_edit_reservations as show_edit_reservations, show_analytics, load_reservations_from_supabase
+from directreservation import show_add_reservations as show_new_reservation_form, show_edit_reservations as show_reservations, show_edit_reservations, show_analytics, load_reservations_from_supabase
 from online_reservation import show_online_reservations, load_online_reservations_from_supabase
 from editOnline import show_edit_online_reservations
 from inventory import show_daily_status
