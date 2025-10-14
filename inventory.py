@@ -202,7 +202,7 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
         balance_mop = sanitize_string(booking.get('balance_mop', ''))
         # Default values for missing fields
         room_charges = total_tariff  # Assume room_charges = total_tariff if not specified
-        gst = 0.0  # Default GST
+        gst = safe_float(booking.get('gst', 0.0)) if is_online else 0.0  # Extract GST for online bookings, default to 0 for direct
         commission = safe_float(booking.get('ota_commission', 0.0))
         receivable = room_charges - commission
         per_night = receivable / days if days > 0 else 0.0
