@@ -280,7 +280,9 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple
     assigned = []
     overbookings = []
     inventory = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
-    lower_inventory = [i.lower() for i in inventory]  # For case-insensitive matching
+    # Create a case-insensitive lookup dictionary
+    inventory_lower = {i.lower(): i for i in inventory}
+    
     for b in daily_bookings:
         room_no = b.get('room_no', '')
         # Split room_no and strip whitespace
@@ -291,15 +293,13 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple
         # Normalize inventory_no to match case in PROPERTY_INVENTORY
         normalized_inventory_no = []
         for inv in inventory_no:
-            lower_inv = inv.lower()
-            for actual_inv in inventory:
-                if actual_inv.lower() == lower_inv:
-                    normalized_inventory_no.append(actual_inv)
-                    break
+            inv_lower = inv.lower()
+            if inv_lower in inventory_lower:
+                normalized_inventory_no.append(inventory_lower[inv_lower])
             else:
-                normalized_inventory_no.append(inv)  # If no match, keep original
+                normalized_inventory_no.append(inv)  # Keep original if no match
         inventory_no = normalized_inventory_no
-        # Validate each room number against the property's inventory
+        # Validate each room number against the property's inventory (case-sensitive match after normalization)
         valid = all(inv in inventory for inv in inventory_no)
         if not valid:
             overbookings.append(b)
@@ -308,11 +308,11 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple
         # Sort inventory_no for consistent ordering
         inventory_no.sort()
         # Apportion pax
-        base_pax = b['total_pax'] // num_rooms
-        remainder_pax = b['total_pax'] % num_rooms
+        base_pax = b['total_pax'] // num_rooms if num_rooms > 0 else b['total_pax']
+        remainder_pax = b['total_pax'] % num_rooms if num_rooms > 0 else 0
         # Calculate per-night rate per room based on receivable
         days = b.get('days', 1) or 1  # Avoid division by zero
-        per_night_per_room = b.get('receivable', 0.0) / num_rooms / days
+        per_night_per_room = b.get('receivable', 0.0) / num_rooms / days if num_rooms > 0 else b.get('receivable', 0.0) / days
         if num_rooms == 1:
             b['inventory_no'] = inventory_no
             b['per_night'] = per_night_per_room
