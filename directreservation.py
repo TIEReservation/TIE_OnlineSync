@@ -1,9 +1,9 @@
 import streamlit as st
-from supabase import create_client, Client
-from datetime import date, timedelta
-import calendar
 import pandas as pd
-from typing import Any, List, Dict  # Type hints for function signatures
+import plotly.express as px
+from datetime import datetime, date, timedelta
+from supabase import create_client, Client
+from inventory import PROPERTY_INVENTORY
 
 # Initialize Supabase client
 try:
@@ -12,478 +12,444 @@ except KeyError as e:
     st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets configuration.")
     st.stop()
 
-# Property synonym mapping
-property_mapping = {
-    "La Millionaire Luxury Resort": "La Millionaire Resort",
-    "Le Poshe Beach View": "Le Poshe Beach view",
-}
-reverse_mapping = {}
-for variant, canonical in property_mapping.items():
-    reverse_mapping.setdefault(canonical, []).append(variant)
-
-# Table CSS for non-wrapping, scrollable table
-TABLE_CSS = """
-<style>
-/* Styles for non-wrapping, scrollable table in daily status */
-.custom-scrollable-table {
-    overflow-x: auto;
-    max-width: 100%;
-    min-width: 800px;
-}
-.custom-scrollable-table table {
-    table-layout: auto;
-    border-collapse: collapse;
-}
-.custom-scrollable-table td, .custom-scrollable-table th {
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    max-width: 300px;
-    padding: 8px;
-    border: 1px solid #ddd;
-}
-</style>
-"""
-
-# Property inventory mapping
-PROPERTY_INVENTORY = {
-    "Le Poshe Beach view": {
-        "all": ["101", "102", "201", "202", "203", "204", "301", "302", "303", "304", "Day Use 1", "Day Use 2", "No Show"],
-        "three_bedroom": ["203", "204"]
-    },
-    "La Millionaire Resort": {
-        "all": ["101", "102", "103", "105", "201", "202", "203", "204", "205", "206", "207", "208", "301", "302", "303", "304", "305", "306", "307", "308", "401", "402", "Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "No Show"],
-        "three_bedroom": ["203", "204", "205"]
-    },
-    "Le Poshe Luxury": {
-        "all": ["101", "102", "201", "202", "203", "204", "205", "301", "302", "303", "304", "305", "401", "402", "403", "404", "405", "501", "Day Use 1", "Day Use 2", "No Show"],
-        "three_bedroom": ["203", "204", "205"]
-    },
-    "Le Poshe Suite": {
-        "all": ["601", "602", "603", "604", "701", "702", "703", "704", "801", "Day Use 1", "Day Use 2", "No Show"],
-        "three_bedroom": []
-    },
-    "La Paradise Residency": {
-        "all": ["101", "102", "103", "201", "202", "203", "301", "302", "303", "304", "Day Use 1", "Day Use 2", "No Show"],
-        "three_bedroom": ["203"]
-    },
-    "La Paradise Luxury": {
-        "all": ["101", "102", "103", "201", "202", "203", "Day Use 1", "Day Use 2", "No Show"],
-        "three_bedroom": ["203"]
-    },
-    "La Villa Heritage": {
-        "all": ["101", "102", "103", "201", "202", "203", "301", "Day Use 1", "Day Use 2", "No Show"],
-        "three_bedroom": ["203"]
-    },
-    "Le Pondy Beach Side": {
-        "all": ["101", "102", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
-        "three_bedroom": []
-    },
-    "Le Royce Villa": {
-        "all": ["101", "102", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
-        "three_bedroom": []
-    },
-    "La Tamara Luxury": {
-        "all": ["101", "102", "103", "104", "105", "106", "201", "202", "203", "204", "205", "206", "301", "302", "303", "304", "305", "306", "401", "402", "403", "404", "Day Use 1", "Day Use 2", "No Show"],
-        "three_bedroom": ["203", "204", "205", "206"]
-    },
-    "La Antilia Luxury": {
-        "all": ["101", "201", "202", "203", "204", "301", "302", "303", "304", "401", "Day Use 1", "Day Use 2", "No Show"],
-        "three_bedroom": ["203", "204"]
-    },
-    "La Tamara Suite": {
-        "all": ["101", "102", "103", "104", "201", "202", "203", "204", "205", "206", "Day Use 1", "Day Use 2", "No Show"],
-        "three_bedroom": ["203", "204", "205", "206"]
-    },
-    "Le Park Resort": {
-        "all": ["111", "222", "333", "444", "555", "666", "Day Use 1", "Day Use 2", "No Show"],
-        "three_bedroom": []
-    },
-    "Villa Shakti": {
-        "all": ["101", "102", "201", "201A", "202", "203", "301", "301A", "302", "303", "401", "Day Use 1", "Day Use 2", "No Show"],
-        "three_bedroom": ["203"]
-    },
-    "Eden Beach Resort": {
-        "all": ["101", "102", "103", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
-        "three_bedroom": []
-    }
-}
-
-def initialize_property_inventory(properties: List[str]) -> None:
-    """Add missing properties to PROPERTY_INVENTORY with fallback inventory."""
-    fallback = {"all": ["Unknown"], "three_bedroom": []}
-    for prop in properties:
-        if prop not in PROPERTY_INVENTORY:
-            PROPERTY_INVENTORY[prop] = fallback
-            st.warning(f"Added fallback inventory for unknown property: {prop}")
-
-def format_booking_id(booking: Dict) -> str:
-    """Format booking ID as a clickable hyperlink."""
-    booking_id = sanitize_string(booking.get('booking_id'))
-    return f'<a target="_blank" href="/?edit_type={booking["type"]}&booking_id={booking_id}">{booking_id}</a>'
-
-def load_properties() -> List[str]:
-    """Load unique properties from reservations and online_reservations tables."""
+def load_properties() -> list:
+    """Load unique properties from reservations table."""
     try:
-        res_direct = supabase.table("reservations").select("property_name").execute().data
-        res_online = supabase.table("online_reservations").select("property").execute().data
-        properties = set()
-        for r in res_direct:
-            prop = r['property_name']
-            if prop:
-                canonical = property_mapping.get(prop, prop)
-                properties.add(canonical)
-        for r in res_online:
-            prop = r['property']
-            if prop:
-                canonical = property_mapping.get(prop, prop)
-                properties.add(canonical)
-        properties = sorted(properties)
-        initialize_property_inventory(properties)
+        response = supabase.table("reservations").select("property_name").execute()
+        properties = sorted(set([row["property_name"] for row in response.data if row["property_name"]]))
         return properties
     except Exception as e:
         st.error(f"Error loading properties: {e}")
         return []
 
-def sanitize_string(value: Any, default: str = "Unknown") -> str:
-    """Convert value to string, handling None and non-string types."""
-    return str(value) if value is not None else default
-
-def safe_int(value: Any, default: int = 0) -> int:
+def safe_int(value, default=0):
     """Safely convert value to int, return default if conversion fails."""
     try:
         return int(value) if value is not None else default
     except (ValueError, TypeError):
         return default
 
-def safe_float(value: Any, default: float = 0.0) -> float:
+def safe_float(value, default=0.0):
     """Safely convert value to float, return default if conversion fails."""
     try:
         return float(value) if value is not None else default
     except (ValueError, TypeError):
         return default
 
-def normalize_booking(booking: Dict, is_online: bool) -> Dict:
-    """Normalize booking dict to common schema, silently skipping invalid bookings."""
-    # Sanitize inputs to prevent f-string and HTML issues
-    booking_id = sanitize_string(booking.get('booking_id'))
-    payment_status = sanitize_string(booking.get('payment_status')).title()
-    if payment_status not in ["Fully Paid", "Partially Paid"]:
-        return None  # Silently skip invalid payment status
-    booking_status_field = 'booking_status' if is_online else 'plan_status'
-    booking_status = sanitize_string(booking.get(booking_status_field))
+@st.cache_data
+def load_reservations_from_supabase():
+    """Load all reservations from Supabase."""
     try:
-        check_in = date.fromisoformat(booking.get('check_in')) if booking.get('check_in') else None
-        check_out = date.fromisoformat(booking.get('check_out')) if booking.get('check_out') else None
-        # Calculate days from check_in and check_out if available
-        days = None
-        if check_in and check_out:
-            days = (check_out - check_in).days
-            if days <= 0:
-                return None  # Silently skip invalid dates
-        # Unified field mapping
-        property_name = sanitize_string(booking.get('property', booking.get('property_name', '')))
-        property_name = property_mapping.get(property_name, property_name)
-        guest_name = sanitize_string(booking.get('guest_name', ''))
-        mobile_no = sanitize_string(booking.get('guest_phone', booking.get('mobile_no', '')))
-        total_pax = safe_int(booking.get('total_pax', 0))
-        room_no = sanitize_string(booking.get('room_no', ''))
-        room_type = sanitize_string(booking.get('room_type', ''))
-        mob = sanitize_string(booking.get('mode_of_booking', booking.get('mob', '')))
-        plan = sanitize_string(booking.get('rate_plans', booking.get('plan', '')))
-        submitted_by = sanitize_string(booking.get('submitted_by', ''))
-        modified_by = sanitize_string(booking.get('modified_by', ''))
-        remarks = sanitize_string(booking.get('remarks', ''))
-        # Financial fields
-        total_tariff = safe_float(booking.get('total_amount_with_services', booking.get('booking_amount', 0.0))) or safe_float(booking.get('total_tariff', 0.0))
-        advance = safe_float(booking.get('total_payment_made', 0.0)) or safe_float(booking.get('advance_amount', 0.0))
-        balance = safe_float(booking.get('balance_due', 0.0)) or safe_float(booking.get('balance_amount', 0.0))
-        advance_mop = sanitize_string(booking.get('advance_mop', ''))
-        balance_mop = sanitize_string(booking.get('balance_mop', ''))
-        # Default values for missing fields
-        room_charges = total_tariff  # Assume room_charges = total_tariff if not specified
-        gst = safe_float(booking.get('ota_tax', 0.0)) if is_online else 0.0  # Extract ota_tax as GST for online bookings, default to 0 for direct
-        commission = safe_float(booking.get('ota_commission', 0.0))
-        receivable = room_charges - commission
-        per_night = receivable / days if days > 0 else 0.0
-        # Type indicator
-        booking_type = "online" if is_online else "direct"
-        normalized = {
-            "type": booking_type,
-            "property": property_name,
-            "booking_id": booking_id,
-            "guest_name": guest_name,
-            "mobile_no": mobile_no,
-            "total_pax": total_pax,
-            "check_in": str(check_in) if check_in else "",
-            "check_out": str(check_out) if check_out else "",
-            "days": days or 0,
-            "room_no": room_no,
-            "room_type": room_type,
-            "mob": mob,
-            "room_charges": room_charges,
-            "gst": gst,
-            "total": total_tariff,
-            "commission": commission,
-            "receivable": receivable,
-            "per_night": per_night,
-            "advance": advance,
-            "advance_mop": advance_mop,
-            "balance": balance,
-            "balance_mop": balance_mop,
-            "plan": plan,
-            "booking_status": booking_status,
-            "payment_status": payment_status,
-            "submitted_by": submitted_by,
-            "modified_by": modified_by,
-            "remarks": remarks
-        }
-        return normalized
-    except ValueError:
-        return None  # Silently skip date parsing errors
-
-def load_combined_bookings(property: str, start_date: date, end_date: date) -> List[Dict]:
-    """Load and combine bookings from both tables for the date range."""
-    try:
-        # Load online reservations
-        online_response = supabase.table("online_reservations").select("*").eq("property", property).gte("check_in", str(start_date)).lte("check_in", str(end_date)).execute()
-        online_bookings = [normalize_booking(b, True) for b in (online_response.data or []) if normalize_booking(b, True)]
-        # Load direct reservations
-        direct_response = supabase.table("reservations").select("*").eq("property_name", property).gte("check_in", str(start_date)).lte("check_in", str(end_date)).execute()
-        direct_bookings = [normalize_booking(b, False) for b in (direct_response.data or []) if normalize_booking(b, False)]
-        # Combine and filter out None
-        combined = [b for b in online_bookings + direct_bookings if b]
-        return combined
+        response = supabase.table("reservations").select("*").execute()
+        data = []
+        for row in response.data:
+            total_pax = safe_int(row.get("no_of_adults", 0)) + safe_int(row.get("no_of_children", 0)) + safe_int(row.get("no_of_infant", 0))
+            row["Total Pax"] = total_pax
+            row["Booking ID"] = row.get("booking_id", "Unknown")
+            row["Property Name"] = row.get("property_name", "")
+            row["Guest Name"] = row.get("guest_name", "")
+            row["Mobile No"] = row.get("mobile_no", "")
+            row["Check In"] = row.get("check_in", "")
+            row["Check Out"] = row.get("check_out", "")
+            row["Room No"] = row.get("room_no", "")
+            row["Room Type"] = row.get("room_type", "")
+            row["Plan Status"] = row.get("plan_status", "")
+            row["Payment Status"] = row.get("payment_status", "")
+            data.append(row)
+        return data
     except Exception as e:
-        st.error(f"Error loading bookings for {property}: {e}")
+        st.error(f"Error loading reservations: {e}")
         return []
 
-def generate_month_dates(year: int, month: int) -> List[date]:
-    """Generate list of dates for the month."""
-    _, num_days = calendar.monthrange(year, month)
-    return [date(year, month, day) for day in range(1, num_days + 1)]
+def add_reservation_to_supabase(data: dict) -> bool:
+    """Add a new reservation to the reservations table."""
+    try:
+        response = supabase.table("reservations").insert(data).execute()
+        return len(response.data) > 0
+    except Exception as e:
+        st.error(f"Error adding reservation: {e}")
+        return False
 
-def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dict]:
-    """Filter active bookings on target_date, adding target_date for financial display logic."""
-    filtered = []
-    for b in bookings:
-        check_in = date.fromisoformat(b["check_in"]) if b["check_in"] else None
-        check_out = date.fromisoformat(b["check_out"]) if b["check_out"] else None
-        if check_in and check_out and check_in <= target_date < check_out:
-            b_copy = b.copy()
-            b_copy['target_date'] = target_date  # Add target_date for later use
-            filtered.append(b_copy)
-    return filtered
+def update_reservation_in_supabase(booking_id: str, data: dict) -> bool:
+    """Update a reservation in the reservations table."""
+    try:
+        response = supabase.table("reservations").update(data).eq("booking_id", booking_id).execute()
+        return len(response.data) > 0
+    except Exception as e:
+        st.error(f"Error updating reservation {booking_id}: {e}")
+        return False
 
-def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple[List[Dict], List[Dict]]:
-    """Assign inventory numbers, handling multi-room bookings by duplicating and apportioning total_pax, marking one room as primary for financial fields."""
-    assigned = []
-    overbookings = []
-    inventory = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
-    # Create a case-insensitive lookup dictionary
-    inventory_lower = {i.lower(): i for i in inventory}
+def delete_reservation_in_supabase(booking_id: str) -> bool:
+    """Delete a reservation from the reservations table."""
+    try:
+        response = supabase.table("reservations").delete().eq("booking_id", booking_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Error deleting reservation {booking_id}: {e}")
+        return False
+
+def show_add_reservations():
+    """Display add new reservation page."""
+    st.title("➕ Add New Reservation")
     
-    for b in daily_bookings:
-        room_no = b.get('room_no', '')
-        # Split room_no and strip whitespace
-        inventory_no = [r.strip() for r in room_no.split(',') if r.strip()]
-        if not inventory_no:
-            overbookings.append(b)
-            continue
-        # Normalize inventory_no to match case in PROPERTY_INVENTORY
-        normalized_inventory_no = []
-        for inv in inventory_no:
-            inv_lower = inv.lower()
-            if inv_lower in inventory_lower:
-                normalized_inventory_no.append(inventory_lower[inv_lower])
-            else:
-                overbookings.append(b)
-                break  # Skip entire booking if any room_no is invalid
-        else:
-            # Only proceed if all room numbers are valid
-            inventory_no = normalized_inventory_no
-            num_rooms = len(inventory_no)
-            # Sort inventory_no for consistent ordering
-            inventory_no.sort()
-            # Apportion pax
-            base_pax = b['total_pax'] // num_rooms if num_rooms > 0 else b['total_pax']
-            remainder_pax = b['total_pax'] % num_rooms if num_rooms > 0 else 0
-            # Calculate per-night rate per room based on receivable
-            days = b.get('days', 1) or 1  # Avoid division by zero
-            per_night_per_room = b.get('receivable', 0.0) / num_rooms / days if num_rooms > 0 else b.get('receivable', 0.0) / days
-            if num_rooms == 1:
-                b['inventory_no'] = inventory_no
-                b['per_night'] = per_night_per_room
-                b['is_primary'] = True  # Mark as primary for single-room bookings
-                assigned.append(b)
-            else:
-                for idx, inv in enumerate(inventory_no):
-                    new_b = b.copy()
-                    new_b['inventory_no'] = [inv]
-                    new_b['room_no'] = inv  # Update room_no to reflect single room
-                    new_b['total_pax'] = base_pax + (1 if idx < remainder_pax else 0)
-                    new_b['per_night'] = per_night_per_room
-                    new_b['is_primary'] = (idx == 0)  # Only first room is primary
-                    assigned.append(new_b)
-    return assigned, overbookings
+    with st.form("add_reservation_form"):
+        # Row 1: Property, Booking Date
+        col1, col2 = st.columns(2)
+        with col1:
+            properties = sorted(load_properties())
+            property_name = st.selectbox("Property Name", properties, key="add_property")
+        with col2:
+            booking_date = st.date_input("Booking Date", value=date.today())
 
-def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], property: str) -> pd.DataFrame:
-    """Create inventory table DataFrame, showing financial fields only for primary room on first date."""
-    columns = [
-        "Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No",
-        "Total Pax", "Check In", "Check Out", "Days", "MOB", "Room Charges",
-        "GST", "Total", "Commision", "Receivable", "Per Night", "Advance",
-        "Advance Mop", "Balance", "Balance Mop", "Plan", "Booking Status",
-        "Payment Status", "Submitted by", "Modified by", "Remarks"
-    ]
-    fallback = {"all": ["Unknown"], "three_bedroom": []}
-    inventory = PROPERTY_INVENTORY.get(property, fallback)["all"]
-    if not inventory:
-        st.error(f"No inventory defined for property {property}")
-        return pd.DataFrame(columns=columns)
+        # Row 2: Guest Name, Mobile No
+        col1, col2 = st.columns(2)
+        with col1:
+            guest_name = st.text_input("Guest Name", key="add_guest_name")
+        with col2:
+            mobile_no = st.text_input("Mobile Number", key="add_mobile_no")
+
+        # Row 3: Check In, Check Out
+        col1, col2 = st.columns(2)
+        with col1:
+            check_in = st.date_input("Check In", value=date.today(), key="add_check_in")
+        with col2:
+            check_out = st.date_input("Check Out", value=date.today() + timedelta(days=1), key="add_check_out")
+
+        # Row 4: Room No, Room Type
+        col1, col2 = st.columns(2)
+        with col1:
+            room_options = PROPERTY_INVENTORY.get(property_name, {"all": ["Unknown"]})["all"]
+            room_no = st.selectbox("Room No", room_options, key="add_room_no")
+        with col2:
+            room_type = st.text_input("Room Type", key="add_room_type")
+
+        # Row 5: Number of Adults, Number of Children, Number of Infant
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            no_of_adults = st.number_input("Number of Adults", min_value=0, value=1, key="add_adults")
+        with col2:
+            no_of_children = st.number_input("Number of Children", min_value=0, value=0, key="add_children")
+        with col3:
+            no_of_infant = st.number_input("Number of Infant", min_value=0, value=0, key="add_infant")
+
+        # Calculate total pax
+        total_pax = no_of_adults + no_of_children + no_of_infant
+
+        # Row 6: Plan, Plan Status, Payment Status
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            plan = st.text_input("Plan", key="add_plan")
+        with col2:
+            plan_status = st.selectbox("Plan Status", ["Confirmed", "Pending", "Cancelled"], index=0, key="add_plan_status")
+        with col3:
+            payment_status = st.selectbox("Payment Status", ["Fully Paid", "Partially Paid", "Not Paid"], index=0, key="add_payment_status")
+
+        # Row 7: Total Tariff, Advance Amount, Balance Amount
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            total_tariff = st.number_input("Total Tariff", min_value=0.0, value=0.0, key="add_total_tariff")
+        with col2:
+            advance_amount = st.number_input("Advance Amount", min_value=0.0, value=0.0, key="add_advance_amount")
+        with col3:
+            balance_amount = st.number_input("Balance Amount", min_value=0.0, value=0.0, key="add_balance_amount")
+
+        # Row 8: Advance MOP, Balance MOP, Mode of Booking
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            advance_mop = st.text_input("Advance MOP", key="add_advance_mop")
+        with col2:
+            balance_mop = st.text_input("Balance MOP", key="add_balance_mop")
+        with col3:
+            mode_of_booking = st.text_input("Mode of Booking", key="add_mode_of_booking")
+
+        # Row 9: Remarks
+        remarks = st.text_area("Remarks", key="add_remarks")
+
+        # Row 10: Submitted by, Modified by
+        col1, col2 = st.columns(2)
+        with col1:
+            submitted_by = st.text_input("Submitted by", key="add_submitted_by")
+        with col2:
+            modified_by = st.text_input("Modified by", key="add_modified_by")
+
+        if st.form_submit_button("➕ Add Reservation", use_container_width=True):
+            booking_id = f"DR_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            new_reservation = {
+                "booking_id": booking_id,
+                "property_name": property_name,
+                "booking_date": str(booking_date) if booking_date else None,
+                "guest_name": guest_name,
+                "mobile_no": mobile_no,
+                "check_in": str(check_in) if check_in else None,
+                "check_out": str(check_out) if check_out else None,
+                "no_of_adults": no_of_adults,
+                "no_of_children": no_of_children,
+                "no_of_infant": no_of_infant,
+                "total_pax": total_pax,
+                "room_no": room_no,
+                "room_type": room_type,
+                "plan": plan,
+                "plan_status": plan_status,
+                "payment_status": payment_status,
+                "total_tariff": total_tariff,
+                "advance_amount": advance_amount,
+                "balance_amount": balance_amount,
+                "advance_mop": advance_mop,
+                "balance_mop": balance_mop,
+                "mode_of_booking": mode_of_booking,
+                "remarks": remarks,
+                "submitted_by": submitted_by,
+                "modified_by": modified_by
+            }
+            if add_reservation_to_supabase(new_reservation):
+                st.session_state.reservations.append(new_reservation)
+                st.success(f"✅ Reservation {booking_id} added successfully!")
+                st.rerun()
+            else:
+                st.error("❌ Failed to add reservation")
+
+def show_edit_reservations(selected_booking_id=None):
+    """Display edit reservations page."""
+    st.title("✏️ Edit Reservations")
     
-    # Initialize DataFrame with inventory numbers
-    df_data = [{col: "" for col in columns} for _ in inventory]
-    for i, inv in enumerate(inventory):
-        df_data[i]["Inventory No"] = inv
-
-    # Financial fields to display only for primary room on first date
-    financial_fields = ["Room Charges", "GST", "Total", "Commision", "Receivable", 
-                       "Advance", "Advance Mop", "Balance"]
-
-    # Fill assigned bookings
-    for b in assigned:
-        inventory_no = b.get('inventory_no', [])
-        if not inventory_no or not isinstance(inventory_no, list):
-            st.warning(f"Skipping booking {b.get('booking_id', 'Unknown')} with invalid inventory_no: {inventory_no}")
-            continue
-        for inv in inventory_no:
-            # Find the matching row in df_data
-            row_indices = [i for i, row in enumerate(df_data) if row["Inventory No"] == inv]
-            if not row_indices:
-                st.warning(f"Inventory number {inv} not found in DataFrame for booking {b.get('booking_id', 'Unknown')}")
-                continue
-            row = df_data[row_indices[0]]
-            # Determine if this is the first date of the stay
-            check_in = date.fromisoformat(b["check_in"]) if b["check_in"] else None
-            target_date = b.get('target_date')
-            is_first_date = check_in == target_date if check_in and target_date else False
-            try:
-                row.update({
-                    "Inventory No": inv,
-                    "Room No": sanitize_string(b.get("room_no", "")),
-                    "Booking ID": format_booking_id(b),
-                    "Guest Name": sanitize_string(b.get("guest_name", "")),
-                    "Mobile No": sanitize_string(b.get("mobile_no", "")),
-                    "Total Pax": sanitize_string(b.get("total_pax", "")),
-                    "Check In": b.get("check_in", ""),
-                    "Check Out": b.get("check_out", ""),
-                    "Days": b.get("days", 0),
-                    "MOB": sanitize_string(b.get("mob", "")),
-                    "Per Night": f"{b.get('per_night', 0):.2f}" if b.get("per_night") is not None else "0.00",
-                    "Plan": sanitize_string(b.get("plan", "")),
-                    "Booking Status": sanitize_string(b.get("booking_status", "")),
-                    "Payment Status": sanitize_string(b.get("payment_status", "")),
-                    "Submitted by": sanitize_string(b.get("submitted_by", "")),
-                    "Modified by": sanitize_string(b.get("modified_by", "")),
-                    "Remarks": sanitize_string(b.get("remarks", ""))
-                })
-                # Only populate financial fields for primary room on the first date
-                if b.get('is_primary', False) and is_first_date:
-                    row.update({
-                        "Room Charges": sanitize_string(b.get("room_charges", "")),
-                        "GST": sanitize_string(b.get("gst", "")),
-                        "Total": sanitize_string(b.get("total", "")),
-                        "Commision": sanitize_string(b.get("commission", "")),
-                        "Receivable": sanitize_string(b.get("receivable", "")),
-                        "Advance": sanitize_string(b.get("advance", "")),
-                        "Advance Mop": sanitize_string(b.get("advance_mop", "")),
-                        "Balance": sanitize_string(b.get("balance", ""))
-                    })
-            except Exception as e:
-                st.error(f"Error updating row for inventory {inv} in booking {b.get('booking_id', 'Unknown')}: {e}")
-                continue
-
-    # Add overbookings row with hyperlinks
-    if overbookings:
-        try:
-            overbooking_ids = ", ".join(format_booking_id(b) for b in overbookings)
-            overbooking_str = ", ".join(f"{sanitize_string(b.get('room_no', ''))} ({sanitize_string(b.get('booking_id', ''))}, {sanitize_string(b.get('guest_name', ''))})" for b in overbookings)
-            df_data.append({
-                "Inventory No": "Overbookings",
-                "Room No": overbooking_str,
-                "Booking ID": overbooking_ids,
-                "Guest Name": "",
-                "Mobile No": "",
-                "Total Pax": "",
-                "Check In": "",
-                "Check Out": "",
-                "Days": "",
-                "MOB": "",
-                "Room Charges": "",
-                "GST": "",
-                "Total": "",
-                "Commision": "",
-                "Receivable": "",
-                "Per Night": "",
-                "Advance": "",
-                "Advance Mop": "",
-                "Balance": "",
-                "Balance Mop": "",
-                "Plan": "",
-                "Booking Status": "",
-                "Payment Status": "",
-                "Submitted by": "",
-                "Modified by": "",
-                "Remarks": ""
-            })
-        except Exception as e:
-            st.error(f"Error creating overbookings row: {e}")
-
-    return pd.DataFrame(df_data, columns=columns)
-
-@st.cache_data
-def cached_load_properties():
-    return load_properties()
-
-@st.cache_data
-def cached_load_bookings(property, start_date, end_date):
-    return load_combined_bookings(property, start_date, end_date)
-
-def show_daily_status():
-    """Display daily status table with inventory and bookings."""
-    st.title("📅 Daily Status")
-    if st.button("🔄 Refresh Property List"):
+    if st.button("🔄 Refresh Reservations"):
         st.cache_data.clear()
-        st.success("Cache cleared! Refreshing properties...")
+        st.session_state.pop('reservations', None)
+        st.success("Cache cleared! Refreshing reservations...")
         st.rerun()
-    current_year = date.today().year
-    year = st.selectbox("Select Year", list(range(current_year - 5, current_year + 6)), index=5)
-    month = st.selectbox("Select Month", list(range(1, 13)), index=date.today().month - 1)
-    properties = cached_load_properties()
-    if not properties:
-        st.info("No properties available.")
+
+    if 'reservations' not in st.session_state:
+        st.session_state.reservations = load_reservations_from_supabase()
+    
+    if not st.session_state.reservations:
+        st.info("No reservations available to edit.")
         return
-    st.subheader("Properties")
-    st.markdown(TABLE_CSS, unsafe_allow_html=True)
-    for prop in properties:
-        with st.expander(f"{prop}"):
-            month_dates = generate_month_dates(year, month)
-            start_date = month_dates[0]
-            end_date = month_dates[-1] + timedelta(days=1)
-            bookings = cached_load_bookings(prop, start_date, end_date - timedelta(days=1))
-            st.info(f"Total bookings for {prop}: {len(bookings)}")
-            for day in month_dates:
-                daily_bookings = filter_bookings_for_day(bookings, day)
-                st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
-                if daily_bookings:
-                    daily_bookings, overbookings = assign_inventory_numbers(daily_bookings, prop)
-                    df = create_inventory_table(daily_bookings, overbookings, prop)
-                    tooltip_columns = ['Guest Name', 'Room No', 'Remarks', 'Mobile No', 'MOB', 'Plan', 'Submitted by', 'Modified by']
-                    for col in tooltip_columns:
-                        if col in df.columns:
-                            df[col] = df[col].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x, str) else x)
-                    table_html = df.to_html(escape=False, index=False)
-                    st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
-                else:
-                    st.info("No active bookings on this day.")
+
+    if 'edit_mode' not in st.session_state:
+        st.session_state.edit_mode = False
+        st.session_state.edit_index = None
+
+    # Convert reservations to DataFrame for display
+    df = pd.DataFrame(st.session_state.reservations)
+    columns_to_display = [
+        "Booking ID", "Property Name", "Guest Name", "Check In", "Check Out",
+        "Room No", "Room Type", "Plan Status", "Payment Status"
+    ]
+    columns_to_display = [col for col in columns_to_display if col in df.columns]
+    st.dataframe(df[columns_to_display], use_container_width=True)
+
+    # Check for query parameter to auto-select a booking
+    query_params = st.query_params
+    if selected_booking_id or query_params.get("booking_id"):
+        booking_id = selected_booking_id or query_params.get("booking_id")
+        for idx, reservation in enumerate(st.session_state.reservations):
+            if reservation.get("Booking ID") == booking_id:
+                st.session_state.edit_mode = True
+                st.session_state.edit_index = idx
+                break
+
+    if st.session_state.edit_mode and st.session_state.edit_index is not None:
+        edit_index = st.session_state.edit_index
+        reservation = st.session_state.reservations[edit_index]
+        st.subheader(f"Edit Reservation: {reservation['Booking ID']}")
+        
+        with st.form(f"edit_form_{edit_index}"):
+            # Row 1: Property, Booking Date
+            col1, col2 = st.columns(2)
+            with col1:
+                properties = sorted(load_properties())
+                property_name = st.selectbox("Property Name", properties, index=properties.index(reservation.get("Property Name", "")) if reservation.get("Property Name") in properties else 0)
+            with col2:
+                booking_date = st.date_input("Booking Date", value=date.fromisoformat(reservation["Booking Date"]) if reservation.get("Booking Date") else None)
+
+            # Row 2: Guest Name, Mobile No
+            col1, col2 = st.columns(2)
+            with col1:
+                guest_name = st.text_input("Guest Name", value=reservation.get("Guest Name", ""))
+            with col2:
+                mobile_no = st.text_input("Mobile Number", value=reservation.get("Mobile No", ""))
+
+            # Row 3: Check In, Check Out
+            col1, col2 = st.columns(2)
+            with col1:
+                check_in = st.date_input("Check In", value=date.fromisoformat(reservation["Check In"]) if reservation.get("Check In") else None)
+            with col2:
+                check_out = st.date_input("Check Out", value=date.fromisoformat(reservation["Check Out"]) if reservation.get("Check Out") else None)
+
+            # Row 4: Room No, Room Type
+            col1, col2 = st.columns(2)
+            with col1:
+                room_options = PROPERTY_INVENTORY.get(property_name, {"all": ["Unknown"]})["all"]
+                room_no = st.selectbox("Room No", room_options, index=room_options.index(reservation.get("Room No", "")) if reservation.get("Room No") in room_options else 0)
+            with col2:
+                room_type = st.text_input("Room Type", value=reservation.get("Room Type", ""))
+
+            # Row 5: Number of Adults, Number of Children, Number of Infant
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                no_of_adults = st.number_input("Number of Adults", min_value=0, value=safe_int(reservation.get("no_of_adults", 0)))
+            with col2:
+                no_of_children = st.number_input("Number of Children", min_value=0, value=safe_int(reservation.get("no_of_children", 0)))
+            with col3:
+                no_of_infant = st.number_input("Number of Infant", min_value=0, value=safe_int(reservation.get("no_of_infant", 0)))
+
+            # Calculate total pax
+            total_pax = no_of_adults + no_of_children + no_of_infant
+
+            # Row 6: Plan, Plan Status, Payment Status
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                plan = st.text_input("Plan", value=reservation.get("plan", ""))
+            with col2:
+                plan_status = st.selectbox("Plan Status", ["Confirmed", "Pending", "Cancelled"], index=["Confirmed", "Pending", "Cancelled"].index(reservation.get("Plan Status", "Pending")) if reservation.get("Plan Status") in ["Confirmed", "Pending", "Cancelled"] else 0)
+            with col3:
+                payment_status = st.selectbox("Payment Status", ["Fully Paid", "Partially Paid", "Not Paid"], index=["Fully Paid", "Partially Paid", "Not Paid"].index(reservation.get("Payment Status", "Not Paid")) if reservation.get("Payment Status") in ["Fully Paid", "Partially Paid", "Not Paid"] else 0)
+
+            # Row 7: Total Tariff, Advance Amount, Balance Amount
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                total_tariff = st.number_input("Total Tariff", min_value=0.0, value=safe_float(reservation.get("total_tariff", 0.0)))
+            with col2:
+                advance_amount = st.number_input("Advance Amount", min_value=0.0, value=safe_float(reservation.get("advance_amount", 0.0)))
+            with col3:
+                balance_amount = st.number_input("Balance Amount", min_value=0.0, value=safe_float(reservation.get("balance_amount", 0.0)))
+
+            # Row 8: Advance MOP, Balance MOP, Mode of Booking
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                advance_mop = st.text_input("Advance MOP", value=reservation.get("advance_mop", ""))
+            with col2:
+                balance_mop = st.text_input("Balance MOP", value=reservation.get("balance_mop", ""))
+            with col3:
+                mode_of_booking = st.text_input("Mode of Booking", value=reservation.get("mode_of_booking", ""))
+
+            # Row 9: Remarks
+            remarks = st.text_area("Remarks", value=reservation.get("remarks", ""))
+
+            # Row 10: Submitted by, Modified by
+            col1, col2 = st.columns(2)
+            with col1:
+                submitted_by = st.text_input("Submitted by", value=reservation.get("submitted_by", ""))
+            with col2:
+                modified_by = st.text_input("Modified by", value=reservation.get("modified_by", ""))
+
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if st.form_submit_button("💾 Update Reservation", use_container_width=True):
+                    updated_reservation = {
+                        "property_name": property_name,
+                        "booking_date": str(booking_date) if booking_date else None,
+                        "guest_name": guest_name,
+                        "mobile_no": mobile_no,
+                        "check_in": str(check_in) if check_in else None,
+                        "check_out": str(check_out) if check_out else None,
+                        "no_of_adults": no_of_adults,
+                        "no_of_children": no_of_children,
+                        "no_of_infant": no_of_infant,
+                        "total_pax": total_pax,
+                        "room_no": room_no,
+                        "room_type": room_type,
+                        "plan": plan,
+                        "plan_status": plan_status,
+                        "payment_status": payment_status,
+                        "total_tariff": total_tariff,
+                        "advance_amount": advance_amount,
+                        "balance_amount": balance_amount,
+                        "advance_mop": advance_mop,
+                        "balance_mop": balance_mop,
+                        "mode_of_booking": mode_of_booking,
+                        "remarks": remarks,
+                        "submitted_by": submitted_by,
+                        "modified_by": modified_by
+                    }
+                    if update_reservation_in_supabase(reservation["Booking ID"], updated_reservation):
+                        st.session_state.reservations[edit_index] = {**reservation, **updated_reservation}
+                        st.session_state.edit_mode = False
+                        st.session_state.edit_index = None
+                        st.query_params.clear()
+                        st.success(f"✅ Reservation {reservation['Booking ID']} updated successfully!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to update reservation")
+            with col_btn2:
+                if st.session_state.get('role') == "Management":
+                    if st.form_submit_button("🗑️ Delete Reservation", use_container_width=True):
+                        if delete_reservation_in_supabase(reservation["Booking ID"]):
+                            st.session_state.reservations.pop(edit_index)
+                            st.session_state.edit_mode = False
+                            st.session_state.edit_index = None
+                            st.query_params.clear()
+                            st.success(f"🗑️ Reservation {reservation['Booking ID']} deleted successfully!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to delete reservation")
+
+def show_analytics():
+    """Display analytics page with booking statistics."""
+    st.title("📊 Analytics")
+    
+    if 'reservations' not in st.session_state:
+        st.session_state.reservations = load_reservations_from_supabase()
+    
+    if not st.session_state.reservations:
+        st.info("No reservations available for analytics.")
+        return
+
+    df = pd.DataFrame(st.session_state.reservations)
+    
+    # Filter options
+    col1, col2 = st.columns(2)
+    with col1:
+        properties = ["All"] + sorted(load_properties())
+        selected_property = st.selectbox("Select Property", properties, index=0)
+    with col2:
+        months = ["All"] + [f"{m:02d}" for m in range(1, 13)]
+        selected_month = st.selectbox("Select Month", months, index=0)
+
+    # Filter DataFrame
+    filtered_df = df
+    if selected_property != "All":
+        filtered_df = filtered_df[filtered_df["Property Name"] == selected_property]
+    if selected_month != "All":
+        filtered_df = filtered_df[filtered_df["Check In"].str.startswith(f"2025-{selected_month}", na=False)]
+
+    if filtered_df.empty:
+        st.info("No data available for the selected filters.")
+        return
+
+    # Total Bookings
+    total_bookings = len(filtered_df)
+    st.metric("Total Bookings", total_bookings)
+
+    # Bookings by Status
+    status_counts = filtered_df["Plan Status"].value_counts()
+    fig_status = px.pie(values=status_counts.values, names=status_counts.index, title="Bookings by Status")
+    st.plotly_chart(fig_status, use_container_width=True)
+
+    # Revenue Analysis
+    filtered_df["total_tariff"] = filtered_df["total_tariff"].apply(safe_float)
+    total_revenue = filtered_df["total_tariff"].sum()
+    st.metric("Total Revenue", f"₹{total_revenue:,.2f}")
+
+    # Revenue by Property
+    if selected_property == "All":
+        revenue_by_property = filtered_df.groupby("Property Name")["total_tariff"].sum()
+        fig_revenue = px.bar(x=revenue_by_property.index, y=revenue_by_property.values, title="Revenue by Property")
+        st.plotly_chart(fig_revenue, use_container_width=True)
+
+    # Occupancy Rate
+    if "Check In" in filtered_df.columns and "Check Out" in filtered_df.columns:
+        try:
+            filtered_df["Check In"] = pd.to_datetime(filtered_df["Check In"])
+            filtered_df["Check Out"] = pd.to_datetime(filtered_df["Check Out"])
+            filtered_df["Days"] = (filtered_df["Check Out"] - filtered_df["Check In"]).dt.days
+            total_room_nights = filtered_df["Days"].sum()
+            if selected_property == "All":
+                total_rooms = sum(len(PROPERTY_INVENTORY.get(prop, {"all": []})["all"]) for prop in load_properties())
+            else:
+                total_rooms = len(PROPERTY_INVENTORY.get(selected_property, {"all": []})["all"])
+            days_in_month = 30 if selected_month == "All" else pd.to_datetime(f"2025-{selected_month}-01").days_in_month
+            occupancy_rate = (total_room_nights / (total_rooms * days_in_month)) * 100 if total_rooms > 0 and days_in_month > 0 else 0
+            st.metric("Occupancy Rate", f"{occupancy_rate:.2f}%")
+        except Exception as e:
+            st.error(f"Error calculating occupancy rate: {e}")
