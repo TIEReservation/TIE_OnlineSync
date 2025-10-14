@@ -280,12 +280,26 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple
     assigned = []
     overbookings = []
     inventory = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
+    lower_inventory = [i.lower() for i in inventory]  # For case-insensitive matching
     for b in daily_bookings:
         room_no = b.get('room_no', '')
+        # Split room_no and strip whitespace
         inventory_no = [r.strip() for r in room_no.split(',') if r.strip()]
         if not inventory_no:
             overbookings.append(b)
             continue
+        # Normalize inventory_no to match case in PROPERTY_INVENTORY
+        normalized_inventory_no = []
+        for inv in inventory_no:
+            lower_inv = inv.lower()
+            for actual_inv in inventory:
+                if actual_inv.lower() == lower_inv:
+                    normalized_inventory_no.append(actual_inv)
+                    break
+            else:
+                normalized_inventory_no.append(inv)  # If no match, keep original
+        inventory_no = normalized_inventory_no
+        # Validate each room number against the property's inventory
         valid = all(inv in inventory for inv in inventory_no)
         if not valid:
             overbookings.append(b)
