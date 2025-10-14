@@ -276,16 +276,20 @@ def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dic
     return filtered
 
 def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple[List[Dict], List[Dict]]:
-    """Assign inventory numbers, handling multi-room bookings by duplicating and apportioning total_pax, marking one room as primary for financial fields."""
+    """Assign inventory numbers, handling multi-room bookings and special rooms (Day Use 1, Day Use 2, No Show)."""
     assigned = []
     overbookings = []
     inventory = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
+    special_rooms = ["Day Use 1", "Day Use 2", "No Show"]
+
     for b in daily_bookings:
         room_no = b.get('room_no', '')
+        # Split room_no and strip whitespace
         inventory_no = [r.strip() for r in room_no.split(',') if r.strip()]
         if not inventory_no:
             overbookings.append(b)
             continue
+        # Validate each room number against the property's inventory
         valid = all(inv in inventory for inv in inventory_no)
         if not valid:
             overbookings.append(b)
@@ -294,11 +298,12 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple
         # Sort inventory_no for consistent ordering
         inventory_no.sort()
         # Apportion pax
-        base_pax = b['total_pax'] // num_rooms
-        remainder_pax = b['total_pax'] % num_rooms
+        base_pax = b['total_pax'] // num_rooms if num_rooms > 0 else b['total_pax']
+        remainder_pax = b['total_pax'] % num_rooms if num_rooms > 0 else 0
         # Calculate per-night rate per room based on receivable
         days = b.get('days', 1) or 1  # Avoid division by zero
-        per_night_per_room = b.get('receivable', 0.0) / num_rooms / days
+        per_night_per_room = b.get('receivable', 0.0) / num_rooms if num_rooms > 0 else b.get('receivable', 0.0)
+        # Handle single and multi-room bookings
         if num_rooms == 1:
             b['inventory_no'] = inventory_no
             b['per_night'] = per_night_per_room
