@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 from supabase import create_client, Client
-from directreservation import show_add_reservations, show_edit_reservations, show_analytics
+from directreservation import show_add_reservations, show_edit_reservations, show_analytics, load_reservations_from_supabase
 from online_reservation import show_online_reservations, load_online_reservations_from_supabase
 from editOnline import show_edit_online_reservations
 from inventory import show_daily_status
@@ -126,9 +126,9 @@ def main():
     if page == "Direct Reservations":
         show_add_reservations()
     elif page == "View Reservations":
-        show_edit_reservations()  # Using show_edit_reservations to display reservations
+        show_edit_reservations()
     elif page == "Edit Reservations":
-        show_edit_reservations(st.session_state.selected_booking_id)
+        show_edit_reservations()
     elif page == "Online Reservations":
         show_online_reservations()
     elif page == "Edit Online Reservations":
