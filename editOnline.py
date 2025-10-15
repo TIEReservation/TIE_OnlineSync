@@ -79,6 +79,19 @@ def load_properties():
         st.error(f"Error loading properties: {e}")
         return []
 
+def get_room_options(property_name):
+    """Return room number and room type options based on property."""
+    if property_name == "Millionaire":
+        room_numbers = ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show"]
+    else:
+        room_numbers = ["Day Use 1", "Day Use 2", "No Show"]
+    
+    def get_room_type(room_no):
+        return "No Show" if room_no == "No Show" else "Day Use"
+    
+    room_types = ["Day Use", "No Show"]
+    return room_numbers, room_types, get_room_type
+
 def show_edit_online_reservations(selected_booking_id=None):
     """Display edit online reservations page."""
     st.title("✏️ Edit Online Reservations")
@@ -169,55 +182,22 @@ def show_edit_online_reservations(selected_booking_id=None):
         # Row 4: Room No, Room Type, Breakfast (rate_plans), Booking Source
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            # Room Number dropdown logic based on property
+            room_numbers, room_types, get_room_type = get_room_options(property_name)
             current_room_no = reservation.get("room_no", "")
-            
-            # Determine dropdown options based on property
-            if property_name == "Millionaire":
-                room_no_options = ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show"]
-            else:
-                room_no_options = ["Day Use 1", "Day Use 2", "No Show"]
-            
-            # Add current value to options if it's not already there
-            if current_room_no and current_room_no not in room_no_options:
-                room_no_options = [current_room_no] + room_no_options
-            
-            # Find the index of current room number
-            if current_room_no in room_no_options:
-                room_no_index = room_no_options.index(current_room_no)
-            else:
-                room_no_index = 0
-            
-            room_no = st.selectbox("Room No", options=room_no_options, index=room_no_index, key="room_no_dropdown")
-        
+            # Ensure current_room_no is in room_numbers, if not, add it as first option
+            if current_room_no and current_room_no not in room_numbers:
+                room_numbers.insert(0, current_room_no)
+            room_no_index = room_numbers.index(current_room_no) if current_room_no in room_numbers else 0
+            room_no = st.selectbox("Room No", room_numbers, index=room_no_index)
         with col2:
-            # Room Type auto-updates based on Room Number selection
+            # Determine default room type based on fetched or selected room_no
             current_room_type = reservation.get("room_type", "")
-            
-            # Determine room type based on room number selection
-            if room_no == "No Show":
-                auto_room_type = "No Show"
-            elif room_no in ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5"]:
-                auto_room_type = "Day Use"
-            else:
-                # Keep current room type if room number doesn't match predefined options
-                auto_room_type = current_room_type if current_room_type else "Day Use"
-            
-            # Build room type options
-            room_type_options = ["Day Use", "No Show"]
-            
-            # Add current value if it's different and not already in options
-            if auto_room_type and auto_room_type not in room_type_options:
-                room_type_options = [auto_room_type] + room_type_options
-            
-            # Find the index
-            if auto_room_type in room_type_options:
-                room_type_index = room_type_options.index(auto_room_type)
-            else:
-                room_type_index = 0
-            
-            room_type = st.selectbox("Room Type", options=room_type_options, index=room_type_index, key="room_type_dropdown")
-        
+            default_room_type = get_room_type(room_no)
+            # If current_room_type is not in room_types, add it to maintain fetched value
+            if current_room_type and current_room_type not in room_types:
+                room_types.insert(0, current_room_type)
+            room_type_index = room_types.index(current_room_type if current_room_type in room_types else default_room_type)
+            room_type = st.selectbox("Room Type", room_types, index=room_type_index)
         with col3:
             rate_plans = st.text_input("Breakfast", value=reservation.get("rate_plans", ""))
         with col4:
