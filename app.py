@@ -12,6 +12,7 @@ except Exception as e:
     edit_online_available = False
 from inventory import show_daily_status
 from dms import show_dms
+from monthlyconsolidation import show_monthly_consolidation
 
 # Page config
 st.set_page_config(
@@ -58,7 +59,7 @@ def check_authentication():
                 st.session_state.role = "Management"
                 query_params = st.query_params
                 query_page = query_params.get("page", ["Direct Reservations"])[0]
-                if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
+                if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]:
                     st.session_state.current_page = query_page
                 query_booking_id = query_params.get("booking_id", [None])[0]
                 if query_booking_id:
@@ -77,7 +78,7 @@ def check_authentication():
                 st.session_state.role = "ReservationTeam"
                 query_params = st.query_params
                 query_page = query_params.get("page", ["Direct Reservations"])[0]
-                if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status"]:
+                if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Monthly Consolidation"]:
                     st.session_state.current_page = query_page
                 query_booking_id = query_params.get("booking_id", [None])[0]
                 if query_booking_id:
@@ -97,10 +98,10 @@ def check_authentication():
     else:
         # Preserve query params for authenticated users
         query_params = st.query_params
-        if st.session_state.current_page not in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
+        if st.session_state.current_page not in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]:
             st.session_state.current_page = "Direct Reservations"
         query_page = query_params.get("page", [st.session_state.current_page])[0]
-        if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics"]:
+        if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]:
             st.session_state.current_page = query_page
         query_booking_id = query_params.get("booking_id", [None])[0]
         if query_booking_id:
@@ -111,14 +112,25 @@ def main():
     st.title("🏢 TIE Reservations")
     st.markdown("---")
     st.sidebar.title("Navigation")
-    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Daily Status", "Daily Management Status"]
-    if st.session_state.role == "Management":
-        page_options.append("Analytics")
+
+    # Create dropdown for reports
+    with st.sidebar.expander("Reports"):
+        report_options = ["Daily Status", "Monthly Consolidation"]
+        if st.session_state.role == "Management":
+            report_options.append("Daily Management Status")
+        selected_report = st.radio("Select Report", report_options, index=report_options.index(st.session_state.current_page) if st.session_state.current_page in report_options else 0, key="report_select")
+        st.session_state.current_page = selected_report
+
+    # Other pages outside the dropdown
+    other_pages = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations"]
     if edit_online_available:
-        page_options.insert(4, "Edit Online Reservations")
+        other_pages.append("Edit Online Reservations")
+    if st.session_state.role == "Management":
+        other_pages.append("Analytics")
     
-    page = st.sidebar.selectbox("Choose a page", page_options, index=page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0, key="page_select")
-    st.session_state.current_page = page
+    page = st.sidebar.selectbox("Other Pages", other_pages, index=other_pages.index(st.session_state.current_page) if st.session_state.current_page in other_pages else 0, key="other_page_select")
+    if page != st.session_state.current_page:
+        st.session_state.current_page = page
 
     # Add global refresh button in sidebar above Log Out
     if st.sidebar.button("🔄 Refresh All Data"):
@@ -131,25 +143,27 @@ def main():
             st.warning(f"⚠️ Data refresh partially failed: {e}")
         st.rerun()
 
-    if page == "Direct Reservations":
+    if st.session_state.current_page == "Direct Reservations":
         show_new_reservation_form()
-    elif page == "View Reservations":
+    elif st.session_state.current_page == "View Reservations":
         show_reservations()
-    elif page == "Edit Reservations":
+    elif st.session_state.current_page == "Edit Reservations":
         show_edit_reservations()
-    elif page == "Online Reservations":
+    elif st.session_state.current_page == "Online Reservations":
         show_online_reservations()
-    elif page == "Edit Online Reservations" and edit_online_available:
+    elif st.session_state.current_page == "Edit Online Reservations" and edit_online_available:
         show_edit_online_reservations(st.session_state.selected_booking_id)
         if st.session_state.selected_booking_id:
             st.session_state.selected_booking_id = None
             st.query_params.clear()
-    elif page == "Daily Status":
+    elif st.session_state.current_page == "Daily Status":
         show_daily_status()
-    elif page == "Daily Management Status" and st.session_state.role == "Management":
+    elif st.session_state.current_page == "Daily Management Status" and st.session_state.role == "Management":
         show_dms()
-    elif page == "Analytics" and st.session_state.role == "Management":
+    elif st.session_state.current_page == "Analytics" and st.session_state.role == "Management":
         show_analytics()
+    elif st.session_state.current_page == "Monthly Consolidation":
+        show_monthly_consolidation()
 
     if st.sidebar.button("Log Out"):
         st.cache_data.clear()
