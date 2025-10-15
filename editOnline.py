@@ -9,8 +9,8 @@ try:
     from inventory import PROPERTY_INVENTORY
 except ImportError:
     PROPERTY_INVENTORY = {
-        "La Millionaire Resort": {"all": ["","Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show"]},
-        "default": {"all": ["","Day Use 1", "Day Use 2", "No Show"]}
+        "La Millionaire Resort": {"all": [" ","Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show"]},
+        "default": {"all": [" ","Day Use 1", "Day Use 2", "No Show"]}
     }
 
 # Initialize Supabase client
