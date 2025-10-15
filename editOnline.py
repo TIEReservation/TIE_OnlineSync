@@ -229,17 +229,17 @@ def show_edit_online_reservations(selected_booking_id=None):
                 inventory_options = PROPERTY_INVENTORY.get(property_name, {"all": room_options})["all"]
                 if set(inventory_options).issuperset(room_options):
                     room_options = inventory_options
-                # Default to fetched room_no if valid, else first option
-                default_room_no = reservation["room_no"] if reservation["room_no"] in room_options else room_options[0]
-                room_no = st.selectbox("Room No", room_options, index=room_options.index(default_room_no))
+                # Default to fetched room_no if valid, else first option (Day Use 1)
+                default_room_no = reservation["room_no"] if reservation["room_no"] and reservation["room_no"] in room_options else room_options[0]
+                room_no = st.selectbox("Room No", room_options, index=room_options.index(default_room_no), key="room_no_select")
             with col2:
                 room_type_options = ["Day Use", "No Show"]
-                # Default to fetched room_type if valid, else auto-set based on room_no
-                if reservation["room_type"] in room_type_options:
-                    default_room_type = reservation["room_type"]
-                else:
-                    default_room_type = "Day Use" if "Day Use" in room_no else "No Show"
-                room_type = st.selectbox("Room Type", room_type_options, index=room_type_options.index(default_room_type))
+                # Default to fetched room_type if valid, else Day Use
+                default_room_type = (
+                    reservation["room_type"] if reservation["room_type"] and reservation["room_type"] in room_type_options
+                    else "Day Use"
+                )
+                room_type = st.selectbox("Room Type", room_type_options, index=room_type_options.index(default_room_type), key="room_type_select")
 
             # Row 6: Rate Plans, Booking Source, Segment
             col1, col2, col3 = st.columns(3)
