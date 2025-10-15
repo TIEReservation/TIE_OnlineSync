@@ -112,9 +112,9 @@ def main():
     st.title("🏢 TIE Reservations")
     st.markdown("---")
     st.sidebar.title("Navigation")
-    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Daily Status", "Monthly Consolidation"]
+    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Daily Status", "Daily Management Status", "Monthly Consolidation"]
     if st.session_state.role == "Management":
-        page_options.extend(["Daily Management Status", "Analytics"])
+        page_options.append("Analytics")
     if edit_online_available:
         page_options.insert(4, "Edit Online Reservations")
     
@@ -144,4 +144,33 @@ def main():
         show_edit_online_reservations(st.session_state.selected_booking_id)
         if st.session_state.selected_booking_id:
             st.session_state.selected_booking_id = None
-            st.query_params
+            st.query_params.clear()
+    elif page == "Daily Status":
+        show_daily_status()
+    elif page == "Daily Management Status" and st.session_state.role == "Management":
+        show_dms()
+    elif page == "Analytics" and st.session_state.role == "Management":
+        show_analytics()
+    elif page == "Monthly Consolidation":
+        show_monthly_consolidation()
+
+    if st.sidebar.button("Log Out"):
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.session_state.authenticated = False
+        st.session_state.role = None
+        st.session_state.reservations = []
+        st.session_state.online_reservations = []
+        st.session_state.edit_mode = False
+        st.session_state.edit_index = None
+        st.session_state.online_edit_mode = False
+        st.session_state.online_edit_index = None
+        st.session_state.current_page = "Direct Reservations"
+        st.session_state.selected_booking_id = None
+        st.query_params.clear()
+        st.rerun()
+
+if __name__ == "__main__":
+    main()
