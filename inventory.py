@@ -480,7 +480,7 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
     total_pax = 0
     total_gst = 0.0
     total_comm = 0.0
-    tax_deduction = 0.0  # Assuming 0.3% of value as per example ratio
+    tax_deduction = 0.0
 
     for b in dtd_assigned:
         mob = sanitize_string(b.get("mob", "Unknown"))
@@ -573,7 +573,7 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
         "gst": total_gst,
         "commission": total_comm,
         "tax_deduction": total_value * 0.003,  # Assuming 0.3% as per example
-        "mtd_occ_percent": (mtd_rooms / (total_inventory * (target_date.day)) * 100) if total_inventory > 0 else 0.0,
+        "mtd_occ_percent": min((mtd_rooms / (total_inventory * target_date.day) * 100) if total_inventory > 0 and target_date.day > 0 else 0.0, 100.0),
         "mtd_pax": mtd_pax,
         "mtd_rooms": mtd_rooms,
         "mtd_gst": mtd_gst,
