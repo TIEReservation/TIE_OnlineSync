@@ -16,7 +16,6 @@ except KeyError as e:
 property_mapping = {
     "La Millionaire Luxury Resort": "La Millionaire Resort",
     "Le Poshe Beach View": "Le Poshe Beach view",
-    "Millionaire": "La Millionaire Resort",
 }
 reverse_mapping = {}
 for variant, canonical in property_mapping.items():
@@ -53,7 +52,7 @@ PROPERTY_INVENTORY = {
         "three_bedroom": ["203", "204"]
     },
     "La Millionaire Resort": {
-        "all": ["101", "102", "103", "105", "201", "202", "203", "204", "205", "206", "207", "208", "301", "302", "303", "304", "305", "306", "307", "308", "401", "402", "Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show"],
+        "all": ["101", "102", "103", "105", "201", "202", "203", "204", "205", "206", "207", "208", "301", "302", "303", "304", "305", "306", "307", "308", "401", "402", "Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "No Show"],
         "three_bedroom": ["203", "204", "205"]
     },
     "Le Poshe Luxury": {
@@ -170,7 +169,6 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
     booking_id = sanitize_string(booking.get('booking_id'))
     payment_status = sanitize_string(booking.get('payment_status')).title()
     if payment_status not in ["Fully Paid", "Partially Paid"]:
-        st.warning(f"Skipping booking {booking_id} due to invalid payment status: {payment_status}")
         return None  # Silently skip invalid payment status
     booking_status_field = 'booking_status' if is_online else 'plan_status'
     booking_status = sanitize_string(booking.get(booking_status_field))
@@ -182,7 +180,6 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
         if check_in and check_out:
             days = (check_out - check_in).days
             if days < 0:
-                st.warning(f"Skipping booking {booking_id} due to negative duration: check_in={check_in}, check_out={check_out}")
                 return None  # Silently skip invalid dates (negative duration)
             if days == 0:
                 days = 1  # Treat same-day bookings (e.g., Day Use) as 1 day
@@ -243,29 +240,21 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
             "modified_by": modified_by,
             "remarks": remarks
         }
-        st.info(f"Normalized booking {booking_id} for property {property_name}, room_no: {room_no}, check_in: {check_in}, check_out: {check_out}")
         return normalized
-    except ValueError as e:
-        st.warning(f"Skipping booking {booking_id} due to date parsing error: {e}")
+    except ValueError:
         return None  # Silently skip date parsing errors
 
 def load_combined_bookings(property: str, start_date: date, end_date: date) -> List[Dict]:
     """Load and combine bookings from both tables for the date range."""
     try:
-        # Normalize property name for querying
-        query_property = next((k for k, v in property_mapping.items() if v == property), property)
-        st.info(f"Querying bookings for property: {query_property}, from {start_date} to {end_date}")
         # Load online reservations
-        online_response = supabase.table("online_reservations").select("*").eq("property", query_property).gte("check_in", str(start_date)).lte("check_in", str(end_date)).execute()
+        online_response = supabase.table("online_reservations").select("*").eq("property", property).gte("check_in", str(start_date)).lte("check_in", str(end_date)).execute()
         online_bookings = [normalize_booking(b, True) for b in (online_response.data or []) if normalize_booking(b, True)]
-        st.info(f"Retrieved {len(online_response.data or [])} online bookings, {len(online_bookings)} normalized for {query_property}")
         # Load direct reservations
-        direct_response = supabase.table("reservations").select("*").eq("property_name", query_property).gte("check_in", str(start_date)).lte("check_in", str(end_date)).execute()
+        direct_response = supabase.table("reservations").select("*").eq("property_name", property).gte("check_in", str(start_date)).lte("check_in", str(end_date)).execute()
         direct_bookings = [normalize_booking(b, False) for b in (direct_response.data or []) if normalize_booking(b, False)]
-        st.info(f"Retrieved {len(direct_response.data or [])} direct bookings, {len(direct_bookings)} normalized for {query_property}")
         # Combine and filter out None
         combined = [b for b in online_bookings + direct_bookings if b]
-        st.info(f"Total combined bookings for {property}: {len(combined)}")
         return combined
     except Exception as e:
         st.error(f"Error loading bookings for {property}: {e}")
@@ -289,211 +278,6 @@ def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dic
                 b_copy = b.copy()
                 b_copy['target_date'] = target_date  # Add target_date for later use
                 filtered.append(b_copy)
-    st.info(f"Filtered {len(filtered)} bookings for target date {target_date}")
     return filtered
 
-def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple[List[Dict], List[Dict]]:
-    """Assign inventory numbers, handling multi-room bookings by duplicating and apportioning total_pax, marking one room as primary for financial fields."""
-    assigned = []
-    overbookings = []
-    inventory = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
-    for b in daily_bookings:
-        room_no = b.get('room_no', '')
-        inventory_no = [r.strip() for r in room_no.split(',') if r.strip()]
-        if not inventory_no:
-            overbookings.append(b)
-            st.warning(f"Booking {b.get('booking_id', 'Unknown')} moved to overbookings: no valid room_no")
-            continue
-        valid = all(inv in inventory for inv in inventory_no)
-        if not valid:
-            overbookings.append(b)
-            st.warning(f"Booking {b.get('booking_id', 'Unknown')} moved to overbookings: invalid inventory {inventory_no}")
-            continue
-        num_rooms = len(inventory_no)
-        # Sort inventory_no for consistent ordering
-        inventory_no.sort()
-        # Apportion pax
-        base_pax = b['total_pax'] // num_rooms
-        remainder_pax = b['total_pax'] % num_rooms
-        # Calculate per-night rate per room based on receivable
-        days = b.get('days', 1) or 1  # Avoid division by zero
-        per_night_per_room = b.get('receivable', 0.0) / num_rooms / days
-        if num_rooms == 1:
-            b['inventory_no'] = inventory_no
-            b['per_night'] = per_night_per_room
-            b['is_primary'] = True  # Mark as primary for single-room bookings
-            assigned.append(b)
-        else:
-            for idx, inv in enumerate(inventory_no):
-                new_b = b.copy()
-                new_b['inventory_no'] = [inv]
-                new_b['room_no'] = inv  # Update room_no to reflect single room
-                new_b['total_pax'] = base_pax + (1 if idx < remainder_pax else 0)
-                new_b['per_night'] = per_night_per_room
-                new_b['is_primary'] = (idx == 0)  # Only first room is primary
-                assigned.append(new_b)
-    st.info(f"Assigned {len(assigned)} bookings, {len(overbookings)} overbookings for {property}")
-    return assigned, overbookings
-
-def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], property: str) -> pd.DataFrame:
-    """Create inventory table DataFrame, showing financial fields only for primary room on first date."""
-    columns = [
-        "Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No",
-        "Total Pax", "Check In", "Check Out", "Days", "MOB", "Room Charges",
-        "GST", "Total", "Commision", "Receivable", "Per Night", "Advance",
-        "Advance Mop", "Balance", "Balance Mop", "Plan", "Booking Status",
-        "Payment Status", "Submitted by", "Modified by", "Remarks"
-    ]
-    fallback = {"all": ["Unknown"], "three_bedroom": []}
-    inventory = PROPERTY_INVENTORY.get(property, fallback)["all"]
-    if not inventory:
-        st.error(f"No inventory defined for property {property}")
-        return pd.DataFrame(columns=columns)
-    
-    # Initialize DataFrame with inventory numbers
-    df_data = [{col: "" for col in columns} for _ in inventory]
-    for i, inv in enumerate(inventory):
-        df_data[i]["Inventory No"] = inv
-
-    # Financial fields to display only for primary room on first date
-    financial_fields = ["Room Charges", "GST", "Total", "Commision", "Receivable", 
-                       "Advance", "Advance Mop", "Balance"]
-
-    # Fill assigned bookings
-    for b in assigned:
-        inventory_no = b.get('inventory_no', [])
-        if not inventory_no or not isinstance(inventory_no, list):
-            st.warning(f"Skipping booking {b.get('booking_id', 'Unknown')} with invalid inventory_no: {inventory_no}")
-            continue
-        for inv in inventory_no:
-            # Find the matching row in df_data
-            row_indices = [i for i, row in enumerate(df_data) if row["Inventory No"] == inv]
-            if not row_indices:
-                st.warning(f"Inventory number {inv} not found in DataFrame for booking {b.get('booking_id', 'Unknown')}")
-                continue
-            row = df_data[row_indices[0]]
-            # Determine if this is the first date of the stay
-            check_in = date.fromisoformat(b["check_in"]) if b["check_in"] else None
-            target_date = b.get('target_date')
-            is_first_date = check_in == target_date if check_in and target_date else False
-            try:
-                row.update({
-                    "Inventory No": inv,
-                    "Room No": sanitize_string(b.get("room_no", "")),
-                    "Booking ID": format_booking_id(b),
-                    "Guest Name": sanitize_string(b.get("guest_name", "")),
-                    "Mobile No": sanitize_string(b.get("mobile_no", "")),
-                    "Total Pax": sanitize_string(b.get("total_pax", "")),
-                    "Check In": b.get("check_in", ""),
-                    "Check Out": b.get("check_out", ""),
-                    "Days": b.get("days", 0),
-                    "MOB": sanitize_string(b.get("mob", "")),
-                    "Per Night": f"{b.get('per_night', 0):.2f}" if b.get("per_night") is not None else "0.00",
-                    "Plan": sanitize_string(b.get("plan", "")),
-                    "Booking Status": sanitize_string(b.get("booking_status", "")),
-                    "Payment Status": sanitize_string(b.get("payment_status", "")),
-                    "Submitted by": sanitize_string(b.get("submitted_by", "")),
-                    "Modified by": sanitize_string(b.get("modified_by", "")),
-                    "Remarks": sanitize_string(b.get("remarks", ""))
-                })
-                # Only populate financial fields for primary room on the first date
-                if b.get('is_primary', False) and is_first_date:
-                    row.update({
-                        "Room Charges": sanitize_string(b.get("room_charges", "")),
-                        "GST": sanitize_string(b.get("gst", "")),
-                        "Total": sanitize_string(b.get("total", "")),
-                        "Commision": sanitize_string(b.get("commission", "")),
-                        "Receivable": sanitize_string(b.get("receivable", "")),
-                        "Advance": sanitize_string(b.get("advance", "")),
-                        "Advance Mop": sanitize_string(b.get("advance_mop", "")),
-                        "Balance": sanitize_string(b.get("balance", ""))
-                    })
-                st.info(f"Added booking {b.get('booking_id')} to inventory {inv}")
-            except Exception as e:
-                st.error(f"Error updating row for inventory {inv} in booking {b.get('booking_id', 'Unknown')}: {e}")
-                continue
-
-    # Add overbookings row with hyperlinks
-    if overbookings:
-        try:
-            overbooking_ids = ", ".join(format_booking_id(b) for b in overbookings)
-            overbooking_str = ", ".join(f"{sanitize_string(b.get('room_no', ''))} ({sanitize_string(b.get('booking_id', ''))}, {sanitize_string(b.get('guest_name', ''))})" for b in overbookings)
-            df_data.append({
-                "Inventory No": "Overbookings",
-                "Room No": overbooking_str,
-                "Booking ID": overbooking_ids,
-                "Guest Name": "",
-                "Mobile No": "",
-                "Total Pax": "",
-                "Check In": "",
-                "Check Out": "",
-                "Days": "",
-                "MOB": "",
-                "Room Charges": "",
-                "GST": "",
-                "Total": "",
-                "Commision": "",
-                "Receivable": "",
-                "Per Night": "",
-                "Advance": "",
-                "Advance Mop": "",
-                "Balance": "",
-                "Balance Mop": "",
-                "Plan": "",
-                "Booking Status": "",
-                "Payment Status": "",
-                "Submitted by": "",
-                "Modified by": "",
-                "Remarks": ""
-            })
-            st.info(f"Added {len(overbookings)} overbookings to table")
-        except Exception as e:
-            st.error(f"Error creating overbookings row: {e}")
-
-    return pd.DataFrame(df_data, columns=columns)
-
-@st.cache_data
-def cached_load_properties():
-    return load_properties()
-
-@st.cache_data
-def cached_load_bookings(property, start_date, end_date):
-    return load_combined_bookings(property, start_date, end_date)
-
-def show_daily_status():
-    """Display daily status table with inventory and bookings."""
-    st.title("📅 Daily Status")
-    if st.button("🔄 Refresh Property List"):
-        st.cache_data.clear()
-        st.success("Cache cleared! Refreshing properties...")
-        st.rerun()
-    current_year = date.today().year
-    year = st.selectbox("Select Year", list(range(current_year - 5, current_year + 6)), index=5)
-    month = st.selectbox("Select Month", list(range(1, 13)), index=date.today().month - 1)
-    properties = cached_load_properties()
-    if not properties:
-        st.info("No properties available.")
-        return
-    st.subheader("Properties")
-    st.markdown(TABLE_CSS, unsafe_allow_html=True)
-    for prop in properties:
-        with st.expander(f"{prop}"):
-            month_dates = generate_month_dates(year, month)
-            start_date = month_dates[0]
-            end_date = month_dates[-1] + timedelta(days=1)
-            bookings = cached_load_bookings(prop, start_date, end_date - timedelta(days=1))
-            st.info(f"Total bookings for {prop}: {len(bookings)}")
-            for day in month_dates:
-                daily_bookings = filter_bookings_for_day(bookings, day)
-                st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
-                if daily_bookings:
-                    daily_bookings, overbookings = assign_inventory_numbers(daily_bookings, prop)
-                    df = create_inventory_table(daily_bookings, overbookings, prop)
-                    tooltip_columns = ['Guest Name', 'Room No', 'Remarks', 'Mobile No', 'MOB', 'Plan', 'Submitted by', 'Modified by']
-                    for col in tooltip_columns:
-                        if col in df.columns:
-                            df[col] = df[col].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x, str) else x)
-                    table_html = df.to_html(escape=False, index=False)
-                    st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
-                else:
-                    st.info("No active bookings on this day.")
+def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple[List[Dict],
