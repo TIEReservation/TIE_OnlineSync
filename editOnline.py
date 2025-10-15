@@ -81,10 +81,10 @@ def load_properties():
 
 def show_edit_online_reservations(selected_booking_id=None):
     """Display edit online reservations page."""
-    st.title("âœï¸ Edit Online Reservations")
+    st.title("✏️ Edit Online Reservations")
     
     # Add refresh button to clear cache and reload data
-    if st.button("ðŸ”„ Refresh Reservations"):
+    if st.button("🔄 Refresh Reservations"):
         st.cache_data.clear()
         st.session_state.pop('online_reservations', None)
         st.success("Cache cleared! Refreshing reservations...")
@@ -169,9 +169,55 @@ def show_edit_online_reservations(selected_booking_id=None):
         # Row 4: Room No, Room Type, Breakfast (rate_plans), Booking Source
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            room_no = st.text_input("Room No", value=reservation.get("room_no", ""))
+            # Room Number dropdown logic based on property
+            current_room_no = reservation.get("room_no", "")
+            
+            # Determine dropdown options based on property
+            if property_name == "Millionaire":
+                room_no_options = ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show"]
+            else:
+                room_no_options = ["Day Use 1", "Day Use 2", "No Show"]
+            
+            # Add current value to options if it's not already there
+            if current_room_no and current_room_no not in room_no_options:
+                room_no_options = [current_room_no] + room_no_options
+            
+            # Find the index of current room number
+            if current_room_no in room_no_options:
+                room_no_index = room_no_options.index(current_room_no)
+            else:
+                room_no_index = 0
+            
+            room_no = st.selectbox("Room No", options=room_no_options, index=room_no_index, key="room_no_dropdown")
+        
         with col2:
-            room_type = st.text_input("Room Type", value=reservation.get("room_type", ""))
+            # Room Type auto-updates based on Room Number selection
+            current_room_type = reservation.get("room_type", "")
+            
+            # Determine room type based on room number selection
+            if room_no == "No Show":
+                auto_room_type = "No Show"
+            elif room_no in ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5"]:
+                auto_room_type = "Day Use"
+            else:
+                # Keep current room type if room number doesn't match predefined options
+                auto_room_type = current_room_type if current_room_type else "Day Use"
+            
+            # Build room type options
+            room_type_options = ["Day Use", "No Show"]
+            
+            # Add current value if it's different and not already in options
+            if auto_room_type and auto_room_type not in room_type_options:
+                room_type_options = [auto_room_type] + room_type_options
+            
+            # Find the index
+            if auto_room_type in room_type_options:
+                room_type_index = room_type_options.index(auto_room_type)
+            else:
+                room_type_index = 0
+            
+            room_type = st.selectbox("Room Type", options=room_type_options, index=room_type_index, key="room_type_dropdown")
+        
         with col3:
             rate_plans = st.text_input("Breakfast", value=reservation.get("rate_plans", ""))
         with col4:
@@ -249,7 +295,7 @@ def show_edit_online_reservations(selected_booking_id=None):
 
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
-            if st.button("ðŸ’¾ Update Reservation", use_container_width=True):
+            if st.button("💾 Update Reservation", use_container_width=True):
                 updated_reservation = {
                     "property": property_name,
                     "booking_made_on": str(booking_made_on) if booking_made_on else None,
@@ -291,19 +337,19 @@ def show_edit_online_reservations(selected_booking_id=None):
                     st.session_state.online_edit_mode = False
                     st.session_state.online_edit_index = None
                     st.query_params.clear()
-                    st.success(f"âœ… Reservation {reservation['booking_id']} updated successfully!")
+                    st.success(f"✅ Reservation {reservation['booking_id']} updated successfully!")
                     st.rerun()
                 else:
-                    st.error("âŒ Failed to update reservation")
+                    st.error("❌ Failed to update reservation")
         with col_btn2:
             if st.session_state.get('role') == "Management":
-                if st.button("ðŸ—‘ï¸ Delete Reservation", use_container_width=True):
+                if st.button("🗑️ Delete Reservation", use_container_width=True):
                     if delete_online_reservation_in_supabase(reservation["booking_id"]):
                         st.session_state.online_reservations.pop(edit_index)
                         st.session_state.online_edit_mode = False
                         st.session_state.online_edit_index = None
                         st.query_params.clear()
-                        st.success(f"ðŸ—‘ï¸ Reservation {reservation['booking_id']} deleted successfully!")
+                        st.success(f"🗑️ Reservation {reservation['booking_id']} deleted successfully!")
                         st.rerun()
                     else:
-                        st.error("âŒ Failed to delete reservation")
+                        st.error("❌ Failed to delete reservation")
