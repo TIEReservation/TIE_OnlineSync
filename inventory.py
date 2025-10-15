@@ -321,31 +321,41 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple
                 assigned.append(new_b)
     return assigned, overbookings
 
-def create_group_table(group_inventory: List[str], assigned: List[Dict], columns: List[str]) -> pd.DataFrame:
-    """Create inventory table DataFrame for a specific group, showing financial fields only for primary room on first date."""
-    if not group_inventory:
+def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], property: str) -> pd.DataFrame:
+    """Create inventory table DataFrame, showing financial fields only for primary room on first date."""
+    columns = [
+        "Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No",
+        "Total Pax", "Check In", "Check Out", "Days", "MOB", "Room Charges",
+        "GST", "Total", "Commision", "Receivable", "Per Night", "Advance",
+        "Advance Mop", "Balance", "Balance Mop", "Plan", "Booking Status",
+        "Payment Status", "Submitted by", "Modified by", "Remarks"
+    ]
+    fallback = {"all": ["Unknown"], "three_bedroom": []}
+    inventory = PROPERTY_INVENTORY.get(property, fallback)["all"]
+    if not inventory:
+        st.error(f"No inventory defined for property {property}")
         return pd.DataFrame(columns=columns)
     
-    # Initialize DataFrame with group inventory numbers
-    df_data = [{col: "" for col in columns} for _ in group_inventory]
-    for i, inv in enumerate(group_inventory):
+    # Initialize DataFrame with inventory numbers
+    df_data = [{col: "" for col in columns} for _ in inventory]
+    for i, inv in enumerate(inventory):
         df_data[i]["Inventory No"] = inv
 
     # Financial fields to display only for primary room on first date
     financial_fields = ["Room Charges", "GST", "Total", "Commision", "Receivable", 
-                        "Advance", "Advance Mop", "Balance"]
+                       "Advance", "Advance Mop", "Balance"]
 
-    # Fill assigned bookings that belong to this group
+    # Fill assigned bookings
     for b in assigned:
         inventory_no = b.get('inventory_no', [])
         if not inventory_no or not isinstance(inventory_no, list):
+            st.warning(f"Skipping booking {b.get('booking_id', 'Unknown')} with invalid inventory_no: {inventory_no}")
             continue
         for inv in inventory_no:
-            if inv not in group_inventory:
-                continue
             # Find the matching row in df_data
             row_indices = [i for i, row in enumerate(df_data) if row["Inventory No"] == inv]
             if not row_indices:
+                st.warning(f"Inventory number {inv} not found in DataFrame for booking {b.get('booking_id', 'Unknown')}")
                 continue
             row = df_data[row_indices[0]]
             # Determine if this is the first date of the stay
@@ -385,49 +395,46 @@ def create_group_table(group_inventory: List[str], assigned: List[Dict], columns
                         "Balance": sanitize_string(b.get("balance", ""))
                     })
             except Exception as e:
+                st.error(f"Error updating row for inventory {inv} in booking {b.get('booking_id', 'Unknown')}: {e}")
                 continue
 
-    return pd.DataFrame(df_data, columns=columns)
+    # Add overbookings row with hyperlinks
+    if overbookings:
+        try:
+            overbooking_ids = ", ".join(format_booking_id(b) for b in overbookings)
+            overbooking_str = ", ".join(f"{sanitize_string(b.get('room_no', ''))} ({sanitize_string(b.get('booking_id', ''))}, {sanitize_string(b.get('guest_name', ''))})" for b in overbookings)
+            df_data.append({
+                "Inventory No": "Overbookings",
+                "Room No": overbooking_str,
+                "Booking ID": overbooking_ids,
+                "Guest Name": "",
+                "Mobile No": "",
+                "Total Pax": "",
+                "Check In": "",
+                "Check Out": "",
+                "Days": "",
+                "MOB": "",
+                "Room Charges": "",
+                "GST": "",
+                "Total": "",
+                "Commision": "",
+                "Receivable": "",
+                "Per Night": "",
+                "Advance": "",
+                "Advance Mop": "",
+                "Balance": "",
+                "Balance Mop": "",
+                "Plan": "",
+                "Booking Status": "",
+                "Payment Status": "",
+                "Submitted by": "",
+                "Modified by": "",
+                "Remarks": ""
+            })
+        except Exception as e:
+            st.error(f"Error creating overbookings row: {e}")
 
-def create_overbookings_row(overbookings: List[Dict], columns: List[str]) -> pd.DataFrame:
-    """Create a DataFrame for overbookings."""
-    if not overbookings:
-        return pd.DataFrame(columns=columns)
-    
-    try:
-        overbooking_ids = ", ".join(format_booking_id(b) for b in overbookings)
-        overbooking_str = ", ".join(f"{sanitize_string(b.get('room_no', ''))} ({sanitize_string(b.get('booking_id', ''))}, {sanitize_string(b.get('guest_name', ''))})" for b in overbookings)
-        over_data = {
-            "Inventory No": "Overbookings",
-            "Room No": overbooking_str,
-            "Booking ID": overbooking_ids,
-            "Guest Name": "",
-            "Mobile No": "",
-            "Total Pax": "",
-            "Check In": "",
-            "Check Out": "",
-            "Days": "",
-            "MOB": "",
-            "Room Charges": "",
-            "GST": "",
-            "Total": "",
-            "Commision": "",
-            "Receivable": "",
-            "Per Night": "",
-            "Advance": "",
-            "Advance Mop": "",
-            "Balance": "",
-            "Balance Mop": "",
-            "Plan": "",
-            "Booking Status": "",
-            "Payment Status": "",
-            "Submitted by": "",
-            "Modified by": "",
-            "Remarks": ""
-        }
-        return pd.DataFrame([over_data], columns=columns)
-    except Exception as e:
-        return pd.DataFrame(columns=columns)
+    return pd.DataFrame(df_data, columns=columns)
 
 @st.cache_data
 def cached_load_properties():
@@ -464,38 +471,13 @@ def show_daily_status():
                 daily_bookings = filter_bookings_for_day(bookings, day)
                 st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
                 if daily_bookings:
-                    assigned, overbookings = assign_inventory_numbers(daily_bookings, prop)
-                    columns = [
-                        "Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No",
-                        "Total Pax", "Check In", "Check Out", "Days", "MOB", "Room Charges",
-                        "GST", "Total", "Commision", "Receivable", "Per Night", "Advance",
-                        "Advance Mop", "Balance", "Balance Mop", "Plan", "Booking Status",
-                        "Payment Status", "Submitted by", "Modified by", "Remarks"
-                    ]
-                    inventory = PROPERTY_INVENTORY.get(prop, {"all": []})["all"]
-                    inventory_groups = {
-                        "Regular Inventory": [inv for inv in inventory if not (inv.startswith("Day Use") or inv == "No Show")],
-                        "Day Use Inventory": [inv for inv in inventory if inv.startswith("Day Use")],
-                        "No Show Inventory": [inv for inv in inventory if inv == "No Show"]
-                    }
-                    for group_name, group_inventory in inventory_groups.items():
-                        if group_inventory:
-                            st.markdown(f"**{group_name}**")
-                            df = create_group_table(group_inventory, assigned, columns)
-                            tooltip_columns = ['Guest Name', 'Room No', 'Remarks', 'Mobile No', 'MOB', 'Plan', 'Submitted by', 'Modified by']
-                            for col in tooltip_columns:
-                                if col in df.columns:
-                                    df[col] = df[col].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x, str) else x)
-                            table_html = df.to_html(escape=False, index=False)
-                            st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
-                    if overbookings:
-                        st.markdown("**Overbookings**")
-                        df_over = create_overbookings_row(overbookings, columns)
-                        tooltip_columns = ['Guest Name', 'Room No', 'Remarks', 'Mobile No', 'MOB', 'Plan', 'Submitted by', 'Modified by']
-                        for col in tooltip_columns:
-                            if col in df_over.columns:
-                                df_over[col] = df_over[col].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x, str) else x)
-                        table_html_over = df_over.to_html(escape=False, index=False)
-                        st.markdown(f'<div class="custom-scrollable-table">{table_html_over}</div>', unsafe_allow_html=True)
+                    daily_bookings, overbookings = assign_inventory_numbers(daily_bookings, prop)
+                    df = create_inventory_table(daily_bookings, overbookings, prop)
+                    tooltip_columns = ['Guest Name', 'Room No', 'Remarks', 'Mobile No', 'MOB', 'Plan', 'Submitted by', 'Modified by']
+                    for col in tooltip_columns:
+                        if col in df.columns:
+                            df[col] = df[col].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x, str) else x)
+                    table_html = df.to_html(escape=False, index=False)
+                    st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
                 else:
                     st.info("No active bookings on this day.")
