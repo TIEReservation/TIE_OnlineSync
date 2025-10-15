@@ -327,13 +327,12 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple
             logging.warning(f"Booking {booking_id} moved to overbookings: invalid inventory {inventory_no}")
             continue
         inventory_no = [inventory[inventory_lower.index(r.lower())] for r in inventory_no]
-        num_rooms = len(inventory_no)
         inventory_no.sort()
-        base_pax = b['total_pax'] // num_rooms
-        remainder_pax = b['total_pax'] % num_rooms
+        base_pax = b['total_pax'] // len(inventory_no) if inventory_no else 0
+        remainder_pax = b['total_pax'] % len(inventory_no) if inventory_no else 0
         days = b.get('days', 1) or 1
-        per_night_per_room = b.get('receivable', 0.0) / num_rooms / days
-        if num_rooms == 1:
+        per_night_per_room = b.get('receivable', 0.0) / len(inventory_no) / days if inventory_no else 0.0
+        if len(inventory_no) == 1:
             b['inventory_no'] = inventory_no
             b['per_night'] = per_night_per_room
             b['is_primary'] = True
@@ -462,6 +461,128 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
 
     return pd.DataFrame(df_data, columns=columns)
 
+def compute_statistics(bookings: List[Dict], property: str, target_date: date, month_dates: List[date]) -> tuple[pd.DataFrame, pd.DataFrame, Dict]:
+    """Compute D.T.D and M.T.D statistics for bookings."""
+    mob_types = [
+        "Booking", "Direct", "Bkg-Direct", "Agoda", "Go-MMT", "Walk-In",
+        "TIE Group", "Stayflexi", "Airbnb", "Social Media", "Expedia",
+        "Cleartrip", "Website"
+    ]
+    inventory = PROPERTY_INVENTORY.get(property, {"all": ["Unknown"]})["all"]
+    total_inventory = len([inv for inv in inventory if not inv.startswith(("Day Use", "No Show"))])
+
+    # D.T.D calculations
+    dtd_data = {mob: {"rooms": 0, "value": 0.0, "arr": 0.0, "comm": 0.0} for mob in mob_types}
+    dtd_bookings = filter_bookings_for_day(bookings, target_date)
+    dtd_assigned, _ = assign_inventory_numbers(dtd_bookings, property)
+    total_rooms = 0
+    total_value = 0.0
+    total_pax = 0
+    total_gst = 0.0
+    total_comm = 0.0
+    tax_deduction = 0.0  # Assuming 0.3% of value as per example ratio
+
+    for b in dtd_assigned:
+        mob = sanitize_string(b.get("mob", "Unknown"))
+        if mob not in mob_types:
+            mob = "Booking"  # Fallback to Booking
+        rooms = len(b.get("inventory_no", []))
+        value = b.get("receivable", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
+        comm = b.get("commission", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
+        dtd_data[mob]["rooms"] += rooms
+        dtd_data[mob]["value"] += value
+        dtd_data[mob]["comm"] += comm
+        total_rooms += rooms
+        total_value += value
+        total_pax += b.get("total_pax", 0)
+        total_gst += b.get("gst", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
+        total_comm += comm
+
+    for mob in mob_types:
+        rooms = dtd_data[mob]["rooms"]
+        dtd_data[mob]["arr"] = dtd_data[mob]["value"] / rooms if rooms > 0 else 0.0
+
+    dtd_data["Total"] = {
+        "rooms": total_rooms,
+        "value": total_value,
+        "arr": total_value / total_rooms if total_rooms > 0 else 0.0,
+        "comm": total_comm
+    }
+    dtd_df = pd.DataFrame(
+        [{"MOB": mob, "D.T.D Rooms": data["rooms"], "D.T.D Value": f"{data['value']:.2f}",
+          "D.T.D ARR": f"{data['arr']:.2f}", "D.T.D Comm": f"{data['comm']:.2f}"}
+         for mob, data in dtd_data.items()],
+        columns=["MOB", "D.T.D Rooms", "D.T.D Value", "D.T.D ARR", "D.T.D Comm"]
+    )
+
+    # M.T.D calculations
+    mtd_data = {mob: {"rooms": 0, "value": 0.0, "arr": 0.0, "comm": 0.0} for mob in mob_types}
+    mtd_rooms = 0
+    mtd_value = 0.0
+    mtd_pax = 0
+    mtd_gst = 0.0
+    mtd_comm = 0.0
+    mtd_tax_deduction = 0.0
+
+    for day in month_dates:
+        if day > target_date:
+            continue
+        daily_bookings = filter_bookings_for_day(bookings, day)
+        daily_assigned, _ = assign_inventory_numbers(daily_bookings, property)
+        for b in daily_assigned:
+            mob = sanitize_string(b.get("mob", "Unknown"))
+            if mob not in mob_types:
+                mob = "Booking"
+            rooms = len(b.get("inventory_no", []))
+            value = b.get("receivable", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
+            comm = b.get("commission", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
+            mtd_data[mob]["rooms"] += rooms
+            mtd_data[mob]["value"] += value
+            mtd_data[mob]["comm"] += comm
+            mtd_rooms += rooms
+            mtd_value += value
+            mtd_pax += b.get("total_pax", 0)
+            mtd_gst += b.get("gst", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
+            mtd_comm += comm
+
+    for mob in mob_types:
+        rooms = mtd_data[mob]["rooms"]
+        mtd_data[mob]["arr"] = mtd_data[mob]["value"] / rooms if rooms > 0 else 0.0
+
+    mtd_data["Total"] = {
+        "rooms": mtd_rooms,
+        "value": mtd_value,
+        "arr": mtd_value / mtd_rooms if mtd_rooms > 0 else 0.0,
+        "comm": mtd_comm
+    }
+    mtd_df = pd.DataFrame(
+        [{"MOB": mob, "M.T.D Rooms": data["rooms"], "M.T.D Value": f"{data['value']:.2f}",
+          "M.T.D ARR": f"{data['arr']:.2f}", "M.T.D Comm": f"{data['comm']:.2f}"}
+         for mob, data in mtd_data.items()],
+        columns=["MOB", "M.T.D Rooms", "M.T.D Value", "M.T.D ARR", "M.T.D Comm"]
+    )
+
+    # Summary statistics
+    summary = {
+        "rooms_sold": total_rooms,
+        "value": total_value,
+        "arr": total_value / total_rooms if total_rooms > 0 else 0.0,
+        "occ_percent": (total_rooms / total_inventory * 100) if total_inventory > 0 else 0.0,
+        "total_pax": total_pax,
+        "total_inventory": total_inventory,
+        "gst": total_gst,
+        "commission": total_comm,
+        "tax_deduction": total_value * 0.003,  # Assuming 0.3% as per example
+        "mtd_occ_percent": (mtd_rooms / (total_inventory * (target_date.day)) * 100) if total_inventory > 0 else 0.0,
+        "mtd_pax": mtd_pax,
+        "mtd_rooms": mtd_rooms,
+        "mtd_gst": mtd_gst,
+        "mtd_tax_deduction": mtd_value * 0.003,  # Assuming 0.3% as per example
+        "mtd_value": mtd_value
+    }
+
+    return dtd_df, mtd_df, summary
+
 @st.cache_data
 def cached_load_properties():
     return load_properties()
@@ -504,5 +625,31 @@ def show_daily_status():
                             df[col] = df[col].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x, str) else x)
                     table_html = df.to_html(escape=False, index=False)
                     st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
+                    
+                    # Compute and display statistics
+                    dtd_df, mtd_df, summary = compute_statistics(bookings, prop, day, month_dates)
+                    st.subheader("D.T.D Statistics")
+                    st.dataframe(dtd_df, use_container_width=True)
+                    st.subheader("M.T.D Statistics")
+                    st.dataframe(mtd_df, use_container_width=True)
+                    st.subheader("Summary")
+                    summary_df = pd.DataFrame([
+                        {"Metric": "Rooms Sold", "Value": summary["rooms_sold"]},
+                        {"Metric": "Value", "Value": f"{summary['value']:.2f}"},
+                        {"Metric": "ARR", "Value": f"{summary['arr']:.2f}"},
+                        {"Metric": "Occ%", "Value": f"{summary['occ_percent']:.2f}%"},
+                        {"Metric": "Total Pax", "Value": summary["total_pax"]},
+                        {"Metric": "Total Inventory", "Value": summary["total_inventory"]},
+                        {"Metric": "GST ", "Value": f"{summary['gst']:.2f}"},
+                        {"Metric": "Commission", "Value": f"{summary['commission']:.2f}"},
+                        {"Metric": "TAX Deduction", "Value": f"{summary['tax_deduction']:.2f}"},
+                        {"Metric": "M.T.D Occ %", "Value": f"{summary['mtd_occ_percent']:.2f}%"},
+                        {"Metric": "M.T.D Pax", "Value": summary["mtd_pax"]},
+                        {"Metric": "M.T.D Rooms", "Value": summary["mtd_rooms"]},
+                        {"Metric": "M.T.D GST", "Value": f"{summary['mtd_gst']:.2f}"},
+                        {"Metric": "M.T.D Tax Deduc", "Value": f"{summary['mtd_tax_deduction']:.2f}"},
+                        {"Metric": "M.T.D Value", "Value": f"{summary['mtd_value']:.2f}"}
+                    ])
+                    st.dataframe(summary_df, use_container_width=True)
                 else:
                     st.info("No active bookings on this day.")
