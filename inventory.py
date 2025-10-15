@@ -21,6 +21,7 @@ property_mapping = {
     "La Millionaire Luxury Resort": "La Millionaire Resort",
     "Le Poshe Beach View": "Le Poshe Beach view",
     "Le Poshe Beach view": "Le Poshe Beach view",
+    "Le Poshe Beach VIEW": "Le Poshe Beach view",
     "Millionaire": "La Millionaire Resort",
 }
 reverse_mapping = {}
@@ -30,7 +31,6 @@ for variant, canonical in property_mapping.items():
 # Table CSS for non-wrapping, scrollable table
 TABLE_CSS = """
 <style>
-/* Styles for non-wrapping, scrollable table in daily status */
 .custom-scrollable-table {
     overflow-x: auto;
     max-width: 100%;
@@ -198,7 +198,7 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
         guest_name = sanitize_string(booking.get('guest_name', ''))
         mobile_no = sanitize_string(booking.get('guest_phone', booking.get('mobile_no', '')))
         total_pax = safe_int(booking.get('total_pax', 0))
-        room_no = sanitize_string(booking.get('room_no', ''))
+        room_no = sanitize_string(booking.get('room_no', '')).title()  # Normalize case
         room_type = sanitize_string(booking.get('room_type', ''))
         mob = sanitize_string(booking.get('mode_of_booking', booking.get('mob', '')))
         plan = sanitize_string(booking.get('rate_plans', booking.get('plan', '')))
@@ -255,7 +255,6 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
 def load_combined_bookings(property: str, start_date: date, end_date: date) -> List[Dict]:
     """Load and combine bookings from both tables for the date range."""
     try:
-        # Try all possible property name variants
         query_properties = [property] + reverse_mapping.get(property, [])
         logging.info(f"Querying bookings for property variants: {query_properties}, from {start_date} to {end_date}")
         online_bookings = []
@@ -269,16 +268,15 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
                 logging.warning("Diagnostic query did not find booking SFBOOKING_27719_20637")
         for query_property in query_properties:
             # Load online reservations
-            online_response = supabase.table("online_reservations").select("*").eq("property", query_property).gte("check_in", str(start_date)).lte("check_in", str(end_date)).execute()
+            online_response = supabase.table("online_reservations").select("*").eq("property", query_property).gte("check_in", str(start_date)).lte("check_out", str(end_date)).execute()
             online_bookings.extend([normalize_booking(b, True) for b in (online_response.data or []) if normalize_booking(b, True)])
             logging.info(f"Retrieved {len(online_response.data or [])} online bookings for {query_property}, {len([b for b in online_bookings if b])} normalized")
             # Load direct reservations
-            direct_response = supabase.table("reservations").select("*").eq("property_name", query_property).gte("check_in", str(start_date)).lte("check_in", str(end_date)).execute()
+            direct_response = supabase.table("reservations").select("*").eq("property_name", query_property).gte("check_in", str(start_date)).lte("check_out", str(end_date)).execute()
             direct_bookings.extend([normalize_booking(b, False) for b in (direct_response.data or []) if normalize_booking(b, False)])
             logging.info(f"Retrieved {len(direct_response.data or [])} direct bookings for {query_property}, {len([b for b in direct_bookings if b])} normalized")
-        # Combine and filter out None
         combined = [b for b in online_bookings + direct_bookings if b]
-        logging.info(f"Total combined bookings for {property}: {len(combined)}")
+        logging.info(f"Total combined bindings for {property}: {len(combined)}")
         return combined
     except Exception as e:
         st.error(f"Error loading bookings for {property}: {e}")
@@ -295,34 +293,40 @@ def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dic
     for b in bookings:
         check_in_str = b["check_in"]
         check_out_str = b["check_out"]
-        check_in = date.fromisoformat(check_in_str) if check_in_str else None
-        check_out = date.fromisoformat(check_out_str) if check_out_str else None
-        if check_in and check_out:
-            if (check_in <= target_date < check_out) or (check_in == check_out and check_in == target_date):
-                b_copy = b.copy()
-                b_copy['target_date'] = target_date
-                filtered.append(b_copy)
-                logging.info(f"Filtered booking {b.get('booking_id')} for target date {target_date}")
-    logging.info(f"Total filtered {len(filtered)} bookings for target date {target_date}")
+        try:
+            check_in = date.fromisoformat(check_in_str) if check_in_str else None
+            check_out = date.fromisoformat(check_out_str) if check_out_str else None
+            if check_in and check_out:
+                if check_in <= target_date <= check_out:
+                    b_copy = b.copy()
+                    b_copy['target_date'] = target_date
+                    filtered.append(b_copy)
+                    logging.info(f"Included booking {b.get('booking_id')} for {target_date}: check_in={check_in}, check_out={check_out}")
+        except ValueError as e:
+            logging.warning(f"Skipping booking {b.get('booking_id', 'Unknown')} due to date parsing error: {e}")
+    logging.info(f"Filtered {len(filtered)} bookings for target date {target_date}")
     return filtered
 
 def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple[List[Dict], List[Dict]]:
-    """Assign inventory numbers, handling multi-room bookings by duplicating and apportioning total_pax, marking one room as primary for financial fields."""
+    """Assign inventory numbers, handling multi-room bookings with case-insensitive validation."""
     assigned = []
     overbookings = []
     inventory = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
+    inventory_lower = [i.lower() for i in inventory]
     for b in daily_bookings:
-        room_no = b.get('room_no', '')
-        inventory_no = [r.strip() for r in room_no.split(',') if r.strip()]
+        room_no = b.get('room_no', '').strip()
+        inventory_no = [r.strip().title() for r in room_no.split(',') if r.strip()]
+        booking_id = b.get('booking_id', 'Unknown')
         if not inventory_no:
             overbookings.append(b)
-            logging.warning(f"Booking {b.get('booking_id', 'Unknown')} moved to overbookings: no valid room_no")
+            logging.warning(f"Booking {booking_id} moved to overbookings: no valid room_no")
             continue
-        valid = all(inv in inventory for inv in inventory_no)
+        valid = all(r.lower() in inventory_lower for r in inventory_no)
         if not valid:
             overbookings.append(b)
-            logging.warning(f"Booking {b.get('booking_id', 'Unknown')} moved to overbookings: invalid inventory {inventory_no}")
+            logging.warning(f"Booking {booking_id} moved to overbookings: invalid inventory {inventory_no}")
             continue
+        inventory_no = [inventory[inventory_lower.index(r.lower())] for r in inventory_no]
         num_rooms = len(inventory_no)
         inventory_no.sort()
         base_pax = b['total_pax'] // num_rooms
@@ -343,7 +347,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple
                 new_b['per_night'] = per_night_per_room
                 new_b['is_primary'] = (idx == 0)
                 assigned.append(new_b)
-        logging.info(f"Assigned booking {b.get('booking_id')} to inventory {inventory_no}")
+        logging.info(f"Assigned booking {booking_id} to inventory {inventory_no}")
     logging.info(f"Assigned {len(assigned)} bookings, {len(overbookings)} overbookings for {property}")
     return assigned, overbookings
 
@@ -371,13 +375,14 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
 
     for b in assigned:
         inventory_no = b.get('inventory_no', [])
+        booking_id = b.get('booking_id', 'Unknown')
         if not inventory_no or not isinstance(inventory_no, list):
-            logging.warning(f"Skipping booking {b.get('booking_id', 'Unknown')} with invalid inventory_no: {inventory_no}")
+            logging.warning(f"Skipping booking {booking_id} with invalid inventory_no: {inventory_no}")
             continue
         for inv in inventory_no:
             row_indices = [i for i, row in enumerate(df_data) if row["Inventory No"] == inv]
             if not row_indices:
-                logging.warning(f"Inventory number {inv} not found in DataFrame for booking {b.get('booking_id', 'Unknown')}")
+                logging.warning(f"Inventory number {inv} not found in DataFrame for booking {booking_id}")
                 continue
             row = df_data[row_indices[0]]
             check_in = date.fromisoformat(b["check_in"]) if b["check_in"] else None
@@ -390,10 +395,10 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
                     "Booking ID": format_booking_id(b),
                     "Guest Name": sanitize_string(b.get("guest_name", "")),
                     "Mobile No": sanitize_string(b.get("mobile_no", "")),
-                    "Total Pax": sanitize_string(b.get("total_pax", "")),
+                    "Total Pax": str(b.get("total_pax", "")),
                     "Check In": b.get("check_in", ""),
                     "Check Out": b.get("check_out", ""),
-                    "Days": b.get("days", 0),
+                    "Days": str(b.get("days", 0)),
                     "MOB": sanitize_string(b.get("mob", "")),
                     "Per Night": f"{b.get('per_night', 0):.2f}" if b.get("per_night") is not None else "0.00",
                     "Plan": sanitize_string(b.get("plan", "")),
@@ -414,9 +419,9 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
                         "Advance Mop": sanitize_string(b.get("advance_mop", "")),
                         "Balance": f"{b.get('balance', 0):.2f}"
                     })
-                logging.info(f"Added booking {b.get('booking_id')} to inventory {inv}")
+                logging.info(f"Added booking {booking_id} to inventory {inv}")
             except Exception as e:
-                st.error(f"Error updating row for inventory {inv} in booking {b.get('booking_id', 'Unknown')}: {e}")
+                st.error(f"Error updating row for inventory {inv} in booking {booking_id}: {e}")
                 continue
 
     if overbookings:
@@ -462,7 +467,6 @@ def cached_load_properties():
     return load_properties()
 
 def cached_load_bookings(property, start_date, end_date):
-    # Clear cache for bookings to ensure fresh data
     st.cache_data.clear()
     return load_combined_bookings(property, start_date, end_date)
 
@@ -486,8 +490,8 @@ def show_daily_status():
         with st.expander(f"{prop}"):
             month_dates = generate_month_dates(year, month)
             start_date = month_dates[0]
-            end_date = month_dates[-1] + timedelta(days=1)
-            bookings = cached_load_bookings(prop, start_date, end_date - timedelta(days=1))
+            end_date = month_dates[-1]
+            bookings = cached_load_bookings(prop, start_date, end_date)
             for day in month_dates:
                 daily_bookings = filter_bookings_for_day(bookings, day)
                 st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
