@@ -3,7 +3,15 @@ import pandas as pd
 from datetime import date
 from supabase import create_client, Client
 from utils import safe_int, safe_float
-from inventory import PROPERTY_INVENTORY  # Import to resolve NameError
+
+# Try to import PROPERTY_INVENTORY, use fallback if not available
+try:
+    from inventory import PROPERTY_INVENTORY
+except ImportError:
+    PROPERTY_INVENTORY = {
+        "La Millionaire Resort": {"all": ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show"]},
+        "default": {"all": ["Day Use 1", "Day Use 2", "No Show"]}
+    }
 
 # Initialize Supabase client
 try:
@@ -212,19 +220,25 @@ def show_edit_online_reservations(selected_booking_id=None):
             # Row 5: Room No, Room Type
             col1, col2 = st.columns(2)
             with col1:
+                # Define room options based on property
                 if property_name == "La Millionaire Resort":
                     room_options = ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show"]
                 else:
                     room_options = ["Day Use 1", "Day Use 2", "No Show"]
-                room_no = st.selectbox("Room No", room_options, index=room_options.index(reservation["room_no"]) if reservation["room_no"] in room_options else 0)
+                # Use PROPERTY_INVENTORY if available and contains valid options
+                inventory_options = PROPERTY_INVENTORY.get(property_name, {"all": room_options})["all"]
+                if set(inventory_options).issuperset(room_options):
+                    room_options = inventory_options
+                # Default to fetched room_no if valid, else first option
+                default_room_no = reservation["room_no"] if reservation["room_no"] in room_options else room_options[0]
+                room_no = st.selectbox("Room No", room_options, index=room_options.index(default_room_no))
             with col2:
                 room_type_options = ["Day Use", "No Show"]
-                if "Day Use" in room_no:
-                    default_room_type = "Day Use"
-                elif room_no == "No Show":
-                    default_room_type = "No Show"
+                # Default to fetched room_type if valid, else auto-set based on room_no
+                if reservation["room_type"] in room_type_options:
+                    default_room_type = reservation["room_type"]
                 else:
-                    default_room_type = reservation["room_type"] if reservation["room_type"] in room_type_options else "Day Use"
+                    default_room_type = "Day Use" if "Day Use" in room_no else "No Show"
                 room_type = st.selectbox("Room Type", room_type_options, index=room_type_options.index(default_room_type))
 
             # Row 6: Rate Plans, Booking Source, Segment
