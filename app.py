@@ -67,7 +67,7 @@ def check_authentication():
                     st.success("✅ Management login successful! Reservations fetched.")
                 except Exception as e:
                     st.session_state.reservations = []
-                   閣st.session_state.online_reservations = []
+                    st.session_state.online_reservations = []
                     st.warning(f"✅ Management login successful, but failed to fetch reservations: {e}")
                 st.rerun()
             elif role == "ReservationTeam" and password == "TIE123":
