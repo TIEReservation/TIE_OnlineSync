@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import date
 from supabase import create_client, Client
 from utils import safe_int, safe_float
+from inventory import PROPERTY_INVENTORY  # Import to resolve NameError
 
 # Initialize Supabase client
 try:
@@ -83,11 +84,9 @@ def load_properties():
         st.error(f"Error loading properties: {e}")
         return []
 
-def truncate_string(value, max_length=50):
-    """Truncate string to specified length."""
-    if not value:
-        return value
-    return str(value)[:max_length] if len(str(value)) > max_length else str(value)
+def process_and_sync_excel(file):
+    """Placeholder for Excel sync function."""
+    return 0, 0  # Replace with actual implementation if available
 
 def show_edit_online_reservations(selected_booking_id=None):
     """Display edit online reservations page with upload and view."""
@@ -123,7 +122,6 @@ def show_edit_online_reservations(selected_booking_id=None):
     with col3:
         filter_status = st.selectbox("Filter by Booking Status", ["All", "Pending", "Confirmed", "Cancelled", "Completed", "No Show"])
     with col4:
-        # Get unique properties for filter
         properties = ["All"] + sorted(df["property"].dropna().unique().tolist())
         filter_property = st.selectbox("Filter by Property", properties)
 
@@ -214,26 +212,20 @@ def show_edit_online_reservations(selected_booking_id=None):
             # Row 5: Room No, Room Type
             col1, col2 = st.columns(2)
             with col1:
-                room_options = PROPERTY_INVENTORY.get(property_name, {"all": ["Unknown"]})["all"]
-                room_no = st.selectbox("Room No", room_options, index=room_options.index(reservation["room_no"]) if reservation["room_no"] in room_options else 0)
-
-                # Auto-set Room Type based on Room No
                 if property_name == "La Millionaire Resort":
-                    if "Day Use" in room_no:
-                        initial_room_type = "Day Use"
-                    elif room_no == "No Show":
-                        initial_room_type = "No Show"
-                    else:
-                        initial_room_type = reservation["room_type"]
+                    room_options = ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show"]
                 else:
-                    if "Day Use" in room_no:
-                        initial_room_type = "Day Use"
-                    elif room_no == "No Show":
-                        initial_room_type = "No Show"
-                    else:
-                        initial_room_type = reservation["room_type"]
+                    room_options = ["Day Use 1", "Day Use 2", "No Show"]
+                room_no = st.selectbox("Room No", room_options, index=room_options.index(reservation["room_no"]) if reservation["room_no"] in room_options else 0)
             with col2:
-                room_type = st.text_input("Room Type", value=initial_room_type)
+                room_type_options = ["Day Use", "No Show"]
+                if "Day Use" in room_no:
+                    default_room_type = "Day Use"
+                elif room_no == "No Show":
+                    default_room_type = "No Show"
+                else:
+                    default_room_type = reservation["room_type"] if reservation["room_type"] in room_type_options else "Day Use"
+                room_type = st.selectbox("Room Type", room_type_options, index=room_type_options.index(default_room_type))
 
             # Row 6: Rate Plans, Booking Source, Segment
             col1, col2, col3 = st.columns(3)
@@ -357,7 +349,6 @@ def show_edit_online_reservations(selected_booking_id=None):
                 st.session_state.online_edit_index = None
                 st.rerun()
 
-    # Restore search input for booking ID if not in edit mode
     if not st.session_state.online_edit_mode:
         col1, col2 = st.columns([3, 1])
         with col2:
