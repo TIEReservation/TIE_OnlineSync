@@ -404,7 +404,7 @@ def show_new_reservation_form():
         form_key = "new_reservation"
         # Initialize session state for dynamic updates
         if f"{form_key}_property" not in st.session_state:
-            st.session_state[f"{form_key}_property"] = sorted(load_property_room_map().keys())[0]
+            st.session_state[f"{form_key}_property"] = None  # Set to None for empty default
         if f"{form_key}_roomtype" not in st.session_state:
             st.session_state[f"{form_key}_roomtype"] = ""
         if f"{form_key}_room" not in st.session_state:
@@ -413,9 +413,14 @@ def show_new_reservation_form():
         row1_col1, row1_col2, row1_col3 = st.columns(3)
         with row1_col1:
             property_options = sorted(load_property_room_map().keys())
-            property_name = st.selectbox("Property Name", property_options,
-                                        key=f"{form_key}_property",
-                                        on_change=lambda: st.session_state.update({f"{form_key}_roomtype": "", f"{form_key}_room": ""}))
+            property_name = st.selectbox(
+                "Property Name",
+                property_options,
+                index=None,  # No default selection
+                placeholder="Select a property",
+                key=f"{form_key}_property",
+                on_change=lambda: st.session_state.update({f"{form_key}_roomtype": "", f"{form_key}_room": ""})
+            )
         with row1_col2:
             guest_name = st.text_input("Guest Name", placeholder="Enter guest name", key=f"{form_key}_guest")
         with row1_col3:
@@ -447,19 +452,28 @@ def show_new_reservation_form():
             total_pax = safe_int(adults) + safe_int(children) + safe_int(infants)
             st.text_input("Total Pax", value=str(total_pax), disabled=True, key=f"{form_key}_total_pax", help="Adults + Children + Infants")
         with row4_col2:
-            mob = st.selectbox("MOB (Mode of Booking)",
-                               ["Direct", "Online", "Agent", "Walk-in", "Phone", "Website", "Booking-Drt", "Social Media", "Stay-back", "TIE-Group", "Others"],
-                               key=f"{form_key}_mob")
+            mob = st.selectbox(
+                "MOB (Mode of Booking)",
+                ["Direct", "Online", "Agent", "Walk-in", "Phone", "Website", "Booking-Drt", "Social Media", "Stay-back", "TIE-Group", "Others"],
+                index=None,  # No default selection
+                placeholder="Select mode of booking",
+                key=f"{form_key}_mob"
+            )
             if mob == "Others":
                 custom_mob = st.text_input("Custom MOB", key=f"{form_key}_custom_mob")
             else:
                 custom_mob = None
         with row4_col3:
             room_map = load_property_room_map()
-            available_room_types = sorted(room_map.get(property_name, {}).keys())
+            available_room_types = sorted(room_map.get(property_name, {}).keys()) if property_name else []
             room_type_options = available_room_types + ["Other"] if "Other" not in available_room_types else available_room_types
-            room_type = st.selectbox("Room Type", room_type_options, key=f"{form_key}_roomtype",
-                                     on_change=lambda: st.session_state.update({f"{form_key}_room": ""}))
+            room_type = st.selectbox(
+                "Room Type",
+                room_type_options,
+                key=f"{form_key}_roomtype",
+                on_change=lambda: st.session_state.update({f"{form_key}_room": ""}),
+                disabled=not property_name
+            )
             if room_type == "Other":
                 custom_room_no = st.text_input("Custom Room No", key=f"{form_key}_custom_roomno")
             else:
@@ -468,8 +482,14 @@ def show_new_reservation_form():
             if room_type == "Other":
                 room_no = st.text_input("Room No", value=st.session_state[f"{form_key}_room"], key=f"{form_key}_room", placeholder="Enter room number")
             else:
-                available_rooms = sorted(room_map.get(property_name, {}).get(room_type, []))
-                room_no = st.selectbox("Room No", available_rooms, index=available_rooms.index(st.session_state[f"{form_key}_room"]) if st.session_state[f"{form_key}_room"] in available_rooms else 0, key=f"{form_key}_room")
+                available_rooms = sorted(room_map.get(property_name, {}).get(room_type, [])) if property_name and room_type else []
+                room_no = st.selectbox(
+                    "Room No",
+                    available_rooms,
+                    index=available_rooms.index(st.session_state[f"{form_key}_room"]) if st.session_state[f"{form_key}_room"] in available_rooms else 0,
+                    key=f"{form_key}_room",
+                    disabled=not (property_name and room_type)
+                )
         # Row 5: Total Tariff, Tariff (per day), Advance Amount, Advance MOP
         row5_col1, row5_col2, row5_col3, row5_col4 = st.columns(4)
         with row5_col1:
@@ -480,9 +500,13 @@ def show_new_reservation_form():
         with row5_col3:
             advance_amount = st.number_input("Advance Amount", min_value=0.0, value=0.0, step=100.0, key=f"{form_key}_advance")
         with row5_col4:
-            advance_mop = st.selectbox("Advance MOP",
-                                       ["Cash", "Card", "UPI", "Bank Transfer", "ClearTrip", "TIE Management", "Booking.com", "Pending", "Other"],
-                                       key=f"{form_key}_advmop")
+            advance_mop = st.selectbox(
+                "Advance MOP",
+                ["Cash", "Card", "UPI", "Bank Transfer", "ClearTrip", "TIE Management", "Booking.com", "Pending", "Other"],
+                index=None,  # No default selection
+                placeholder="Select advance MOP",
+                key=f"{form_key}_advmop"
+            )
             if advance_mop == "Other":
                 custom_advance_mop = st.text_input("Custom Advance MOP", key=f"{form_key}_custom_advmop")
             else:
@@ -804,7 +828,7 @@ def show_edit_form(edit_index):
         with row7_col2:
             invoice_no = st.text_input("Invoice No", value=reservation["Invoice No"], key=f"{form_key}_invoice")
         with row7_col3:
-            booking_status_options = ["Confirmed", "Pending", "Cancelled","Follow-up", "Completed", "No Show"]
+            booking_status_options = ["Confirmed", "Pending", "Cancelled", "Follow-up", "Completed", "No Show"]
             booking_status_index = booking_status_options.index(reservation["Booking Status"]) if reservation["Booking Status"] in booking_status_options else 1
             booking_status = st.selectbox("Booking Status", booking_status_options, index=booking_status_index, key=f"{form_key}_status")
         # Row 8: Remarks
