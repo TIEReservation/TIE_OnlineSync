@@ -330,6 +330,37 @@ def show_confirmation_dialog(booking_id, is_update=False):
     message = "Reservation Updated!" if is_update else "Reservation Confirmed!"
     st.markdown(f"**{message}**\n\nBooking ID: {booking_id}")
     if st.button("✔️ Confirm", use_container_width=True):
+        # Reset form after confirmation dialog is closed
+        form_key = "new_reservation"
+        st.session_state[f"{form_key}_property"] = None
+        st.session_state[f"{form_key}_roomtype"] = ""
+        st.session_state[f"{form_key}_room"] = ""
+        st.session_state[f"{form_key}_guest"] = ""
+        st.session_state[f"{form_key}_mobile"] = ""
+        st.session_state[f"{form_key}_enquiry"] = date.today()
+        st.session_state[f"{form_key}_checkin"] = date.today()
+        st.session_state[f"{form_key}_checkout"] = date.today() + timedelta(days=1)
+        st.session_state[f"{form_key}_adults"] = 1
+        st.session_state[f"{form_key}_children"] = 0
+        st.session_state[f"{form_key}_infants"] = 0
+        st.session_state[f"{form_key}_breakfast"] = "CP"
+        st.session_state[f"{form_key}_mob"] = None
+        st.session_state[f"{form_key}_custom_mob"] = ""
+        st.session_state[f"{form_key}_total_tariff"] = 0.0
+        st.session_state[f"{form_key}_advance"] = 0.0
+        st.session_state[f"{form_key}_advmop"] = None
+        st.session_state[f"{form_key}_custom_advmop"] = ""
+        st.session_state[f"{form_key}_balmop"] = "Pending"
+        st.session_state[f"{form_key}_custom_balmop"] = ""
+        st.session_state[f"{form_key}_booking"] = date.today()
+        st.session_state[f"{form_key}_invoice"] = ""
+        st.session_state[f"{form_key}_status"] = "Pending"
+        st.session_state[f"{form_key}_remarks"] = ""
+        st.session_state[f"{form_key}_payment_status"] = "Not Paid"
+        st.session_state[f"{form_key}_submitted_by"] = ""
+        st.session_state[f"{form_key}_online_source"] = None
+        st.session_state[f"{form_key}_custom_online_source"] = ""
+        st.session_state[f"{form_key}_custom_roomno"] = ""
         st.rerun()
 
 def display_filtered_analysis(df, start_date=None, end_date=None, view_mode=False):
