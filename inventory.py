@@ -43,7 +43,7 @@ mop_mapping = {
     "Website": ["Stayflexi Booking Engine"]
 }
 
-# Table CSS for non-wrapping, scrollable table
+# Table CSS for non-wrapping, scrollable table with reduced column width
 TABLE_CSS = """
 <style>
 .custom-scrollable-table {
@@ -59,7 +59,7 @@ TABLE_CSS = """
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
-    max-width: 300px;
+    max-width: 150px;  /* Reduced from 300px */
     padding: 8px;
     border: 1px solid #ddd;
 }
@@ -421,7 +421,7 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
                     "Submitted by": sanitize_string(b.get("submitted_by", "")),
                     "Modified by": sanitize_string(b.get("modified_by", "")),
                     "Remarks": sanitize_string(b.get("remarks", "")),
-                    "Balance Mop": sanitize_string(b.get("balance_mop", ""))  # Always update Balance Mop
+                    "Balance Mop": sanitize_string(b.get("balance_mop", ""))
                 })
                 if b.get('is_primary', False) and is_first_date:
                     row.update({
@@ -697,10 +697,14 @@ def show_daily_status():
                     
                     # Compute and display statistics
                     dtd_df, mtd_df, summary, mop_df = compute_statistics(bookings, prop, day, month_dates)
-                    st.subheader("MOP Report")
-                    st.dataframe(mop_df, use_container_width=True)
-                    st.subheader("D.T.D Statistics")
-                    st.dataframe(dtd_df, use_container_width=True)
+                    # Display MOP Report and D.T.D Statistics side by side
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.subheader("MOP Report")
+                        st.dataframe(mop_df, use_container_width=True)
+                    with col2:
+                        st.subheader("D.T.D Statistics")
+                        st.dataframe(dtd_df, use_container_width=True)
                     st.subheader("M.T.D Statistics")
                     st.dataframe(mtd_df, use_container_width=True)
                     st.subheader("Summary")
