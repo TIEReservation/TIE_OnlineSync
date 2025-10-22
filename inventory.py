@@ -261,7 +261,7 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
             "modified_by": modified_by,
             "remarks": remarks
         }
-        logging.info(f"Normalized booking {booking_id} for property {property_name}, room_no: {room_no}, check_in: {check_in}, check_out: {check_out}, days: {days}")
+        logging.info(f"Normalized booking {booking_id} for property {property_name}, room_no: {room_no}, check_in: {check_in}, check_out: {check_out}, days: {days}, balance_mop: {balance_mop}")
         return normalized
     except ValueError as e:
         logging.warning(f"Skipping booking {booking_id} due to date parsing error: {e}")
@@ -420,7 +420,8 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
                     "Payment Status": sanitize_string(b.get("payment_status", "")),
                     "Submitted by": sanitize_string(b.get("submitted_by", "")),
                     "Modified by": sanitize_string(b.get("modified_by", "")),
-                    "Remarks": sanitize_string(b.get("remarks", ""))
+                    "Remarks": sanitize_string(b.get("remarks", "")),
+                    "Balance Mop": sanitize_string(b.get("balance_mop", ""))  # Always update Balance Mop
                 })
                 if b.get('is_primary', False) and is_first_date:
                     row.update({
@@ -433,7 +434,7 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
                         "Advance Mop": sanitize_string(b.get("advance_mop", "")),
                         "Balance": f"{b.get('balance', 0):.2f}"
                     })
-                logging.info(f"Added booking {booking_id} to inventory {inv}")
+                logging.info(f"Added booking {booking_id} to inventory {inv}, balance_mop: {b.get('balance_mop', '')}")
             except Exception as e:
                 st.error(f"Error updating row for inventory {inv} in booking {booking_id}: {e}")
                 continue
