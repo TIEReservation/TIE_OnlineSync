@@ -320,17 +320,23 @@ def generate_month_dates(year: int, month: int) -> List[date]:
     return [date(year, month, day) for day in range(1, num_days + 1)]
 
 def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dict]:
-    """Filter bookings to show only on their check-in date."""
+    """Filter bookings to show on all dates from check-in to check-out (exclusive).
+    
+    Example: For a booking with check_in='2025-10-03' and check_out='2025-10-08' (5 days),
+    it will display on October 3, 4, 5, and 6, but NOT on October 7, 2025.
+    """
     filtered = []
     for b in bookings:
-        check_in_str = b["check_in"]
+        check_in_str = b.get("check_in", "")
+        check_out_str = b.get("check_out", "")
         try:
             check_in = date.fromisoformat(check_in_str) if check_in_str else None
-            if check_in and check_in == target_date:
+            check_out = date.fromisoformat(check_out_str) if check_out_str else None
+            if check_in and check_out and target_date >= check_in and target_date < check_out:
                 b_copy = b.copy()
                 b_copy['target_date'] = target_date
                 filtered.append(b_copy)
-                logging.info(f"Included booking {b.get('booking_id')} for {target_date}: check_in={check_in}")
+                logging.info(f"Included booking {b.get('booking_id')} for {target_date}: check_in={check_in}, check_out={check_out}")
         except ValueError as e:
             logging.warning(f"Skipping booking {b.get('booking_id', 'Unknown')} due to date parsing error: {e}")
     logging.info(f"Filtered {len(filtered)} bookings for target date {target_date}")
