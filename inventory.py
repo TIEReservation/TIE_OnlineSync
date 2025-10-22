@@ -43,6 +43,23 @@ mop_mapping = {
     "Website": ["Stayflexi Booking Engine"]
 }
 
+# MOB (Mode of Booking) mapping for D.T.D and M.T.D Statistics
+mob_mapping = {
+    "Booking": ["BOOKING"],
+    "Direct": ["Direct"],
+    "Bkg-Direct": ["Bkg-Direct"],
+    "Agoda": ["Agoda"],
+    "Go-MMT": ["Goibibo", "MMT", "Go-MMT", "MAKEMYTRIP"],
+    "Walk-In": ["Walk-In"],
+    "TIE Group": ["TIE Group"],
+    "Stayflexi": ["STAYFLEXI_GHA"],
+    "Airbnb": ["Airbnb"],
+    "Social Media": ["Social Media"],
+    "Expedia": ["Expedia"],
+    "Cleartrip": ["Cleartrip"],
+    "Website": ["Stayflexi Booking Engine"]
+}
+
 # Table CSS for non-wrapping, scrollable table with reduced column width
 TABLE_CSS = """
 <style>
@@ -59,7 +76,7 @@ TABLE_CSS = """
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
-    max-width: 150px;  /* Reduced from 300px */
+    max-width: 150px;
     padding: 8px;
     border: 1px solid #ddd;
 }
@@ -549,9 +566,13 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
     tax_deduction = 0.0
 
     for b in dtd_assigned:
-        mob = sanitize_string(b.get("mob", "Unknown"))
-        if mob not in mob_types:
-            mob = "Booking"  # Fallback to Booking
+        raw_mob = sanitize_string(b.get("mob", "Unknown"))
+        # Map raw_mob to standardized MOB type (case-insensitive)
+        mob = "Booking"  # Default fallback
+        for standard_mob, variants in mob_mapping.items():
+            if raw_mob.upper() in [v.upper() for v in variants]:
+                mob = standard_mob
+                break
         rooms = len(b.get("inventory_no", []))
         value = b.get("receivable", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
         comm = b.get("commission", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
@@ -563,6 +584,7 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
         total_pax += b.get("total_pax", 0)
         total_gst += b.get("gst", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
         total_comm += comm
+        logging.info(f"D.T.D booking {b.get('booking_id')} mapped mob '{raw_mob}' to '{mob}'")
 
     for mob in mob_types:
         rooms = dtd_data[mob]["rooms"]
@@ -596,9 +618,13 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
         daily_bookings = filter_bookings_for_day(bookings, day)
         daily_assigned, _ = assign_inventory_numbers(daily_bookings, property)
         for b in daily_assigned:
-            mob = sanitize_string(b.get("mob", "Unknown"))
-            if mob not in mob_types:
-                mob = "Booking"
+            raw_mob = sanitize_string(b.get("mob", "Unknown"))
+            # Map raw_mob to standardized MOB type (case-insensitive)
+            mob = "Booking"  # Default fallback
+            for standard_mob, variants in mob_mapping.items():
+                if raw_mob.upper() in [v.upper() for v in variants]:
+                    mob = standard_mob
+                    break
             rooms = len(b.get("inventory_no", []))
             value = b.get("receivable", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
             comm = b.get("commission", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
@@ -610,6 +636,7 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
             mtd_pax += b.get("total_pax", 0)
             mtd_gst += b.get("gst", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
             mtd_comm += comm
+            logging.info(f"M.T.D booking {b.get('booking_id')} mapped mob '{raw_mob}' to '{mob}'")
 
     for mob in mob_types:
         rooms = mtd_data[mob]["rooms"]
