@@ -28,6 +28,21 @@ reverse_mapping = {}
 for variant, canonical in property_mapping.items():
     reverse_mapping.setdefault(canonical, []).append(variant)
 
+# MOP (Mode of Payment) mapping
+mop_mapping = {
+    "UPI": ["UPI"],
+    "Cash": ["Cash"],
+    "Go-MMT": ["Goibibo", "MMT", "Go-MMT", "MAKEMYTRIP"],
+    "Agoda": ["Agoda"],
+    "NOT PAID": ["Not Paid"],
+    "Bank Transfer": ["Bank Transfer"],
+    "Stayflexi": ["STAYFLEXI_GHA"],
+    "Card Payment": ["Card"],
+    "Expedia": ["Expedia"],
+    "Cleartrip": ["Cleartrip"],
+    "Website": ["Stayflexi Booking Engine"]
+}
+
 # Table CSS for non-wrapping, scrollable table
 TABLE_CSS = """
 <style>
@@ -276,7 +291,7 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
             direct_bookings.extend([normalize_booking(b, False) for b in (direct_response.data or []) if normalize_booking(b, False)])
             logging.info(f"Retrieved {len(direct_response.data or [])} direct bookings for {query_property}, {len([b for b in direct_bookings if b])} normalized")
         combined = [b for b in online_bookings + direct_bookings if b]
-        logging.info(f"Total combined bindings for {property}: {len(combined)}")
+        logging.info(f"Total combined bookings for {property}: {len(combined)}")
         return combined
     except Exception as e:
         st.error(f"Error loading bookings for {property}: {e}")
@@ -461,8 +476,58 @@ def create_inventory_table(assigned: List[Dict], overbookings: List[Dict], prope
 
     return pd.DataFrame(df_data, columns=columns)
 
-def compute_statistics(bookings: List[Dict], property: str, target_date: date, month_dates: List[date]) -> tuple[pd.DataFrame, pd.DataFrame, Dict]:
-    """Compute D.T.D and M.T.D statistics for bookings."""
+def compute_mop_report(daily_bookings: List[Dict], target_date: date) -> pd.DataFrame:
+    """Compute MOP report for the given day."""
+    mop_types = [
+        "UPI", "Cash", "Go-MMT", "Agoda", "NOT PAID", "Expenses",
+        "Bank Transfer", "Stayflexi", "Card Payment", "Expedia",
+        "Cleartrip", "Website"
+    ]
+    mop_data = {mop: 0.0 for mop in mop_types}
+    total_cash = 0.0
+    total = 0.0
+
+    for b in daily_bookings:
+        check_in = date.fromisoformat(b["check_in"]) if b["check_in"] else None
+        is_first_date = check_in == target_date if check_in else False
+        if not (b.get('is_primary', False) and is_first_date):
+            continue
+        advance_mop = sanitize_string(b.get("advance_mop", ""))
+        balance_mop = sanitize_string(b.get("balance_mop", ""))
+        advance = safe_float(b.get("advance", 0.0))
+        balance = safe_float(b.get("balance", 0.0))
+
+        # Map advance_mop and balance_mop to standardized MOP types
+        for standard_mop, variants in mop_mapping.items():
+            if advance_mop in variants:
+                mop_data[standard_mop] += advance
+                total += advance
+                if standard_mop == "Cash":
+                    total_cash += advance
+            if balance_mop in variants:
+                mop_data[standard_mop] += balance
+                total += balance
+                if standard_mop == "Cash":
+                    total_cash += balance
+
+    # Add Expenses (set to 0.0 as per requirement)
+    mop_data["Expenses"] = 0.0
+
+    # Add Total Cash and Total
+    mop_data["Total Cash"] = total_cash
+    mop_data["Total"] = total
+
+    # Create DataFrame
+    mop_df = pd.DataFrame(
+        [{"MOP": mop, "Amount": f"{amount:.2f}"}
+         for mop, amount in mop_data.items()],
+        columns=["MOP", "Amount"]
+    )
+    logging.info(f"MOP report for {target_date}: {mop_data}")
+    return mop_df
+
+def compute_statistics(bookings: List[Dict], property: str, target_date: date, month_dates: List[date]) -> tuple[pd.DataFrame, pd.DataFrame, Dict, pd.DataFrame]:
+    """Compute D.T.D, M.T.D, Summary statistics, and MOP report for bookings."""
     mob_types = [
         "Booking", "Direct", "Bkg-Direct", "Agoda", "Go-MMT", "Walk-In",
         "TIE Group", "Stayflexi", "Airbnb", "Social Media", "Expedia",
@@ -581,7 +646,10 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
         "mtd_value": mtd_value
     }
 
-    return dtd_df, mtd_df, summary
+    # MOP report
+    mop_df = compute_mop_report(dtd_assigned, target_date)
+
+    return dtd_df, mtd_df, summary, mop_df
 
 @st.cache_data
 def cached_load_properties():
@@ -627,7 +695,9 @@ def show_daily_status():
                     st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
                     
                     # Compute and display statistics
-                    dtd_df, mtd_df, summary = compute_statistics(bookings, prop, day, month_dates)
+                    dtd_df, mtd_df, summary, mop_df = compute_statistics(bookings, prop, day, month_dates)
+                    st.subheader("MOP Report")
+                    st.dataframe(mop_df, use_container_width=True)
                     st.subheader("D.T.D Statistics")
                     st.dataframe(dtd_df, use_container_width=True)
                     st.subheader("M.T.D Statistics")
