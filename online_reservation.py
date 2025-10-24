@@ -89,11 +89,25 @@ def insert_online_reservation(reservation):
         st.error(f"Error inserting online reservation: {e}")
         return False
 
-def load_online_reservations_from_supabase():
-    """Load online reservations from Supabase."""
+def load_online_reservations_from_supabase(properties=None):
+    """Load all online reservations from Supabase without limit, filtered by properties."""
     try:
-        response = supabase.table("online_reservations").select("*").order("check_in", desc=True).execute()
-        return response.data if response.data else []
+        all_data = []
+        offset = 0
+        limit = 1000  # Supabase default max rows per request
+        while True:
+            query = supabase.table("online_reservations").select("*").range(offset, offset + limit - 1)
+            if properties:
+                query = query.in_("property", properties)
+            response = query.execute()
+            data = response.data if response.data else []
+            all_data.extend(data)
+            if len(data) < limit:  # If fewer rows than limit, we've reached the end
+                break
+            offset += limit
+        if not all_data:
+            st.warning("No online reservations found in the database.")
+        return all_data
     except Exception as e:
         st.error(f"Error loading online reservations: {e}")
         return []
@@ -139,12 +153,7 @@ def process_and_sync_excel(uploaded_file):
             booking_amount = safe_float(row.get("booking_amount"))
             total_payment_made = safe_float(row.get("Total Payment Made"))
             balance_due = safe_float(row.get("balance_due"))
-            
-            # Set mode_of_booking to booking_source by default (truncated)
-            mode_of_booking = truncate_string(booking_source, 50)
-            
-            # Always set booking_status to Pending by default
-            # Reservation agent will change it if required
+            mode_of_booking = booking_source  # Reservation agent will change it if required
             booking_status = "Pending"
             
             # Compute payment_status
@@ -181,7 +190,7 @@ def process_and_sync_excel(uploaded_file):
                 "booking_source": booking_source,
                 "segment": segment,
                 "staflexi_status": staflexi_status,
-                "booking_confirmed_on": booking_confirmed_on,  # Fixed: lowercase 'c'
+                "booking_confirmed_on": booking_confirmed_on,
                 "booking_amount": booking_amount,
                 "total_payment_made": total_payment_made,
                 "balance_due": balance_due,
@@ -210,18 +219,21 @@ def show_online_reservations():
     """Display online reservations page with upload and view."""
     st.title("🔥 Online Reservations")
     if 'online_reservations' not in st.session_state:
-        st.session_state.online_reservations = load_online_reservations_from_supabase()
+        st.session_state.online_reservations = load_online_reservations_from_supabase(st.session_state.properties)
 
     # Upload and Sync section
     st.subheader("Upload and Sync Excel File")
-    uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
-    if uploaded_file is not None:
-        if st.button("🔄 Sync to Database"):
-            with st.spinner("Processing and syncing..."):
-                inserted, skipped = process_and_sync_excel(uploaded_file)
-                st.success(f"✅ Synced successfully! Inserted: {inserted}, Skipped (duplicates): {skipped}")
-                # Reload to reflect changes
-                st.session_state.online_reservations = load_online_reservations_from_supabase()
+    if st.session_state.permissions.get("add", False):
+        uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
+        if uploaded_file is not None:
+            if st.button("🔄 Sync to Database"):
+                with st.spinner("Processing and syncing..."):
+                    inserted, skipped = process_and_sync_excel(uploaded_file)
+                    st.success(f"✅ Synced successfully! Inserted: {inserted}, Skipped (duplicates): {skipped}")
+                    # Reload to reflect changes
+                    st.session_state.online_reservations = load_online_reservations_from_supabase(st.session_state.properties)
+    else:
+        st.info("You do not have permission to add or sync online reservations.")
 
     # View section
     st.subheader("View Online Reservations")
