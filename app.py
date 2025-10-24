@@ -157,7 +157,7 @@ def show_user_management():
         new_username = st.text_input("Username")
         new_password = st.text_input("Password", type="password")
         new_role = st.selectbox("Role", ["Management", "ReservationTeam"])
-        all_properties = sorted(list(load_property_room_map().keys()))
+        all_properties = list(load_reservations_from_supabase()[0].keys()) if load_reservations_from_supabase() else []
         new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties)
         all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
         default_screens = all_screens if new_role == "Management" else [s for s in all_screens if s not in ["Daily Management Status", "Analytics"]]
@@ -172,7 +172,7 @@ def show_user_management():
             else:
                 new_user = {
                     "username": new_username,
-                    "password_hash": new_password,
+                    "password_hash": new_password,  # Corrected to match Supabase schema
                     "role": new_role,
                     "properties": new_properties,
                     "screens": new_screens,
@@ -192,13 +192,10 @@ def show_user_management():
         user_to_modify = next(u for u in users if u["username"] == modify_username)
         with st.form("modify_user_form"):
             mod_role = st.selectbox("Role", ["Management", "ReservationTeam"], index=0 if user_to_modify["role"] == "Management" else 1)
-            all_properties = sorted(list(load_property_room_map().keys()))
-            # Validate default properties against available options
-            valid_properties = [p for p in user_to_modify["properties"] if p in all_properties]
-            mod_properties = st.multiselect("Visible Properties", all_properties, default=valid_properties if valid_properties else all_properties)
+            all_properties = list(load_reservations_from_supabase()[0].keys()) if load_reservations_from_supabase() else []
+            mod_properties = st.multiselect("Visible Properties", all_properties, default=user_to_modify["properties"])
             all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
-            valid_screens = [s for s in user_to_modify["screens"] if s in all_screens]
-            mod_screens = st.multiselect("Visible Screens", all_screens, default=valid_screens if valid_screens else all_screens)
+            mod_screens = st.multiselect("Visible Screens", all_screens, default=user_to_modify["screens"])
             perms = user_to_modify["permissions"]
             mod_add = st.checkbox("Add Permission", value=perms["add"])
             mod_edit = st.checkbox("Edit Permission", value=perms["edit"])
@@ -219,7 +216,7 @@ def show_user_management():
 
     # Delete user
     st.subheader("Delete User")
-    delete_username = st.selectbox("Select User to Delete", [u["username"] for u in users if u["username"] not in ["Admin"]])
+    delete_username = st.selectbox("Select User to Delete", [u["username"] for u in users if u["username"] not in ["Admin", "Management", "ReservationTeam"]])
     if delete_username and st.button("Delete User"):
         try:
             supabase.table("users").delete().eq("username", delete_username).execute()
@@ -229,6 +226,7 @@ def show_user_management():
         st.rerun()
 
 def load_property_room_map():
+    # This function is retained for reference but not used in this version
     return {
         "Le Poshe Beach view": {"Double Room": ["101", "102", "202", "203", "204"], "Standard Room": ["201"], "Deluex Double Room Seaview": ["301", "302", "303", "304"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
         "La Millionaire Resort": {"Double Room": ["101", "102", "103", "105"], "Deluex Double Room with Balcony": ["205", "304", "305"], "Deluex Triple Room with Balcony": ["201", "202", "203", "204", "301", "302", "303"], "Deluex Family Room with Balcony": ["206", "207", "208", "306", "307", "308"], "Deluex Triple Room": ["402"], "Deluex Family Room": ["401"], "Day Use": ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 5"], "No Show": ["No Show"]},
@@ -239,12 +237,7 @@ def load_property_room_map():
         "La Villa Heritage": {"Double Room": ["101", "102", "103"], "4BHA Appartment": ["201to203&301", "201", "202", "203", "301"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
         "Le Pondy Beach Side": {"Villa": ["101to104", "101", "102", "103", "104"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
         "Le Royce Villa": {"Villa": ["101to102&201to202", "101", "102", "201", "202"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
-        "La Tamara Luxury": {"3BHA": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
-        "Property 11": {"Standard Room": ["101"], "Day Use": ["Day Use 1"], "No Show": ["No Show"]},
-        "Property 12": {"Double Room": ["201", "202"], "Day Use": ["Day Use 1"], "No Show": ["No Show"]},
-        "Property 13": {"Triple Room": ["301", "302"], "Day Use": ["Day Use 1"], "No Show": ["No Show"]},
-        "Property 14": {"Family Room": ["401", "402"], "Day Use": ["Day Use 1"], "No Show": ["No Show"]},
-        "Property 15": {"Deluxe Room": ["501"], "Day Use": ["Day Use 1"], "No Show": ["No Show"]}
+        "La Tamara Luxury": {"3BHA": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]}
     }
 
 def main():
@@ -259,7 +252,7 @@ def main():
         page_options.insert(4, "Edit Online Reservations")
     if st.session_state.role == "Admin":
         page_options.append("User Management")
-    
+
     if st.session_state.user_data:
         page_options = [p for p in page_options if p in st.session_state.user_data.get("screens", page_options)]
 
