@@ -177,7 +177,7 @@ def show_user_management():
             else:
                 new_user = {
                     "username": new_username,
-                    "password_hash": new_password,  # Use password_hash to match table
+                    "password_hash": new_password,
                     "role": new_role,
                     "properties": new_properties,
                     "screens": new_screens,
@@ -205,7 +205,7 @@ def show_user_management():
             mod_add = st.checkbox("Add Permission", value=perms["add"])
             mod_edit = st.checkbox("Edit Permission", value=perms["edit"])
             mod_delete = st.checkbox("Delete Permission", value=perms["delete"])
-            if st.form_submit_button("Update User"):
+            if st.form_submit_button("Update User"):  # Added submit button
                 updated_user = {
                     "role": mod_role,
                     "properties": mod_properties,
