@@ -43,7 +43,7 @@ try:
         initial_users = [
             {
                 "username": "Admin",
-                "password_hash": bcrypt.hashpw(b"TIE2024", bcrypt.gensalt()).decode(),
+                "password_hash": "TIE2024",
                 "role": "Admin",
                 "properties": [],
                 "screens": ["User Management"],
@@ -51,7 +51,7 @@ try:
             },
             {
                 "username": "Management",
-                "password_hash": bcrypt.hashpw(b"TIE2024", bcrypt.gensalt()).decode(),
+                "password_hash": "TIE2024",
                 "role": "Management",
                 "properties": all_properties,
                 "screens": ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"],
@@ -59,7 +59,7 @@ try:
             },
             {
                 "username": "ReservationTeam",
-                "password_hash": bcrypt.hashpw(b"TIE123", bcrypt.gensalt()).decode(),
+                "password_hash": "TIE123",
                 "role": "ReservationTeam",
                 "properties": all_properties,
                 "screens": ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Monthly Consolidation"],
@@ -99,7 +99,7 @@ def check_authentication():
             try:
                 user_response = supabase.table("users").select("*").eq("username", username).single().execute()
                 user = user_response.data
-                if user and password == user["password_hash"]:  # Updated for plain-text comparison
+                if user and password == user["password_hash"]:
                     st.session_state.authenticated = True
                     st.session_state.role = user["role"]
                     st.session_state.username = username
@@ -173,10 +173,9 @@ def show_user_management():
             if existing:
                 st.error("Username already exists.")
             else:
-                hash_pw = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
                 new_user = {
                     "username": new_username,
-                    "password_hash": hash_pw,
+                    "password_hash": new_password,
                     "role": new_role,
                     "properties": new_properties,
                     "screens": new_screens,
@@ -273,6 +272,19 @@ def main():
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.session_state.authenticated = False
+        st.session_state.role = None
+        st.session_state.username = None
+        st.session_state.properties = []
+        st.session_state.screens = []
+        st.session_state.permissions = {"add": False, "edit": False, "delete": False}
+        st.session_state.reservations = []
+        st.session_state.online_reservations = []
+        st.session_state.edit_mode = False
+        st.session_state.edit_index = None
+        st.session_state.online_edit_mode = False
+        st.session_state.online_edit_index = None
+        st.session_state.current_page = "Direct Reservations"
+        st.session_state.selected_booking_id = None
         st.query_params.clear()
         st.rerun()
 
