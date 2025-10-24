@@ -38,8 +38,8 @@ def check_authentication():
     # Initialize session state if not already set
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
-        st.session_state.role = None
         st.session_state.username = None
+        st.session_state.role = None
         st.session_state.reservations = []
         st.session_state.online_reservations = []
         st.session_state.edit_mode = False
@@ -48,89 +48,94 @@ def check_authentication():
         st.session_state.online_edit_index = None
         st.session_state.current_page = "Direct Reservations"
         st.session_state.selected_booking_id = None
+        st.session_state.user_data = None
 
     # If not authenticated, show login page and stop
     if not st.session_state.authenticated:
         st.title("🔐 TIE Reservations Login")
-        st.write("Please select your role and enter the password to access the system.")
-        role = st.selectbox("Select Role", ["Admin", "Management", "ReservationTeam"])
-        password = st.text_input("Enter password:", type="password")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
         if st.button("🔑 Login"):
-            if role == "Admin" and password == "Admin2024":
+            # Fallback to hardcoded credentials
+            if username == "Admin" and password == "Admin2024":
                 st.session_state.authenticated = True
-                st.session_state.role = "Admin"
                 st.session_state.username = "Admin"
-                query_params = st.query_params
-                query_page = query_params.get("page", ["User Management"])[0]
-                if query_page in ["User Management", "Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]:
-                    st.session_state.current_page = query_page
-                else:
-                    st.session_state.current_page = "User Management"
-                query_booking_id = query_params.get("booking_id", [None])[0]
-                if query_booking_id:
-                    st.session_state.selected_booking_id = query_booking_id
-                try:
-                    st.session_state.reservations = load_reservations_from_supabase()
-                    st.session_state.online_reservations = load_online_reservations_from_supabase()
-                    st.success("✅ Admin login successful! User Management loaded.")
-                except Exception as e:
-                    st.session_state.reservations = []
-                    st.session_state.online_reservations = []
-                    st.warning(f"✅ Admin login successful, but failed to fetch data: {e}")
-                st.rerun()
-            elif role == "Management" and password == "TIE2024":
+                st.session_state.role = "Admin"
+                st.session_state.current_page = "User Management"
+            elif username == "Management" and password == "TIE2024":
                 st.session_state.authenticated = True
-                st.session_state.role = "Management"
                 st.session_state.username = "Management"
-                query_params = st.query_params
-                query_page = query_params.get("page", ["Direct Reservations"])[0]
-                if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]:
-                    st.session_state.current_page = query_page
-                query_booking_id = query_params.get("booking_id", [None])[0]
-                if query_booking_id:
-                    st.session_state.selected_booking_id = query_booking_id
-                try:
-                    st.session_state.reservations = load_reservations_from_supabase()
-                    st.session_state.online_reservations = load_online_reservations_from_supabase()
-                    st.success("✅ Management login successful! Reservations fetched.")
-                except Exception as e:
-                    st.session_state.reservations = []
-                    st.session_state.online_reservations = []
-                    st.warning(f"✅ Management login successful, but failed to fetch data: {e}")
-                st.rerun()
-            elif role == "ReservationTeam" and password == "TIE123":
+                st.session_state.role = "Management"
+                st.session_state.current_page = "Direct Reservations"
+            elif username == "ReservationTeam" and password == "TIE123":
                 st.session_state.authenticated = True
-                st.session_state.role = "ReservationTeam"
                 st.session_state.username = "ReservationTeam"
+                st.session_state.role = "ReservationTeam"
+                st.session_state.current_page = "Direct Reservations"
+            else:
+                # Try Supabase users table
+                try:
+                    users = supabase.table("users").select("*").eq("username", username).eq("password", password).execute().data
+                    if users and len(users) == 1:
+                        user_data = users[0]
+                        st.session_state.authenticated = True
+                        st.session_state.username = username
+                        st.session_state.role = user_data["role"]
+                        st.session_state.user_data = user_data
+                        valid_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
+                        if st.session_state.role == "Admin":
+                            valid_screens.append("User Management")
+                        elif st.session_state.role == "Management":
+                            valid_screens = [s for s in valid_screens if s not in ["User Management"]]
+                        st.session_state.current_page = next((s for s in valid_screens if s in user_data.get("screens", ["Direct Reservations"])), "Direct Reservations")
+                    else:
+                        st.error("❌ Invalid username or password.")
+                except Exception as e:
+                    st.warning(f"⚠️ Database query failed: {e}. Falling back to hardcoded credentials.")
+                    if username == "Admin" and password == "Admin2024":
+                        st.session_state.authenticated = True
+                        st.session_state.username = "Admin"
+                        st.session_state.role = "Admin"
+                        st.session_state.current_page = "User Management"
+                    elif username == "Management" and password == "TIE2024":
+                        st.session_state.authenticated = True
+                        st.session_state.username = "Management"
+                        st.session_state.role = "Management"
+                        st.session_state.current_page = "Direct Reservations"
+                    elif username == "ReservationTeam" and password == "TIE123":
+                        st.session_state.authenticated = True
+                        st.session_state.username = "ReservationTeam"
+                        st.session_state.role = "ReservationTeam"
+                        st.session_state.current_page = "Direct Reservations"
+                    else:
+                        st.error("❌ Invalid username or password.")
+            if st.session_state.authenticated:
                 query_params = st.query_params
-                query_page = query_params.get("page", ["Direct Reservations"])[0]
-                if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Monthly Consolidation"]:
-                    st.session_state.current_page = query_page
                 query_booking_id = query_params.get("booking_id", [None])[0]
                 if query_booking_id:
                     st.session_state.selected_booking_id = query_booking_id
                 try:
                     st.session_state.reservations = load_reservations_from_supabase()
                     st.session_state.online_reservations = load_online_reservations_from_supabase()
-                    st.success("✅ Reservation Team login successful! Reservations fetched.")
+                    st.success(f"✅ {username} login successful!")
                 except Exception as e:
                     st.session_state.reservations = []
                     st.session_state.online_reservations = []
-                    st.warning(f"✅ Reservation Team login successful, but failed to fetch data: {e}")
+                    st.warning(f"✅ {username} login successful, but failed to fetch data: {e}")
                 st.rerun()
-            else:
-                st.error("❌ Invalid credentials. Please try again.")
         st.stop()
     else:
-        # Preserve query params for authenticated users
         query_params = st.query_params
-        if st.session_state.current_page not in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "User Management"]:
-            if st.session_state.role == "Admin":
-                st.session_state.current_page = "User Management"
-            else:
-                st.session_state.current_page = "Direct Reservations"
         query_page = query_params.get("page", [st.session_state.current_page])[0]
-        if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "User Management"]:
+        valid_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
+        if st.session_state.role == "Admin":
+            valid_screens.append("User Management")
+        elif st.session_state.role == "Management":
+            valid_screens = [s for s in valid_screens if s not in ["User Management"]]
+        if st.session_state.user_data and query_page not in st.session_state.user_data.get("screens", valid_screens):
+            st.error(f"❌ Access Denied: You do not have permission to view {query_page}.")
+            st.session_state.current_page = "Direct Reservations"
+        elif query_page in valid_screens:
             st.session_state.current_page = query_page
         query_booking_id = query_params.get("booking_id", [None])[0]
         if query_booking_id:
@@ -178,8 +183,11 @@ def show_user_management():
                     "screens": new_screens,
                     "permissions": {"add": add_perm, "edit": edit_perm, "delete": delete_perm}
                 }
-                supabase.table("users").insert(new_user).execute()
-                st.success(f"✅ User {new_username} created successfully!")
+                try:
+                    supabase.table("users").insert(new_user).execute()
+                    st.success(f"✅ User {new_username} created successfully!")
+                except Exception as e:
+                    st.error(f"❌ Failed to create user: {e}")
                 st.rerun()
 
     # Modify user
@@ -204,17 +212,37 @@ def show_user_management():
                     "screens": mod_screens,
                     "permissions": {"add": mod_add, "edit": mod_edit, "delete": mod_delete}
                 }
-                supabase.table("users").update(updated_user).eq("username", modify_username).execute()
-                st.success(f"✅ User {modify_username} updated successfully!")
+                try:
+                    supabase.table("users").update(updated_user).eq("username", modify_username).execute()
+                    st.success(f"✅ User {modify_username} updated successfully!")
+                except Exception as e:
+                    st.error(f"❌ Failed to update user: {e}")
                 st.rerun()
 
     # Delete user
     st.subheader("Delete User")
     delete_username = st.selectbox("Select User to Delete", [u["username"] for u in users if u["username"] not in ["Admin"]])
     if delete_username and st.button("Delete User"):
-        supabase.table("users").delete().eq("username", delete_username).execute()
-        st.success(f"🗑️ User {delete_username} deleted successfully!")
+        try:
+            supabase.table("users").delete().eq("username", delete_username).execute()
+            st.success(f"🗑️ User {delete_username} deleted successfully!")
+        except Exception as e:
+            st.error(f"❌ Failed to delete user: {e}")
         st.rerun()
+
+def load_property_room_map():
+    return {
+        "Le Poshe Beach view": {"Double Room": ["101", "102", "202", "203", "204"], "Standard Room": ["201"], "Deluex Double Room Seaview": ["301", "302", "303", "304"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "La Millionaire Resort": {"Double Room": ["101", "102", "103", "105"], "Deluex Double Room with Balcony": ["205", "304", "305"], "Deluex Triple Room with Balcony": ["201", "202", "203", "204", "301", "302", "303"], "Deluex Family Room with Balcony": ["206", "207", "208", "306", "307", "308"], "Deluex Triple Room": ["402"], "Deluex Family Room": ["401"], "Day Use": ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 5"], "No Show": ["No Show"]},
+        "Le Poshe Luxury": {"2BHA Appartment": ["101&102", "101", "102"], "2BHA Appartment with Balcony": ["201&202", "201", "202", "301&302", "301", "302", "401&402", "401", "402"], "3BHA Appartment": ["203to205", "203", "204", "205", "303to305", "303", "304", "305", "403to405", "403", "404", "405"], "Double Room with Private Terrace": ["501"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "Le Poshe Suite": {"2BHA Appartment": ["601&602", "601", "602", "603", "604", "703", "704"], "2BHA Appartment with Balcony": ["701&702", "701", "702"], "Double Room with Terrace": ["801"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "La Paradise Residency": {"Double Room": ["101", "102", "103", "301", "302", "304"], "Family Room": ["201", "203"], "Triple Room": ["202", "303"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "La Paradise Luxury": {"3BHA Appartment": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "La Villa Heritage": {"Double Room": ["101", "102", "103"], "4BHA Appartment": ["201to203&301", "201", "202", "203", "301"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "Le Pondy Beach Side": {"Villa": ["101to104", "101", "102", "103", "104"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "Le Royce Villa": {"Villa": ["101to102&201to202", "101", "102", "201", "202"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "La Tamara Luxury": {"3BHA": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]}
+    }
 
 def main():
     check_authentication()
@@ -229,6 +257,10 @@ def main():
     if st.session_state.role == "Admin":
         page_options.append("User Management")
     
+    # Filter page options based on user permissions
+    if st.session_state.user_data:
+        page_options = [p for p in page_options if p in st.session_state.user_data.get("screens", page_options)]
+
     page = st.sidebar.selectbox("Choose a page", page_options, index=page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0, key="page_select")
     st.session_state.current_page = page
 
@@ -236,4 +268,54 @@ def main():
     if st.sidebar.button("🔄 Refresh All Data"):
         st.cache_data.clear()
         try:
-            st.session_state.reservations
+            st.session_state.reservations = load_reservations_from_supabase()
+            st.session_state.online_reservations = load_online_reservations_from_supabase()
+            st.success("✅ Data refreshed from database!")
+        except Exception as e:
+            st.warning(f"⚠️ Data refresh partially failed: {e}")
+        st.rerun()
+
+    if page == "Direct Reservations":
+        show_new_reservation_form()
+    elif page == "View Reservations":
+        show_reservations()
+    elif page == "Edit Reservations":
+        show_edit_reservations()
+    elif page == "Online Reservations":
+        show_online_reservations()
+    elif page == "Edit Online Reservations" and edit_online_available:
+        show_edit_online_reservations(st.session_state.selected_booking_id)
+        if st.session_state.selected_booking_id:
+            st.session_state.selected_booking_id = None
+            st.query_params.clear()
+    elif page == "Daily Status":
+        show_daily_status()
+    elif page == "Daily Management Status" and st.session_state.role == "Management":
+        show_dms()
+    elif page == "Analytics" and st.session_state.role == "Management":
+        show_analytics()
+    elif page == "Monthly Consolidation":
+        show_monthly_consolidation()
+    elif page == "User Management" and st.session_state.role == "Admin":
+        show_user_management()
+
+    if st.sidebar.button("Log Out"):
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.session_state.authenticated = False
+        st.session_state.role = None
+        st.session_state.reservations = []
+        st.session_state.online_reservations = []
+        st.session_state.edit_mode = False
+        st.session_state.edit_index = None
+        st.session_state.online_edit_mode = False
+        st.session_state.online_edit_index = None
+        st.session_state.current_page = "Direct Reservations"
+        st.session_state.selected_booking_id = None
+        st.query_params.clear()
+        st.rerun()
+
+if __name__ == "__main__":
+    main()
