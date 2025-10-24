@@ -198,14 +198,18 @@ def show_user_management():
         with st.form("modify_user_form"):
             mod_role = st.selectbox("Role", ["Management", "ReservationTeam"], index=0 if user_to_modify["role"] == "Management" else 1)
             all_properties = sorted(list(load_property_room_map().keys()))
-            mod_properties = st.multiselect("Visible Properties", all_properties, default=user_to_modify["properties"])
+            # Filter default properties to only include valid options
+            valid_default_properties = [p for p in user_to_modify["properties"] if p in all_properties]
+            mod_properties = st.multiselect("Visible Properties", all_properties, default=valid_default_properties)
             all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
-            mod_screens = st.multiselect("Visible Screens", all_screens, default=user_to_modify["screens"])
+            # Filter default screens to only include valid options
+            valid_default_screens = [s for s in user_to_modify["screens"] if s in all_screens]
+            mod_screens = st.multiselect("Visible Screens", all_screens, default=valid_default_screens)
             perms = user_to_modify["permissions"]
             mod_add = st.checkbox("Add Permission", value=perms["add"])
             mod_edit = st.checkbox("Edit Permission", value=perms["edit"])
             mod_delete = st.checkbox("Delete Permission", value=perms["delete"])
-            if st.form_submit_button("Update User"):  # Submit button explicitly added
+            if st.form_submit_button("Update User"):
                 updated_user = {
                     "role": mod_role,
                     "properties": mod_properties,
