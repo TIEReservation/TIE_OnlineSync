@@ -51,7 +51,7 @@ def check_authentication():
     if not st.session_state.authenticated:
         st.title("🔐 TIE Reservations Login")
         st.write("Please select your role and enter the password to access the system.")
-        role = st.selectbox("Select Role", ["Management", "ReservationTeam"])
+        role = st.selectbox("Select Role", ["Admin", "Management", "ReservationTeam"])
         password = st.text_input("Enter password:", type="password")
         if st.button("🔑 Login"):
             if role == "Management" and password == "TIE2024":
@@ -92,20 +92,118 @@ def check_authentication():
                     st.session_state.online_reservations = []
                     st.warning(f"✅ Reservation Team login successful, but failed to fetch reservations: {e}")
                 st.rerun()
+            elif role == "Admin" and password == "Admin2024":
+                st.session_state.authenticated = True
+                st.session_state.role = "Admin"
+                query_params = st.query_params
+                query_page = query_params.get("page", ["Direct Reservations"])[0]
+                if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "User Management"]:
+                    st.session_state.current_page = query_page
+                query_booking_id = query_params.get("booking_id", [None])[0]
+                if query_booking_id:
+                    st.session_state.selected_booking_id = query_booking_id
+                try:
+                    st.session_state.reservations = load_reservations_from_supabase()
+                    st.session_state.online_reservations = load_online_reservations_from_supabase()
+                    st.success("✅ Admin login successful! Reservations fetched.")
+                except Exception as e:
+                    st.session_state.reservations = []
+                    st.session_state.online_reservations = []
+                    st.warning(f"✅ Admin login successful, but failed to fetch reservations: {e}")
+                st.rerun()
             else:
-                st.error("❌ Invalid password. Please try again.")
+                st.error("❌ Invalid role or password. Please try again.")
         st.stop()
     else:
         # Preserve query params for authenticated users
         query_params = st.query_params
-        if st.session_state.current_page not in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]:
+        if st.session_state.current_page not in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "User Management"]:
             st.session_state.current_page = "Direct Reservations"
         query_page = query_params.get("page", [st.session_state.current_page])[0]
-        if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]:
+        if query_page in ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "User Management"]:
             st.session_state.current_page = query_page
         query_booking_id = query_params.get("booking_id", [None])[0]
         if query_booking_id:
             st.session_state.selected_booking_id = query_booking_id
+
+def show_user_management():
+    if st.session_state.role != "Admin":
+        st.error("❌ Access Denied: User Management is available only for Admin.")
+        return
+    st.header("👥 User Management")
+
+    # Load all users
+    users = supabase.table("users").select("*").execute().data
+    if not users:
+        st.info("No users found.")
+        return
+    st.subheader("Existing Users")
+    st.dataframe(pd.DataFrame(users))
+
+    # Create new user
+    st.subheader("Create New User")
+    with st.form("create_user_form"):
+        new_username = st.text_input("Username")
+        new_password = st.text_input("Password", type="password")
+        new_role = st.selectbox("Role", ["Management", "ReservationTeam"])
+        all_properties = list(load_reservations_from_supabase()[0].keys()) if load_reservations_from_supabase() else []
+        new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties)
+        all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
+        default_screens = all_screens if new_role == "Management" else [s for s in all_screens if s not in ["Daily Management Status", "Analytics"]]
+        new_screens = st.multiselect("Visible Screens", all_screens, default=default_screens)
+        add_perm = st.checkbox("Add Permission", value=True)
+        edit_perm = st.checkbox("Edit Permission", value=True)
+        delete_perm = st.checkbox("Delete Permission", value=True)
+        if st.form_submit_button("Create User"):
+            existing = supabase.table("users").select("*").eq("username", new_username).execute().data
+            if existing:
+                st.error("Username already exists.")
+            else:
+                new_user = {
+                    "username": new_username,
+                    "password": new_password,
+                    "role": new_role,
+                    "properties": new_properties,
+                    "screens": new_screens,
+                    "permissions": {"add": add_perm, "edit": edit_perm, "delete": delete_perm}
+                }
+                supabase.table("users").insert(new_user).execute()
+                st.success(f"User {new_username} created successfully!")
+                st.rerun()
+
+    # Modify user
+    st.subheader("Modify User")
+    modify_username = st.selectbox("Select User to Modify", [u["username"] for u in users if u["username"] != "Admin"])
+    if modify_username:
+        user_to_modify = next(u for u in users if u["username"] == modify_username)
+        with st.form("modify_user_form"):
+            mod_role = st.selectbox("Role", ["Management", "ReservationTeam"], index=0 if user_to_modify["role"] == "Management" else 1)
+            all_properties = list(load_reservations_from_supabase()[0].keys()) if load_reservations_from_supabase() else []
+            mod_properties = st.multiselect("Visible Properties", all_properties, default=user_to_modify["properties"])
+            all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
+            mod_screens = st.multiselect("Visible Screens", all_screens, default=user_to_modify["screens"])
+            perms = user_to_modify["permissions"]
+            mod_add = st.checkbox("Add Permission", value=perms["add"])
+            mod_edit = st.checkbox("Edit Permission", value=perms["edit"])
+            mod_delete = st.checkbox("Delete Permission", value=perms["delete"])
+            if st.form_submit_button("Update User"):
+                updated_user = {
+                    "role": mod_role,
+                    "properties": mod_properties,
+                    "screens": mod_screens,
+                    "permissions": {"add": mod_add, "edit": mod_edit, "delete": mod_delete}
+                }
+                supabase.table("users").update(updated_user).eq("username", modify_username).execute()
+                st.success(f"User {modify_username} updated successfully!")
+                st.rerun()
+
+    # Delete user
+    st.subheader("Delete User")
+    delete_username = st.selectbox("Select User to Delete", [u["username"] for u in users if u["username"] not in ["Admin", "Management", "ReservationTeam"]])
+    if delete_username and st.button("Delete User"):
+        supabase.table("users").delete().eq("username", delete_username).execute()
+        st.success(f"User {delete_username} deleted successfully!")
+        st.rerun()
 
 def main():
     check_authentication()
@@ -117,6 +215,8 @@ def main():
         page_options.append("Analytics")
     if edit_online_available:
         page_options.insert(4, "Edit Online Reservations")
+    if st.session_state.role == "Admin":
+        page_options.append("User Management")
     
     page = st.sidebar.selectbox("Choose a page", page_options, index=page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0, key="page_select")
     st.session_state.current_page = page
@@ -153,6 +253,8 @@ def main():
         show_analytics()
     elif page == "Monthly Consolidation":
         show_monthly_consolidation()
+    elif page == "User Management" and st.session_state.role == "Admin":
+        show_user_management()
 
     if st.sidebar.button("Log Out"):
         st.cache_data.clear()
