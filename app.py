@@ -35,7 +35,6 @@ except Exception as e:
     st.stop()
 
 def check_authentication():
-    # Initialize session state if not already set
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
         st.session_state.username = None
@@ -50,13 +49,11 @@ def check_authentication():
         st.session_state.selected_booking_id = None
         st.session_state.user_data = None
 
-    # If not authenticated, show login page and stop
     if not st.session_state.authenticated:
         st.title("🔐 TIE Reservations Login")
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         if st.button("🔑 Login"):
-            # Fallback to hardcoded credentials
             if username == "Admin" and password == "Admin2024":
                 st.session_state.authenticated = True
                 st.session_state.username = "Admin"
@@ -73,7 +70,6 @@ def check_authentication():
                 st.session_state.role = "ReservationTeam"
                 st.session_state.current_page = "Direct Reservations"
             else:
-                # Try Supabase users table with password_hash
                 try:
                     users = supabase.table("users").select("*").eq("username", username).eq("password_hash", password).execute().data
                     if users and len(users) == 1:
@@ -147,7 +143,6 @@ def show_user_management():
         return
     st.header("👥 User Management")
 
-    # Load all users
     users = supabase.table("users").select("*").execute().data
     if not users:
         st.info("No users found.")
@@ -198,13 +193,12 @@ def show_user_management():
         with st.form("modify_user_form"):
             mod_role = st.selectbox("Role", ["Management", "ReservationTeam"], index=0 if user_to_modify["role"] == "Management" else 1)
             all_properties = sorted(list(load_property_room_map().keys()))
-            # Filter default properties to only include valid options
-            valid_default_properties = [p for p in user_to_modify["properties"] if p in all_properties]
-            mod_properties = st.multiselect("Visible Properties", all_properties, default=valid_default_properties)
+            # Validate default properties against available options
+            valid_properties = [p for p in user_to_modify["properties"] if p in all_properties]
+            mod_properties = st.multiselect("Visible Properties", all_properties, default=valid_properties if valid_properties else all_properties)
             all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
-            # Filter default screens to only include valid options
-            valid_default_screens = [s for s in user_to_modify["screens"] if s in all_screens]
-            mod_screens = st.multiselect("Visible Screens", all_screens, default=valid_default_screens)
+            valid_screens = [s for s in user_to_modify["screens"] if s in all_screens]
+            mod_screens = st.multiselect("Visible Screens", all_screens, default=valid_screens if valid_screens else all_screens)
             perms = user_to_modify["permissions"]
             mod_add = st.checkbox("Add Permission", value=perms["add"])
             mod_edit = st.checkbox("Edit Permission", value=perms["edit"])
@@ -245,7 +239,12 @@ def load_property_room_map():
         "La Villa Heritage": {"Double Room": ["101", "102", "103"], "4BHA Appartment": ["201to203&301", "201", "202", "203", "301"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
         "Le Pondy Beach Side": {"Villa": ["101to104", "101", "102", "103", "104"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
         "Le Royce Villa": {"Villa": ["101to102&201to202", "101", "102", "201", "202"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
-        "La Tamara Luxury": {"3BHA": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]}
+        "La Tamara Luxury": {"3BHA": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "Property 11": {"Standard Room": ["101"], "Day Use": ["Day Use 1"], "No Show": ["No Show"]},
+        "Property 12": {"Double Room": ["201", "202"], "Day Use": ["Day Use 1"], "No Show": ["No Show"]},
+        "Property 13": {"Triple Room": ["301", "302"], "Day Use": ["Day Use 1"], "No Show": ["No Show"]},
+        "Property 14": {"Family Room": ["401", "402"], "Day Use": ["Day Use 1"], "No Show": ["No Show"]},
+        "Property 15": {"Deluxe Room": ["501"], "Day Use": ["Day Use 1"], "No Show": ["No Show"]}
     }
 
 def main():
@@ -261,14 +260,12 @@ def main():
     if st.session_state.role == "Admin":
         page_options.append("User Management")
     
-    # Filter page options based on user permissions
     if st.session_state.user_data:
         page_options = [p for p in page_options if p in st.session_state.user_data.get("screens", page_options)]
 
     page = st.sidebar.selectbox("Choose a page", page_options, index=page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0, key="page_select")
     st.session_state.current_page = page
 
-    # Add global refresh button in sidebar above Log Out
     if st.sidebar.button("🔄 Refresh All Data"):
         st.cache_data.clear()
         try:
