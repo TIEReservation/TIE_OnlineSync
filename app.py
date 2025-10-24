@@ -205,7 +205,7 @@ def show_user_management():
             mod_add = st.checkbox("Add Permission", value=perms["add"])
             mod_edit = st.checkbox("Edit Permission", value=perms["edit"])
             mod_delete = st.checkbox("Delete Permission", value=perms["delete"])
-            if st.form_submit_button("Update User"):  # Ensure submit button is present
+            if st.form_submit_button("Update User"):  # Submit button explicitly added
                 updated_user = {
                     "role": mod_role,
                     "properties": mod_properties,
