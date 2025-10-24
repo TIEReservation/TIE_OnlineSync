@@ -73,9 +73,9 @@ def check_authentication():
                 st.session_state.role = "ReservationTeam"
                 st.session_state.current_page = "Direct Reservations"
             else:
-                # Try Supabase users table
+                # Try Supabase users table with password_hash
                 try:
-                    users = supabase.table("users").select("*").eq("username", username).eq("password", password).execute().data
+                    users = supabase.table("users").select("*").eq("username", username).eq("password_hash", password).execute().data
                     if users and len(users) == 1:
                         user_data = users[0]
                         st.session_state.authenticated = True
@@ -177,7 +177,7 @@ def show_user_management():
             else:
                 new_user = {
                     "username": new_username,
-                    "password": new_password,
+                    "password_hash": new_password,  # Use password_hash to match table
                     "role": new_role,
                     "properties": new_properties,
                     "screens": new_screens,
