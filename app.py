@@ -157,7 +157,7 @@ def show_user_management():
         new_username = st.text_input("Username")
         new_password = st.text_input("Password", type="password")
         new_role = st.selectbox("Role", ["Management", "ReservationTeam"])
-        all_properties = list(load_reservations_from_supabase()[0].keys()) if load_reservations_from_supabase() else []
+        all_properties = sorted(list(load_property_room_map().keys()))
         new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties)
         all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
         default_screens = all_screens if new_role == "Management" else [s for s in all_screens if s not in ["Daily Management Status", "Analytics"]]
@@ -172,7 +172,7 @@ def show_user_management():
             else:
                 new_user = {
                     "username": new_username,
-                    "password_hash": new_password,  # Corrected to match Supabase schema
+                    "password_hash": new_password,
                     "role": new_role,
                     "properties": new_properties,
                     "screens": new_screens,
@@ -192,14 +192,16 @@ def show_user_management():
         user_to_modify = next(u for u in users if u["username"] == modify_username)
         with st.form("modify_user_form"):
             mod_role = st.selectbox("Role", ["Management", "ReservationTeam"], index=0 if user_to_modify["role"] == "Management" else 1)
-            all_properties = list(load_reservations_from_supabase()[0].keys()) if load_reservations_from_supabase() else []
-            mod_properties = st.multiselect("Visible Properties", all_properties, default=user_to_modify["properties"])
+            all_properties = sorted(list(load_property_room_map().keys()))
+            valid_properties = [p for p in user_to_modify.get("properties", []) if p in all_properties]
+            mod_properties = st.multiselect("Visible Properties", all_properties, default=valid_properties)
             all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
-            mod_screens = st.multiselect("Visible Screens", all_screens, default=user_to_modify["screens"])
-            perms = user_to_modify["permissions"]
-            mod_add = st.checkbox("Add Permission", value=perms["add"])
-            mod_edit = st.checkbox("Edit Permission", value=perms["edit"])
-            mod_delete = st.checkbox("Delete Permission", value=perms["delete"])
+            valid_screens = [s for s in user_to_modify.get("screens", []) if s in all_screens]
+            mod_screens = st.multiselect("Visible Screens", all_screens, default=valid_screens)
+            perms = user_to_modify.get("permissions", {"add": True, "edit": True, "delete": True})
+            mod_add = st.checkbox("Add Permission", value=perms.get("add", True))
+            mod_edit = st.checkbox("Edit Permission", value=perms.get("edit", True))
+            mod_delete = st.checkbox("Delete Permission", value=perms.get("delete", True))
             if st.form_submit_button("Update User"):
                 updated_user = {
                     "role": mod_role,
@@ -216,28 +218,34 @@ def show_user_management():
 
     # Delete user
     st.subheader("Delete User")
-    delete_username = st.selectbox("Select User to Delete", [u["username"] for u in users if u["username"] not in ["Admin", "Management", "ReservationTeam"]])
-    if delete_username and st.button("Delete User"):
-        try:
-            supabase.table("users").delete().eq("username", delete_username).execute()
-            st.success(f"🗑️ User {delete_username} deleted successfully!")
-        except Exception as e:
-            st.error(f"❌ Failed to delete user: {e}")
-        st.rerun()
+    delete_username = [u["username"] for u in users if u["username"] not in ["Admin"]]
+    if delete_username:
+        delete_username = st.selectbox("Select User to Delete", delete_username)
+        if st.button("Delete User"):
+            try:
+                supabase.table("users").delete().eq("username", delete_username).execute()
+                st.success(f"🗑️ User {delete_username} deleted successfully!")
+            except Exception as e:
+                st.error(f"❌ Failed to delete user: {e}")
+            st.rerun()
 
 def load_property_room_map():
-    # This function is retained for reference but not used in this version
     return {
-        "Le Poshe Beach view": {"Double Room": ["101", "102", "202", "203", "204"], "Standard Room": ["201"], "Deluex Double Room Seaview": ["301", "302", "303", "304"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "Eden Beach Resort": {"Double Room": ["101", "102"], "Deluex Room": ["103", "202"], "Triple Room": ["201"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "La Antilia Luxury": {"Deluex Suite Room": ["101"], "Deluex Double Room": ["203", "204", "303", "304"], "Family Room": ["201", "202", "301", "302"], "Deluex suite Room with Tarrace": ["404"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
         "La Millionaire Resort": {"Double Room": ["101", "102", "103", "105"], "Deluex Double Room with Balcony": ["205", "304", "305"], "Deluex Triple Room with Balcony": ["201", "202", "203", "204", "301", "302", "303"], "Deluex Family Room with Balcony": ["206", "207", "208", "306", "307", "308"], "Deluex Triple Room": ["402"], "Deluex Family Room": ["401"], "Day Use": ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 5"], "No Show": ["No Show"]},
+        "La Paradise Luxury": {"3BHA Appartment": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "La Paradise Residency": {"Double Room": ["101", "102", "103", "301", "302", "304"], "Family Room": ["201", "203"], "Triple Room": ["202", "303"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "La Tamara Luxury": {"3BHA": ["101to103", "101", "102", "103", "104to106", "104", "105", "106", "201to203", "201", "202", "203", "204to206", "204", "205", "206", "301to303", "301", "302", "303", "304to306", "304", "305", "306"], "4BHA": ["401to404", "401", "402", "403", "404"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "La Tamara Suite": {"Two Bedroom apartment": ["101&102"], "Deluxe Apartment": ["103&104"], "Deluxe Double Room": ["203", "204", "205"], "Deluxe Triple Room": ["201", "202"], "Deluxe Family Room": ["206"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "La Villa Heritage": {"Double Room": ["101", "102", "103"], "4BHA Appartment": ["201to203&301", "201", "202", "203", "301"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "Le Park Resort": {"Villa with Swimming Pool View": ["555&666", "555", "666"], "Villa with Garden View": ["111&222", "111", "222"], "Family Retreate Villa": ["333&444", "333", "444"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "Le Pondy Beachside": {"Villa": ["101to104", "101", "102", "103", "104"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "Le Poshe Beach view": {"Double Room": ["101", "102", "202", "203", "204"], "Standard Room": ["201"], "Deluex Double Room Seaview": ["301", "302", "303", "304"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
         "Le Poshe Luxury": {"2BHA Appartment": ["101&102", "101", "102"], "2BHA Appartment with Balcony": ["201&202", "201", "202", "301&302", "301", "302", "401&402", "401", "402"], "3BHA Appartment": ["203to205", "203", "204", "205", "303to305", "303", "304", "305", "403to405", "403", "404", "405"], "Double Room with Private Terrace": ["501"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
         "Le Poshe Suite": {"2BHA Appartment": ["601&602", "601", "602", "603", "604", "703", "704"], "2BHA Appartment with Balcony": ["701&702", "701", "702"], "Double Room with Terrace": ["801"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
-        "La Paradise Residency": {"Double Room": ["101", "102", "103", "301", "302", "304"], "Family Room": ["201", "203"], "Triple Room": ["202", "303"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
-        "La Paradise Luxury": {"3BHA Appartment": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
-        "La Villa Heritage": {"Double Room": ["101", "102", "103"], "4BHA Appartment": ["201to203&301", "201", "202", "203", "301"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
-        "Le Pondy Beach Side": {"Villa": ["101to104", "101", "102", "103", "104"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
         "Le Royce Villa": {"Villa": ["101to102&201to202", "101", "102", "201", "202"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
-        "La Tamara Luxury": {"3BHA": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]}
+        "Villa Shakti": {"2BHA Studio Room": ["101&102"], "2BHA with Balcony": ["202&203", "302&303"], "Family Suite": ["201"], "Family Room": ["301"], "Terrace Room": ["401"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]}
     }
 
 def main():
