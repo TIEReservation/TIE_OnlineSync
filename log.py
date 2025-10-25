@@ -42,52 +42,14 @@ def show_log_report(supabase):
             st.info("No logs found for the selected user and month.")
             return
         
-        # Process logs to categorize activities
+        # Group by day
         df = pd.DataFrame(logs)
         df['date'] = pd.to_datetime(df['timestamp']).dt.date
+        grouped = df.groupby("date")['action'].value_counts().reset_index(name='count')
         
-        # Group by day and categorize actions
+        # Display summaries in point form
         st.subheader(f"{selected_user}'s Activity Log for {datetime(current_year, month, 1).strftime('%B %Y')}")
-        
-        for day in sorted(df['date'].unique()):
-            day_logs = df[df['date'] == day]
-            
-            # Count different activities
-            newly_added = 0
-            modified = 0
-            cancelled = 0
-            confirmed = 0
-            
-            for action in day_logs['action']:
-                action_lower = action.lower()
-                
-                # Newly Added - Adding new reservation via direct
-                if 'added' in action_lower and 'reservation' in action_lower:
-                    newly_added += 1
-                
-                # Modified - Edit reservations (both direct and online)
-                elif 'updated' in action_lower or 'modified' in action_lower or 'edit' in action_lower:
-                    modified += 1
-                
-                # Cancelled - booking status changed to cancelled
-                elif 'cancelled' in action_lower:
-                    cancelled += 1
-                
-                # Confirmed - booking status changed to confirmed
-                elif 'confirmed' in action_lower:
-                    confirmed += 1
-            
-            # Display summary for the day
+        for day, group in grouped.groupby("date"):
             st.write(f"**{day}**")
-            if newly_added > 0:
-                st.write(f"- Newly Added: {newly_added}")
-            if modified > 0:
-                st.write(f"- Modified: {modified}")
-            if cancelled > 0:
-                st.write(f"- Cancelled: {cancelled}")
-            if confirmed > 0:
-                st.write(f"- Confirmed: {confirmed}")
-            
-            # If no activities for the day, show a message
-            if newly_added == 0 and modified == 0 and cancelled == 0 and confirmed == 0:
-                st.write("- No tracked activities")
+            for action, count in group.groupby("action")["count"].sum().items():
+                st.write(f"- {action}: {count}")
