@@ -87,14 +87,17 @@ def show_edit_online_reservations(selected_booking_id=None):
         st.session_state.online_edit_mode = True
         st.session_state.online_edit_index = edit_index
 
+        # Fetch current user
+        current_user = st.session_state.username if 'username' in st.session_state else "Unknown"
+
         with st.form("edit_online_reservation_form"):
             st.subheader(f"Edit Reservation - {reservation['booking_id']}")
             
-            # Non-editable fields
-            submitted_by = st.session_state.username if 'username' in st.session_state else "Unknown"
+            # Non-editable fields with user logic
+            submitted_by = reservation.get("submitted_by", current_user)
             st.write(f"Submitted By: {submitted_by}")
-            modified_by = st.session_state.username if 'username' in st.session_state else "Unknown"
-            st.write(f"Modified By: {modified_by}")
+            modified_by = reservation.get("modified_by", current_user if submitted_by != current_user else "")
+            st.write(f"Modified By: {modified_by if modified_by else current_user}")
 
             # Editable fields
             property = st.text_input("Property", value=reservation.get("property", ""))
@@ -158,8 +161,8 @@ def show_edit_online_reservations(selected_booking_id=None):
                         "booking_status": booking_status,
                         "payment_status": payment_status,
                         "remarks": remarks,
-                        "submitted_by": submitted_by,  # Set from session state
-                        "modified_by": modified_by,    # Set from session state
+                        "submitted_by": submitted_by,  # Retain existing submitted_by
+                        "modified_by": current_user,   # Always update with current user
                         "total_amount_with_services": total_amount_with_services,
                         "ota_gross_amount": ota_gross_amount,
                         "ota_commission": ota_commission,
