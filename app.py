@@ -48,14 +48,14 @@ def check_authentication():
         st.session_state.selected_booking_id = None
         st.session_state.users = []  # Initialize users list
 
-    # If not authenticated, show login page and stop
+    # Preserve exact login page look
     if not st.session_state.authenticated:
         st.title("🔐 TIE Reservations Login")
         st.write("Please select your role and enter the password to access the system.")
         role = st.selectbox("Select Role", ["Admin", "Management", "ReservationTeam"])
         password = st.text_input("Password", type="password")
         if st.button("Login"):
-            # Simulated authentication (replace with secure logic)
+            # Simulated authentication
             users = st.session_state.get("users", [])
             user = next((u for u in users if u.get("role") == role and u.get("password") == password), None)
             if not user:
