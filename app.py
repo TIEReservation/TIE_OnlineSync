@@ -315,6 +315,9 @@ def main():
     elif page == "User Management" and st.session_state.role == "Admin":
         show_user_management()
 
+    # Display username before Log Out button
+    if st.session_state.authenticated:
+        st.sidebar.write(f"Logged in as: {st.session_state.username}")
     if st.sidebar.button("Log Out"):
         st.cache_data.clear()
         st.cache_resource.clear()
