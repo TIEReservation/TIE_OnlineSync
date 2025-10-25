@@ -1,17 +1,8 @@
 import streamlit as st
-import os  # Added to resolve NameError
-from supabase import create_client, Client
 from datetime import datetime
 import pandas as pd
 
-# Initialize Supabase client (using environment variables from app.py)
-try:
-    supabase: Client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
-except Exception as e:
-    st.error(f"Failed to initialize Supabase client: {e}")
-    st.stop()
-
-def log_activity(username, action):
+def log_activity(supabase, username, action):
     """Log user activity to Supabase."""
     log_entry = {
         "username": username,
@@ -23,7 +14,7 @@ def log_activity(username, action):
     except Exception as e:
         st.error(f"Failed to log activity: {e}")
 
-def show_log_report():
+def show_log_report(supabase):
     st.subheader("Log Report")
     
     # Get all users from users table
