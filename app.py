@@ -195,7 +195,7 @@ def show_user_management():
                 }
                 try:
                     supabase.table("users").insert(new_user).execute()
-                    log_activity(st.session_state.username, f"Created user {new_username}")
+                    log_activity(supabase, st.session_state.username, f"Created user {new_username}")
                     st.success(f"✅ User {new_username} created successfully!")
                 except Exception as e:
                     st.error(f"❌ Failed to create user: {e}")
@@ -233,7 +233,7 @@ def show_user_management():
                 }
                 try:
                     supabase.table("users").update(updated_user).eq("username", modify_username).execute()
-                    log_activity(st.session_state.username, f"Modified user {modify_username}")
+                    log_activity(supabase, st.session_state.username, f"Modified user {modify_username}")
                     st.success(f"✅ User {modify_username} updated successfully!")
                 except Exception as e:
                     st.error(f"❌ Failed to update user: {e}")
@@ -245,7 +245,7 @@ def show_user_management():
     if delete_username and st.button("Delete User"):
         try:
             supabase.table("users").delete().eq("username", delete_username).execute()
-            log_activity(st.session_state.username, f"Deleted user {delete_username}")
+            log_activity(supabase, st.session_state.username, f"Deleted user {delete_username}")
             st.success(f"🗑️ User {delete_username} deleted successfully!")
         except Exception as e:
             st.error(f"❌ Failed to delete user: {e}")
@@ -291,7 +291,7 @@ def main():
         try:
             st.session_state.reservations = load_reservations_from_supabase()
             st.session_state.online_reservations = load_online_reservations_from_supabase()
-            log_activity(st.session_state.username, "Refreshed all data")
+            log_activity(supabase, st.session_state.username, "Refreshed all data")
             st.success("✅ Data refreshed from database!")
         except Exception as e:
             st.warning(f"⚠️ Data refresh partially failed: {e}")
@@ -299,46 +299,46 @@ def main():
 
     if page == "Direct Reservations":
         show_new_reservation_form()
-        log_activity(st.session_state.username, "Accessed Direct Reservations")
+        log_activity(supabase, st.session_state.username, "Accessed Direct Reservations")
     elif page == "View Reservations":
         show_reservations()
-        log_activity(st.session_state.username, "Accessed View Reservations")
+        log_activity(supabase, st.session_state.username, "Accessed View Reservations")
     elif page == "Edit Reservations":
         show_edit_reservations()
-        log_activity(st.session_state.username, "Accessed Edit Reservations")
+        log_activity(supabase, st.session_state.username, "Accessed Edit Reservations")
     elif page == "Online Reservations":
         show_online_reservations()
-        log_activity(st.session_state.username, "Accessed Online Reservations")
+        log_activity(supabase, st.session_state.username, "Accessed Online Reservations")
     elif page == "Edit Online Reservations" and edit_online_available:
         show_edit_online_reservations(st.session_state.selected_booking_id)
         if st.session_state.selected_booking_id:
             st.session_state.selected_booking_id = None
             st.query_params.clear()
-        log_activity(st.session_state.username, "Accessed Edit Online Reservations")
+        log_activity(supabase, st.session_state.username, "Accessed Edit Online Reservations")
     elif page == "Daily Status":
         show_daily_status()
-        log_activity(st.session_state.username, "Accessed Daily Status")
+        log_activity(supabase, st.session_state.username, "Accessed Daily Status")
     elif page == "Daily Management Status" and st.session_state.current_page == "Daily Management Status":
         show_dms()
-        log_activity(st.session_state.username, "Accessed Daily Management Status")
+        log_activity(supabase, st.session_state.username, "Accessed Daily Management Status")
     elif page == "Analytics" and st.session_state.role == "Management":
         show_analytics()
-        log_activity(st.session_state.username, "Accessed Analytics")
+        log_activity(supabase, st.session_state.username, "Accessed Analytics")
     elif page == "Monthly Consolidation":
         show_monthly_consolidation()
-        log_activity(st.session_state.username, "Accessed Monthly Consolidation")
+        log_activity(supabase, st.session_state.username, "Accessed Monthly Consolidation")
     elif page == "User Management" and st.session_state.role == "Admin":
         show_user_management()
-        log_activity(st.session_state.username, "Accessed User Management")
+        log_activity(supabase, st.session_state.username, "Accessed User Management")
     elif page == "Log Report" and st.session_state.role == "Admin":
-        show_log_report()
-        log_activity(st.session_state.username, "Accessed Log Report")
+        show_log_report(supabase)
+        log_activity(supabase, st.session_state.username, "Accessed Log Report")
 
     # Display username before Log Out button
     if st.session_state.authenticated:
         st.sidebar.write(f"Logged in as: {st.session_state.username}")
     if st.sidebar.button("Log Out"):
-        log_activity(st.session_state.username, "Logged out")
+        log_activity(supabase, st.session_state.username, "Logged out")
         st.cache_data.clear()
         st.cache_resource.clear()
         for key in list(st.session_state.keys()):
