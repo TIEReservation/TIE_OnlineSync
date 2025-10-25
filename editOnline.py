@@ -80,14 +80,19 @@ def load_properties():
 def get_room_options(property_name):
     """Return room number and room type options based on property."""
     if property_name == "Millionaire":
-        room_numbers = ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show"]
+        room_numbers = ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show", "Others"]
     else:
-        room_numbers = ["Day Use 1", "Day Use 2", "No Show"]
+        room_numbers = ["Day Use 1", "Day Use 2", "No Show", "Others"]
     
     def get_room_type(room_no):
-        return "No Show" if room_no == "No Show" else "Day Use"
+        if room_no == "No Show":
+            return "No Show"
+        elif room_no == "Others":
+            return "Others"
+        else:
+            return "Day Use"
     
-    room_types = ["Day Use", "No Show"]
+    room_types = ["Day Use", "No Show", "Others"]
     return room_numbers, room_types, get_room_type
 
 def show_edit_online_reservations(selected_booking_id=None):
@@ -187,10 +192,17 @@ def show_edit_online_reservations(selected_booking_id=None):
                 room_numbers.insert(0, current_room_no)
             room_no_index = room_numbers.index(current_room_no) if current_room_no in room_numbers else 0
             room_no = st.selectbox("Room No", room_numbers, index=room_no_index)
+            
+            # Show text input if "Others" is selected
+            if room_no == "Others":
+                custom_room_no = st.text_input("Enter Room Number", value=current_room_no if current_room_no not in ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show", "Others"] else "")
+                if custom_room_no:
+                    room_no = custom_room_no
+        
         with col2:
             # Determine default room type based on fetched or selected room_no
             current_room_type = reservation.get("room_type", "")
-            default_room_type = get_room_type(room_no)
+            default_room_type = get_room_type(room_no if room_no != "Others" else current_room_no)
             # If current_room_type is not in room_types, add it to maintain fetched value
             if current_room_type and current_room_type not in room_types:
                 room_types.insert(0, current_room_type)
