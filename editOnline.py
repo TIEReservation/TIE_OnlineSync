@@ -80,14 +80,14 @@ def load_properties():
 def get_room_options(property_name):
     """Return room number and room type options based on property."""
     if property_name == "Millionaire":
-        room_numbers = ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show"," "]
+        room_numbers = ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show"]
     else:
-        room_numbers = ["Day Use 1", "Day Use 2", "No Show"," "]
+        room_numbers = ["Day Use 1", "Day Use 2", "No Show"]
     
     def get_room_type(room_no):
         return "No Show" if room_no == "No Show" else "Day Use"
     
-    room_types = ["Day Use", "No Show", "Others"
+    room_types = ["Day Use", "No Show"]
     return room_numbers, room_types, get_room_type
 
 def show_edit_online_reservations(selected_booking_id=None):
