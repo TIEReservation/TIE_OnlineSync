@@ -292,7 +292,7 @@ def main():
             st.query_params.clear()
     elif page == "Daily Status":
         show_daily_status()
-    elif page == "Daily Management Status" and st.session_state.role == "Management":
+    elif page == "Daily Management Status" and st.session_state.current_page == "Daily Management Status":
         show_dms()
     elif page == "Analytics" and st.session_state.role == "Management":
         show_analytics()
