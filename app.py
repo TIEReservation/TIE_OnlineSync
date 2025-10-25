@@ -165,12 +165,14 @@ def show_user_management():
         new_username = st.text_input("Username")
         new_password = st.text_input("Password", type="password")
         new_role = st.selectbox("Role", ["Management", "ReservationTeam"])
-        reservations = load_reservations_from_supabase()
-        all_properties = sorted(list(set(res.get("Property Name") for res in reservations if res and "Property Name" in res))) if reservations else []
-        if not all_properties:
-            st.warning("No properties found in reservations. Using fallback list.")
-            all_properties = ["Le Poshe Beach view", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite", "Eden Beach Resort"]
-        new_properties = st.multiselect("Visible Properties", all_properties, default=[p for p in all_properties if p])  # Default to available properties
+        # Use all 15 properties from load_property_room_map for individual users and Reservation Team
+        all_properties = [
+            "Le Poshe Beach view", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite",
+            "La Paradise Residency", "La Paradise Luxury", "La Villa Heritage", "Le Pondy Beach Side",
+            "Le Royce Villa", "La Tamara Luxury", "Eden Beach Resort", "Le Poshe Beach", "La Millionaire",
+            "Le Poshe Deluxe", "La Paradise"
+        ]
+        new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties)  # Default to all 15 properties
         all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
         default_screens = all_screens if new_role == "Management" else [s for s in all_screens if s not in ["Daily Management Status", "Analytics"]]
         new_screens = st.multiselect("Visible Screens", all_screens, default=default_screens)
@@ -204,14 +206,16 @@ def show_user_management():
         user_to_modify = next(u for u in users if u["username"] == modify_username)
         with st.form("modify_user_form"):
             mod_role = st.selectbox("Role", ["Management", "ReservationTeam"], index=0 if user_to_modify["role"] == "Management" else 1)
-            reservations = load_reservations_from_supabase()
-            all_properties = sorted(list(set(res.get("Property Name") for res in reservations if res and "Property Name" in res))) if reservations else []
-            if not all_properties:
-                st.warning("No properties found in reservations. Using fallback list.")
-                all_properties = ["Le Poshe Beach view", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite", "Eden Beach Resort"]
+            # Use all 15 properties for individual users and Reservation Team
+            all_properties = [
+                "Le Poshe Beach view", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite",
+                "La Paradise Residency", "La Paradise Luxury", "La Villa Heritage", "Le Pondy Beach Side",
+                "Le Royce Villa", "La Tamara Luxury", "Eden Beach Resort", "Le Poshe Beach", "La Millionaire",
+                "Le Poshe Deluxe", "La Paradise"
+            ]
             # Filter default properties to match available options
             default_properties = [prop for prop in user_to_modify.get("properties", []) if prop in all_properties]
-            mod_properties = st.multiselect("Visible Properties", all_properties, default=default_properties if default_properties else [])
+            mod_properties = st.multiselect("Visible Properties", all_properties, default=default_properties if default_properties else all_properties)  # Default to all 15 if none selected
             all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
             mod_screens = st.multiselect("Visible Screens", all_screens, default=user_to_modify["screens"])
             perms = user_to_modify["permissions"]
@@ -244,7 +248,7 @@ def show_user_management():
         st.rerun()
 
 def load_property_room_map():
-    # Retained for reference, not used in this version
+    # Retained for reference, used to define all 15 properties
     return {
         "Le Poshe Beach view": {"Double Room": ["101", "102", "202", "203", "204"], "Standard Room": ["201"], "Deluex Double Room Seaview": ["301", "302", "303", "304"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
         "La Millionaire Resort": {"Double Room": ["101", "102", "103", "105"], "Deluex Double Room with Balcony": ["205", "304", "305"], "Deluex Triple Room with Balcony": ["201", "202", "203", "204", "301", "302", "303"], "Deluex Family Room with Balcony": ["206", "207", "208", "306", "307", "308"], "Deluex Triple Room": ["402"], "Deluex Family Room": ["401"], "Day Use": ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 5"], "No Show": ["No Show"]},
