@@ -1,9 +1,10 @@
 import streamlit as st
+import os  # Added to resolve NameError
 from supabase import create_client, Client
 from datetime import datetime
 import pandas as pd
 
-# Initialize Supabase client
+# Initialize Supabase client (using environment variables from app.py)
 try:
     supabase: Client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 except Exception as e:
