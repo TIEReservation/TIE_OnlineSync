@@ -1,6 +1,5 @@
 import streamlit as st
 from directreservation import load_reservations_from_supabase
-from datetime import date
 
 # Initialize session state
 if "logged_in" not in st.session_state:
@@ -10,7 +9,7 @@ if "logged_in" not in st.session_state:
     st.session_state.users = []  # List to store users
 
 def show_login():
-    st.title("Hotel Reservation System - Login")
+    # Preserving original login page look
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
     if st.button("Login"):
@@ -81,7 +80,7 @@ def show_user_management():
             
             # Filter default properties to only those in all_properties
             default_properties = [prop for prop in all_users[user_index]["properties"] if prop in all_properties]
-            mod_properties = st.multiselect("Visible Properties", all_properties, default=default_properties)
+            mod_properties = st.multiselect("Visible Properties", all_properties, default=default_properties if default_properties else [])
             
             mod_screens = st.multiselect("Visible Screens", all_screens, default=[s for s in all_users[user_index]["screens"] if s in all_screens])
             mod_access = st.multiselect("Access Levels", all_access, default=[a for a in all_users[user_index]["permissions"] if a in all_access])
