@@ -85,37 +85,204 @@ def load_property_room_map():
         }
     }
 
-# [Rest of the file truncated for brevity, assuming the error is isolated to load_property_room_map()]
-# Note: The original file likely contains show_new_reservation_form, show_reservations, etc., which were truncated.
-# You'll need to restore those functions from your original code or let me know if you need them reconstructed.
+@st.cache_data
+def load_reservations_from_supabase():
+    """Load all reservations from Supabase."""
+    try:
+        response = supabase.table("reservations").select("*").execute()
+        data = response.data if response.data else []
+        if not data:
+            st.warning("No reservations found in the database.")
+        return data
+    except Exception as e:
+        st.error(f"Error loading reservations: {e}")
+        return []
 
 def show_new_reservation_form():
-    # Placeholder - Restore from your original code
-    st.subheader("New Reservation Form")
+    """Display and handle the new reservation form."""
+    st.subheader("📝 New Reservation Form")
+    
+    if 'reservations' not in st.session_state:
+        st.session_state.reservations = load_reservations_from_supabase()
+
+    # Set submitted_by from session state
     submitted_by = st.session_state.username if 'username' in st.session_state else "Unknown"
     st.write(f"Submitted By: {submitted_by}")
-    # Add other form fields as per your original implementation
+
+    with st.form("new_reservation_form"):
+        # Form fields
+        property_name = st.selectbox("Property Name", list(load_property_room_map().keys()))
+        check_in = st.date_input("Check-in Date", value=date.today())
+        check_out = st.date_input("Check-out Date", value=date.today() + timedelta(days=1))
+        room_type = st.selectbox("Room Type", list(load_property_room_map().get(property_name, {}).keys()))
+        room_no = st.selectbox("Room No.", load_property_room_map().get(property_name, {}).get(room_type, []))
+        guest_name = st.text_input("Guest Name")
+        guest_phone = st.text_input("Guest Phone")
+        no_of_adults = st.number_input("No. of Adults", min_value=1, value=1)
+        no_of_children = st.number_input("No. of Children", min_value=0, value=0)
+        no_of_infant = st.number_input("No. of Infants", min_value=0, value=0)
+        total_pax = no_of_adults + no_of_children + no_of_infant
+        st.write(f"Total Pax: {total_pax}")
+        booking_status = st.selectbox("Booking Status", ["Confirmed", "Pending", "Cancelled", "Follow-up", "Completed", "No Show"])
+        total_tariff = st.number_input("Total Tariff (₹)", min_value=0.0, value=0.0)
+
+        if st.form_submit_button("Submit Reservation"):
+            new_reservation = {
+                "property_name": property_name,
+                "check_in": str(check_in),
+                "check_out": str(check_out),
+                "room_type": room_type,
+                "room_no": room_no,
+                "guest_name": guest_name,
+                "guest_phone": guest_phone,
+                "no_of_adults": no_of_adults,
+                "no_of_children": no_of_children,
+                "no_of_infant": no_of_infant,
+                "total_pax": total_pax,
+                "booking_status": booking_status,
+                "total_tariff": total_tariff,
+                "submitted_by": submitted_by,
+                "modified_by": submitted_by  # Initially same as submitted_by
+            }
+            try:
+                response = supabase.table("reservations").insert(new_reservation).execute()
+                if response.data:
+                    st.session_state.reservations.append(new_reservation)
+                    st.success(f"✅ Reservation for {guest_name} added successfully!")
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to add reservation.")
+            except Exception as e:
+                st.error(f"❌ Error adding reservation: {e}")
 
 def show_reservations():
-    # Placeholder - Restore from your original code
-    st.subheader("View Reservations")
+    """Display all reservations."""
+    st.subheader("👀 View Reservations")
+    if 'reservations' not in st.session_state:
+        st.session_state.reservations = load_reservations_from_supabase()
+    if not st.session_state.reservations:
+        st.warning("No reservations available.")
+        return
+    df = pd.DataFrame(st.session_state.reservations)
+    st.dataframe(df)
 
 def show_edit_reservations():
-    # Placeholder - Restore from your original code
-    st.subheader("Edit Reservations")
+    """Edit existing reservations."""
+    st.subheader("✏️ Edit Reservations")
+    if 'reservations' not in st.session_state:
+        st.session_state.reservations = load_reservations_from_supabase()
+    if not st.session_state.reservations:
+        st.warning("No reservations available to edit.")
+        return
+
+    selected_index = st.selectbox("Select Reservation to Edit", range(len(st.session_state.reservations)))
+    reservation = st.session_state.reservations[selected_index]
+
     modified_by = st.session_state.username if 'username' in st.session_state else "Unknown"
     st.write(f"Modified By: {modified_by}")
-    # Add other edit logic as per your original implementation
+
+    with st.form("edit_reservation_form"):
+        property_name = st.selectbox("Property Name", list(load_property_room_map().keys()), index=list(load_property_room_map().keys()).index(reservation["property_name"]) if reservation["property_name"] in load_property_room_map() else 0)
+        check_in = st.date_input("Check-in Date", value=date.fromisoformat(reservation["check_in"]) if reservation.get("check_in") else date.today())
+        check_out = st.date_input("Check-out Date", value=date.fromisoformat(reservation["check_out"]) if reservation.get("check_out") else date.today())
+        room_type = st.selectbox("Room Type", list(load_property_room_map().get(property_name, {}).keys()), index=list(load_property_room_map().get(property_name, {}).keys()).index(reservation["room_type"]) if reservation["room_type"] in load_property_room_map().get(property_name, {}) else 0)
+        room_no = st.selectbox("Room No.", load_property_room_map().get(property_name, {}).get(room_type, []), index=load_property_room_map().get(property_name, {}).get(room_type, []).index(reservation["room_no"]) if reservation["room_no"] in load_property_room_map().get(property_name, {}).get(room_type, []) else 0)
+        guest_name = st.text_input("Guest Name", value=reservation.get("guest_name", ""))
+        guest_phone = st.text_input("Guest Phone", value=reservation.get("guest_phone", ""))
+        no_of_adults = st.number_input("No. of Adults", min_value=1, value=reservation.get("no_of_adults", 1))
+        no_of_children = st.number_input("No. of Children", min_value=0, value=reservation.get("no_of_children", 0))
+        no_of_infant = st.number_input("No. of Infants", min_value=0, value=reservation.get("no_of_infant", 0))
+        total_pax = no_of_adults + no_of_children + no_of_infant
+        st.write(f"Total Pax: {total_pax}")
+        booking_status = st.selectbox("Booking Status", ["Confirmed", "Pending", "Cancelled", "Follow-up", "Completed", "No Show"], index=["Confirmed", "Pending", "Cancelled", "Follow-up", "Completed", "No Show"].index(reservation.get("booking_status", "Confirmed")))
+        total_tariff = st.number_input("Total Tariff (₹)", min_value=0.0, value=float(reservation.get("total_tariff", 0.0)))
+
+        if st.form_submit_button("Save Changes"):
+            updated_reservation = {
+                "property_name": property_name,
+                "check_in": str(check_in),
+                "check_out": str(check_out),
+                "room_type": room_type,
+                "room_no": room_no,
+                "guest_name": guest_name,
+                "guest_phone": guest_phone,
+                "no_of_adults": no_of_adults,
+                "no_of_children": no_of_children,
+                "no_of_infant": no_of_infant,
+                "total_pax": total_pax,
+                "booking_status": booking_status,
+                "total_tariff": total_tariff,
+                "modified_by": modified_by
+            }
+            try:
+                response = supabase.table("reservations").update(updated_reservation).eq("property_name", reservation["property_name"]).eq("check_in", reservation["check_in"]).eq("guest_name", reservation["guest_name"]).execute()
+                if response.data:
+                    st.session_state.reservations[selected_index] = {**reservation, **updated_reservation}
+                    st.success(f"✅ Reservation for {guest_name} updated successfully!")
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to update reservation.")
+            except Exception as e:
+                st.error(f"❌ Error updating reservation: {e}")
 
 def show_analytics():
-    # Placeholder - Restore from your original code
-    st.subheader("Analytics Dashboard")
-    # Add analytics logic as per your original implementation
-
-def load_reservations_from_supabase():
-    # Placeholder - Restore from your original code
-    return []
-
-def display_filtered_analysis(df, start_date, end_date, view_mode=True):
-    # Placeholder - Restore from your original code
-    return df
+    """Display analytics dashboard."""
+    st.subheader("📊 Analytics Dashboard")
+    if 'reservations' not in st.session_state:
+        st.session_state.reservations = load_reservations_from_supabase()
+    if not st.session_state.reservations:
+        st.info("No reservations available for analysis.")
+        return
+    df = pd.DataFrame(st.session_state.reservations)
+   
+    st.subheader("Filters")
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    with col1:
+        start_date = st.date_input("Start Date", value=None, key="analytics_filter_start_date", help="Filter by Check In date range (optional)")
+    with col2:
+        end_date = st.date_input("End Date", value=None, key="analytics_filter_end_date", help="Filter by Check In date range (optional)")
+    with col3:
+        filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Follow-up", "Completed", "No Show"], key="analytics_filter_status")
+    with col4:
+        filter_check_in_date = st.date_input("Check-in Date", value=None, key="analytics_filter_check_in_date")
+    with col5:
+        filter_check_out_date = st.date_input("Check-out Date", value=None, key="analytics_filter_check_out_date")
+    with col6:
+        filter_property = st.selectbox("Filter by Property", ["All"] + sorted(df["property_name"].unique()), key="analytics_filter_property")
+    filtered_df = df if start_date is None and end_date is None else df[(df["check_in"] >= str(start_date)) & (df["check_out"] <= str(end_date))] if start_date and end_date else df
+   
+    if filter_status != "All":
+        filtered_df = filtered_df[filtered_df["booking_status"] == filter_status]
+    if filter_check_in_date:
+        filtered_df = filtered_df[filtered_df["check_in"] == str(filter_check_in_date)]
+    if filter_check_out_date:
+        filtered_df = filtered_df[filtered_df["check_out"] == str(filter_check_out_date)]
+    if filter_property != "All":
+        filtered_df = filtered_df[filtered_df["property_name"] == filter_property]
+    if filtered_df.empty:
+        st.warning("No reservations match the selected filters.")
+        return
+    st.subheader("Visualizations")
+    col1, col2 = st.columns(2)
+    with col1:
+        property_counts = filtered_df["property_name"].value_counts().reset_index()
+        property_counts.columns = ["Property Name", "Reservation Count"]
+        fig_pie = px.pie(
+            property_counts,
+            values="Reservation Count",
+            names="Property Name",
+            title="Reservation Distribution by Property",
+            height=400
+        )
+        st.plotly_chart(fig_pie, use_container_width=True, key="analytics_pie_chart")
+    with col2:
+        revenue_by_property = filtered_df.groupby("property_name")["total_tariff"].sum().reset_index()
+        fig_bar = px.bar(
+            revenue_by_property,
+            x="property_name",
+            y="total_tariff",
+            title="Total Revenue by Property",
+            height=400,
+            labels={"total_tariff": "Revenue (₹)"}
+        )
+        st.plotly_chart(fig_bar, use_container_width=True, key="analytics_bar_chart")
