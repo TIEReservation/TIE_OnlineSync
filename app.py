@@ -14,7 +14,7 @@ from inventory import show_daily_status
 from dms import show_dms
 from monthlyconsolidation import show_monthly_consolidation
 import pandas as pd
-from log import show_log_report, log_activity
+from log import show_log_report, show_user_dashboard, log_activity
 
 # Page config
 st.set_page_config(
@@ -49,7 +49,7 @@ def check_authentication():
         st.session_state.current_page = "Direct Reservations"
         st.session_state.selected_booking_id = None
         st.session_state.user_data = None
-        st.session_state.permissions = None  # Initialize permissions attribute
+        st.session_state.permissions = None
 
     if not st.session_state.authenticated:
         st.title("🔐 TIE Reservations Login")
@@ -61,19 +61,19 @@ def check_authentication():
                 st.session_state.username = "Admin"
                 st.session_state.role = "Admin"
                 st.session_state.current_page = "User Management"
-                st.session_state.permissions = {"add": True, "edit": True, "delete": True}  # Default for Admin
+                st.session_state.permissions = {"add": True, "edit": True, "delete": True}
             elif username == "Management" and password == "TIE2024":
                 st.session_state.authenticated = True
                 st.session_state.username = "Management"
                 st.session_state.role = "Management"
                 st.session_state.current_page = "Direct Reservations"
-                st.session_state.permissions = {"add": True, "edit": True, "delete": False}  # Example for Management
+                st.session_state.permissions = {"add": True, "edit": True, "delete": False}
             elif username == "ReservationTeam" and password == "TIE123":
                 st.session_state.authenticated = True
                 st.session_state.username = "ReservationTeam"
                 st.session_state.role = "ReservationTeam"
                 st.session_state.current_page = "Direct Reservations"
-                st.session_state.permissions = {"add": True, "edit": False, "delete": False}  # Example for ReservationTeam
+                st.session_state.permissions = {"add": True, "edit": False, "delete": False}
             else:
                 try:
                     users = supabase.table("users").select("*").eq("username", username).eq("password_hash", password).execute().data
@@ -83,12 +83,13 @@ def check_authentication():
                         st.session_state.username = username
                         st.session_state.role = user_data["role"]
                         st.session_state.user_data = user_data
-                        st.session_state.permissions = user_data.get("permissions", {"add": False, "edit": False, "delete": False})  # Extract permissions
-                        valid_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
+                        st.session_state.permissions = user_data.get("permissions", {"add": False, "edit": False, "delete": False})
+                        valid_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "User Dashboard"]
                         if st.session_state.role == "Admin":
                             valid_screens.append("User Management")
+                            valid_screens.append("Log Report")
                         elif st.session_state.role == "Management":
-                            valid_screens = [s for s in valid_screens if s not in ["User Management"]]
+                            valid_screens = [s for s in valid_screens if s not in ["User Management", "Log Report"]]
                         st.session_state.current_page = next((s for s in valid_screens if s in user_data.get("screens", ["Direct Reservations"])), "Direct Reservations")
                     else:
                         st.error("❌ Invalid username or password.")
@@ -132,11 +133,12 @@ def check_authentication():
     else:
         query_params = st.query_params
         query_page = query_params.get("page", [st.session_state.current_page])[0]
-        valid_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
+        valid_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "User Dashboard"]
         if st.session_state.role == "Admin":
             valid_screens.append("User Management")
+            valid_screens.append("Log Report")
         elif st.session_state.role == "Management":
-            valid_screens = [s for s in valid_screens if s not in ["User Management"]]
+            valid_screens = [s for s in valid_screens if s not in ["User Management", "Log Report"]]
         if st.session_state.user_data and query_page not in st.session_state.user_data.get("screens", valid_screens):
             st.error(f"❌ Access Denied: You do not have permission to view {query_page}.")
             st.session_state.current_page = "Direct Reservations"
@@ -166,15 +168,14 @@ def show_user_management():
         new_username = st.text_input("Username")
         new_password = st.text_input("Password", type="password")
         new_role = st.selectbox("Role", ["Management", "ReservationTeam"])
-        # Use all 15 properties from load_property_room_map for individual users and Reservation Team
         all_properties = [
             "Le Poshe Beach view", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite",
             "La Paradise Residency", "La Paradise Luxury", "La Villa Heritage", "Le Pondy Beach Side",
             "Le Royce Villa", "La Tamara Luxury", "Eden Beach Resort", "Le Poshe Beach", "La Millionaire",
             "Le Poshe Deluxe", "La Paradise"
         ]
-        new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties)  # Default to all 15 properties
-        all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
+        new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties)
+        all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "User Dashboard"]
         default_screens = all_screens if new_role == "Management" else [s for s in all_screens if s not in ["Daily Management Status", "Analytics"]]
         new_screens = st.multiselect("Visible Screens", all_screens, default=default_screens)
         add_perm = st.checkbox("Add Permission", value=True)
@@ -208,17 +209,15 @@ def show_user_management():
         user_to_modify = next(u for u in users if u["username"] == modify_username)
         with st.form("modify_user_form"):
             mod_role = st.selectbox("Role", ["Management", "ReservationTeam"], index=0 if user_to_modify["role"] == "Management" else 1)
-            # Use all 15 properties for individual users and Reservation Team
             all_properties = [
                 "Le Poshe Beach view", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite",
                 "La Paradise Residency", "La Paradise Luxury", "La Villa Heritage", "Le Pondy Beach Side",
                 "Le Royce Villa", "La Tamara Luxury", "Eden Beach Resort", "Le Poshe Beach", "La Millionaire",
                 "Le Poshe Deluxe", "La Paradise"
             ]
-            # Filter default properties to match available options
             default_properties = [prop for prop in user_to_modify.get("properties", []) if prop in all_properties]
-            mod_properties = st.multiselect("Visible Properties", all_properties, default=default_properties if default_properties else all_properties)  # Default to all 15 if none selected
-            all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
+            mod_properties = st.multiselect("Visible Properties", all_properties, default=default_properties if default_properties else all_properties)
+            all_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "User Dashboard"]
             mod_screens = st.multiselect("Visible Screens", all_screens, default=user_to_modify["screens"])
             perms = user_to_modify["permissions"]
             mod_add = st.checkbox("Add Permission", value=perms["add"])
@@ -252,7 +251,6 @@ def show_user_management():
         st.rerun()
 
 def load_property_room_map():
-    # Retained for reference, used to define all 15 properties
     return {
         "Le Poshe Beach view": {"Double Room": ["101", "102", "202", "203", "204"], "Standard Room": ["201"], "Deluex Double Room Seaview": ["301", "302", "303", "304"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
         "La Millionaire Resort": {"Double Room": ["101", "102", "103", "105"], "Deluex Double Room with Balcony": ["205", "304", "305"], "Deluex Triple Room with Balcony": ["201", "202", "203", "204", "301", "302", "303"], "Deluex Family Room with Balcony": ["206", "207", "208", "306", "307", "308"], "Deluex Triple Room": ["402"], "Deluex Family Room": ["401"], "Day Use": ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 5"], "No Show": ["No Show"]},
@@ -263,7 +261,9 @@ def load_property_room_map():
         "La Villa Heritage": {"Double Room": ["101", "102", "103"], "4BHA Appartment": ["201to203&301", "201", "202", "203", "301"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
         "Le Pondy Beach Side": {"Villa": ["101to104", "101", "102", "103", "104"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
         "Le Royce Villa": {"Villa": ["101to102&201to202", "101", "102", "201", "202"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
-        "La Tamara Luxury": {"3BHA": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]}
+        "La Tamara Luxury": {"3BHA": ["101to103", "101", "102", "103", "104to106", "104", "105", "106", "201to203", "201", "202", "203", "204to206", "204", "205", "206", "301to303", "301", "302", "303", "304to306", "304", "305", "306"], "4BHA": ["401to404", "401", "402", "403", "404"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "La Antilia Luxury": {"Deluex Suite Room": ["101"], "Deluex Double Room": ["203", "204", "303", "304"], "Family Room": ["201", "202", "301", "302"], "Deluex suite Room with Tarrace": ["404"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]},
+        "La Tamara Suite": {"Two Bedroom apartment": ["101&102"], "Deluxe Apartment": ["103&104"], "Deluxe Double Room": ["203", "204", "205"], "Deluxe Triple Room": ["201", "202"], "Deluxe Family Room": ["206"], "Day Use": ["Day Use 1", "Day Use 2"], "No Show": ["No Show"]}
     }
 
 def main():
@@ -271,14 +271,14 @@ def main():
     st.title("🏢 TIE Reservations")
     st.markdown("---")
     st.sidebar.title("Navigation")
-    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Daily Status", "Daily Management Status", "Monthly Consolidation"]
+    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Daily Status", "Daily Management Status", "Monthly Consolidation", "User Dashboard"]
     if st.session_state.role == "Management":
         page_options.append("Analytics")
     if edit_online_available:
         page_options.insert(4, "Edit Online Reservations")
     if st.session_state.role == "Admin":
         page_options.append("User Management")
-        page_options.append("Log Report")  # Added Log Report for Admin
+        page_options.append("Log Report")
 
     if st.session_state.user_data:
         page_options = [p for p in page_options if p in st.session_state.user_data.get("screens", page_options)]
@@ -333,8 +333,10 @@ def main():
     elif page == "Log Report" and st.session_state.role == "Admin":
         show_log_report(supabase)
         log_activity(supabase, st.session_state.username, "Accessed Log Report")
+    elif page == "User Dashboard":
+        show_user_dashboard(supabase)
+        log_activity(supabase, st.session_state.username, "Accessed User Dashboard")
 
-    # Display username before Log Out button
     if st.session_state.authenticated:
         st.sidebar.write(f"Logged in as: {st.session_state.username}")
     if st.sidebar.button("Log Out"):
