@@ -140,12 +140,8 @@ def show_new_reservation_form():
     room_types = list(property_room_map[property_name].keys())
     
     with st.form(key=form_key):
-        # Row 1: Property Name (display only), Booking ID
-        col1, col2 = st.columns(2)
-        with col1:
-            st.text_input("Property Name", value=property_name, disabled=True, key=f"{form_key}_property_display")
-        with col2:
-            booking_id = st.text_input("Booking ID", key=f"{form_key}_booking_id")
+        # Row 1: Booking ID
+        booking_id = st.text_input("Booking ID", key=f"{form_key}_booking_id")
         
         # Row 2: Guest Name, Guest Phone
         col1, col2 = st.columns(2)
@@ -446,12 +442,8 @@ def show_edit_reservations():
                 room_types = list(property_room_map[property_name].keys())
                 
                 with st.form(key=form_key):
-                    # Row 1: Property Name (display only), Booking ID
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.text_input("Property Name", value=property_name, disabled=True, key=f"{form_key}_property_display")
-                    with col2:
-                        booking_id = st.text_input("Booking ID", value=reservation.get("Booking ID", ""), disabled=True, key=f"{form_key}_booking_id")
+                    # Row 1: Booking ID
+                    booking_id = st.text_input("Booking ID", value=reservation.get("Booking ID", ""), disabled=True, key=f"{form_key}_booking_id")
                     
                     # Row 2: Guest Name, Guest Phone
                     col1, col2 = st.columns(2)
@@ -474,7 +466,6 @@ def show_edit_reservations():
                             check_out = st.date_input("Check Out", value=date.today(), key=f"{form_key}_check_out")
                     
                     # Row 4: Room Type, Room No
-                    room_types = list(property_room_map[property_name].keys())
                     col1, col2 = st.columns(2)
                     with col1:
                         current_room_type = reservation.get("Room Type", room_types[0])
