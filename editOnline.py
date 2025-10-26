@@ -185,10 +185,10 @@ def show_edit_online_reservations(selected_booking_id=None):
             with col1:  # Room No in first column
                 if st.session_state.selected_room_type == "Others":
                     # Debug message to confirm text input rendering
-                    st.write("Debug: Rendering Room No as text input for 'Others' room type")
+                    st.write("Debug: Rendering Room No as empty text input for 'Others' room type")
                     room_no = st.text_input(
                         "Room No",
-                        value=fetched_room_no,
+                        value="",  # Empty by default
                         key=f"room_no_text_{reservation['booking_id']}",
                         help="Enter a custom room number for 'Others' room type."
                     )
