@@ -127,7 +127,7 @@ def load_property_room_map():
     }
 
 def show_new_reservation_form():
-    """Display form to create a new direct reservation."""
+    """Display form to create a new direct reservation with room types and numbers from load_property_room_map."""
     st.header("New Direct Reservation")
     form_key = "new_reservation_form"
     property_room_map = load_property_room_map()
@@ -155,13 +155,13 @@ def show_new_reservation_form():
         with col2:
             check_out = st.date_input("Check Out", min_value=date.today(), key=f"{form_key}_check_out")
         
-        # Row 4: Room No, Room Type
+        # Row 4: Room Type, Room No
         room_types = sorted(property_room_map[property_name].keys())
         col1, col2 = st.columns(2)
         with col1:
             room_type = st.selectbox("Room Type", room_types, key=f"{form_key}_room_type")
         with col2:
-            room_numbers = property_room_map[property_name][room_type]
+            room_numbers = sorted(property_room_map[property_name][room_type])  # Sort room numbers for consistency
             room_no = st.selectbox("Room No", room_numbers, key=f"{form_key}_room_no")
         
         # Row 5: No of Adults, Children, Infants
@@ -468,7 +468,7 @@ def show_edit_reservations():
                         room_type_index = room_types.index(current_room_type) if current_room_type in room_types else 0
                         room_type = st.selectbox("Room Type", room_types, index=room_type_index, key=f"{form_key}_room_type")
                     with col2:
-                        room_numbers = property_room_map[property_name][room_type]
+                        room_numbers = sorted(property_room_map[property_name][room_type])
                         current_room_no = reservation.get("Room No", room_numbers[0])
                         room_no_index = room_numbers.index(current_room_no) if current_room_no in room_numbers else 0
                         room_no = st.selectbox("Room No", room_numbers, index=room_no_index, key=f"{form_key}_room_no")
