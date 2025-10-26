@@ -178,7 +178,12 @@ def show_edit_online_reservations(selected_booking_id=None):
             with col2:
                 current_source = str(reservation.get("booking_source", "") or "")
                 booking_source_options = [current_source, "Bkg-Direct"] if current_source else ["", "Bkg-Direct"]
-                booking_source = st.selectbox("Booking Source", booking_source_options, index=0)
+                booking_source = st.selectbox(
+                    "Booking Source",
+                    booking_source_options,
+                    index=0,
+                    help="Select 'Bkg-Direct' if the guest canceled their online booking and rebooked directly."
+                )
             
             # Row 7: Segment, Staflexi Status
             col1, col2 = st.columns(2)
@@ -211,7 +216,11 @@ def show_edit_online_reservations(selected_booking_id=None):
             # Row 11: Mode of Booking, Booking Status, Payment Status
             col1, col2, col3 = st.columns(3)
             with col1:
-                mode_of_booking = st.text_input("Mode of Booking", value=reservation.get("mode_of_booking", ""))
+                mode_of_booking = st.text_input(
+                    "Mode of Booking",
+                    value=reservation.get("mode_of_booking", ""),
+                    help="Enter the booking source for reporting purposes (e.g., Agoda, Go-MMT). This is used for Daily Status statistics."
+                )
             with col2:
                 booking_status_options = ["Pending", "Confirmed", "Cancelled", "Completed", "No Show"]
                 current_status = reservation.get("booking_status", "Pending")
