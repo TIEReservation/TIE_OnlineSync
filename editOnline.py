@@ -250,3 +250,101 @@ def show_edit_online_reservations(selected_booking_id=None):
                 fetched_balance_mop = str(reservation.get("balance_mop", "") or "")
                 if payment_status in ["Fully Paid", "Partially Paid"]:
                     balance_mop = st.text_input("Balance MOP", value=fetched_balance_mop, help="Fetched Balance MOP for pre-paid booking. Edit if needed.")
+                else:
+                    balance_mop = st.selectbox(
+                        "Balance MOP",
+                        mop_options,
+                        index=mop_options.index(fetched_balance_mop) if fetched_balance_mop in mop_options else mop_options.index("Not Paid"),
+                        help="Select the mode of payment for balance. Defaults to fetched value or 'Not Paid' if not applicable."
+                    )
+            
+            # Row 12: Booking Status, Remarks
+            col1, col2 = st.columns(2)
+            with col1:
+                booking_status_options = ["Pending", "Confirmed", "Cancelled", "Completed", "No Show"]
+                current_status = reservation.get("booking_status", "Pending")
+                try:
+                    status_index = booking_status_options.index(current_status)
+                except ValueError:
+                    status_index = 0
+                booking_status = st.selectbox("Booking Status", booking_status_options, index=status_index)
+            with col2:
+                remarks = st.text_area("Remarks", value=reservation.get("remarks", ""))
+            
+            # Row 13: Submitted by, Modified by
+            col1, col2 = st.columns(2)
+            with col1:
+                submitted_by = st.text_input("Submitted by", value=reservation.get("submitted_by", ""), disabled=True)
+            with col2:
+                modified_by = st.text_input("Modified by", value=st.session_state.username, disabled=True)
+            
+            # Row 14: Hidden/Other fields
+            total_amount_with_services = safe_float(reservation.get("total_amount_with_services", 0.0))
+            ota_gross_amount = safe_float(reservation.get("ota_gross_amount", 0.0))
+            ota_commission = safe_float(reservation.get("ota_commission", 0.0))
+            ota_tax = safe_float(reservation.get("ota_tax", 0.0))
+            ota_net_amount = safe_float(reservation.get("ota_net_amount", 0.0))
+            room_revenue = safe_float(reservation.get("room_revenue", 0.0))
+            
+            # Submit and Delete Buttons
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                submit_button = st.form_submit_button("💾 Update Reservation", use_container_width=True)
+                if submit_button:
+                    updated_reservation = {
+                        "property": property_name,
+                        "booking_made_on": str(reservation.get("booking_made_on")) if reservation.get("booking_made_on") else None,
+                        "guest_name": guest_name,
+                        "guest_phone": guest_phone,
+                        "check_in": str(check_in) if check_in else None,
+                        "check_out": str(check_out) if check_out else None,
+                        "no_of_adults": no_of_adults,
+                        "no_of_children": no_of_children,
+                        "no_of_infant": no_of_infant,
+                        "total_pax": no_of_adults + no_of_children + no_of_infant,
+                        "room_no": room_no,
+                        "room_type": room_type,
+                        "rate_plans": rate_plans,
+                        "segment": segment,
+                        "staflexi_status": staflexi_status,
+                        "booking_confirmed_on": str(booking_confirmed_on) if booking_confirmed_on else None,
+                        "booking_amount": booking_amount,
+                        "total_payment_made": total_payment_made,
+                        "balance_due": balance_due,
+                        "advance_mop": advance_mop,
+                        "balance_mop": balance_mop,
+                        "mode_of_booking": mode_of_booking,
+                        "booking_status": booking_status,
+                        "payment_status": payment_status,
+                        "remarks": remarks,
+                        "submitted_by": reservation.get("submitted_by", ""),  # Retain original
+                        "modified_by": st.session_state.username,  # Set to logged-in user
+                        "total_amount_with_services": total_amount_with_services,
+                        "ota_gross_amount": ota_gross_amount,
+                        "ota_commission": ota_commission,
+                        "ota_tax": ota_tax,
+                        "ota_net_amount": ota_net_amount,
+                        "room_revenue": room_revenue
+                    }
+                    if update_online_reservation_in_supabase(reservation["booking_id"], updated_reservation):
+                        st.session_state.online_reservations[edit_index] = {**reservation, **updated_reservation}
+                        st.session_state.online_edit_mode = False
+                        st.session_state.online_edit_index = None
+                        st.query_params.clear()
+                        st.success(f"✅ Reservation {reservation['booking_id']} updated successfully!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to update reservation")
+            with col_btn2:
+                if st.session_state.get('role') == "Management":
+                    delete_button = st.form_submit_button("🗑️ Delete Reservation", use_container_width=True)
+                    if delete_button:
+                        if delete_online_reservation_in_supabase(reservation["booking_id"]):
+                            st.session_state.online_reservations.pop(edit_index)
+                            st.session_state.online_edit_mode = False
+                            st.session_state.online_edit_index = None
+                            st.query_params.clear()
+                            st.success(f"🗑️ Reservation {reservation['booking_id']} deleted successfully!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to delete reservation")
