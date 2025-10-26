@@ -13,7 +13,7 @@ BOOKING_SOURCES = [
 
 # MOP (Mode of Payment) options - same as online reservations
 MOP_OPTIONS = [
-    " ","UPI", "Cash", "Go-MMT", "Agoda", "Not Paid", "Bank Transfer", 
+    "UPI", "Cash", "Go-MMT", "Agoda", "Not Paid", "Bank Transfer", 
     "Card Payment", "Expedia", "Cleartrip", "Website", "AIRBNB"
 ]
 
@@ -190,7 +190,7 @@ def show_new_reservation_form():
         # Row 6: Rate Plans, Booking Source
         col1, col2 = st.columns(2)
         with col1:
-            rate_plans = st.text_input("Rate Plans", key=f"{form_key}_rate_plans")
+            rate_plans = st.selectbox("Rate Plans", ["EP", "CP", "MAP", "AP"], key=f"{form_key}_rate_plans", help="EP: European Plan, CP: Continental Plan, MAP: Modified American Plan, AP: American Plan")
         with col2:
             booking_source = st.selectbox("Booking Source", BOOKING_SOURCES, key=f"{form_key}_booking_source")
         
@@ -430,7 +430,10 @@ def show_edit_reservations():
             # Row 6: Rate Plans, Booking Source
             col1, col2 = st.columns(2)
             with col1:
-                rate_plans = st.text_input("Rate Plans", value=reservation["Rate Plans"])
+                current_rate_plan = reservation.get("Rate Plans", "EP")
+                rate_plan_options = ["EP", "CP", "MAP", "AP"]
+                rate_plan_index = rate_plan_options.index(current_rate_plan) if current_rate_plan in rate_plan_options else 0
+                rate_plans = st.selectbox("Rate Plans", rate_plan_options, index=rate_plan_index, help="EP: European Plan, CP: Continental Plan, MAP: Modified American Plan, AP: American Plan")
             with col2:
                 current_source = reservation.get("Booking Source", "")
                 source_index = BOOKING_SOURCES.index(current_source) if current_source in BOOKING_SOURCES else 0
