@@ -22,6 +22,7 @@ def load_property_room_map():
             "Double Room": ["101", "102", "202", "203", "204"],
             "Standard Room": ["201"],
             "Deluex Double Room Seaview": ["301", "302", "303", "304"],
+            "All Rooms": ["101,102,201,202,203,204,301,302,303,304"],
             "Day Use": ["Day Use 1", "Day Use 2"],
             "No Show": ["No Show"]
         },
@@ -40,6 +41,7 @@ def load_property_room_map():
             "2BHA Appartment with Balcony": ["201&202", "201", "202", "301&302", "301", "302", "401&402", "401", "402"],
             "3BHA Appartment": ["203to205", "203", "204", "205", "303to305", "303", "304", "305", "403to405", "403", "404", "405"],
             "Double Room with Private Terrace": ["501"],
+            "Entire Appartment": ["101,102,201,202,203,204,205,301,302,303,304,305,401,402,403,404,405,501"],
             "Day Use": ["Day Use 1", "Day Use 2"],
             "No Show": ["No Show"]
         },
@@ -47,6 +49,7 @@ def load_property_room_map():
             "2BHA Appartment": ["601&602", "601", "602", "603", "604", "703", "704"],
             "2BHA Appartment with Balcony": ["701&702", "701", "702"],
             "Double Room with Terrace": ["801"],
+            "Entire Appartment": ["601,602,603,604,701,702,703,704,801],
             "Day Use": ["Day Use 1", "Day Use 2"],
             "No Show": ["No Show"]
         },
@@ -54,17 +57,20 @@ def load_property_room_map():
             "Double Room": ["101", "102", "103", "301", "302", "304"],
             "Family Room": ["201", "203"],
             "Triple Room": ["202", "303"],
+            "Entire Appartment": ["101,102,103,201,202,203,301,302,303,304"],
             "Day Use": ["Day Use 1", "Day Use 2"],
             "No Show": ["No Show"]
         },
         "La Paradise Luxury": {
             "3BHA Appartment": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"],
+            ""Entire Villa": ["101,102,103,201,202,203"],
             "Day Use": ["Day Use 1", "Day Use 2"],
             "No Show": ["No Show"]
         },
         "La Villa Heritage": {
             "Double Room": ["101", "102", "103"],
             "4BHA Appartment": ["201to203&301", "201", "202", "203", "301"],
+            "Entire Villa": ["101,102,103,201,202,203,301],
             "Day Use": ["Day Use 1", "Day Use 2"],
             "No Show": ["No Show"]
         },
