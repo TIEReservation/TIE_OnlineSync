@@ -4,6 +4,13 @@ from datetime import date
 from supabase import create_client, Client
 from utils import safe_int, safe_float
 
+# Booking source dropdown options
+BOOKING_SOURCES = [
+    "Booking", "Direct", "Bkg-Direct", "Agoda", "Go-MMT", "Walk-In",
+    "TIE Group", "Stayflexi", "Airbnb", "Social Media", "Expedia",
+    "Cleartrip", "Website"
+]
+
 # Initialize Supabase client
 try:
     supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
@@ -176,7 +183,9 @@ def show_edit_online_reservations(selected_booking_id=None):
             with col1:
                 rate_plans = st.text_input("Rate Plans", value=reservation.get("rate_plans", ""))
             with col2:
-                booking_source = st.text_input("Booking Source", value=reservation.get("booking_source", ""))
+                current_source = reservation.get("booking_source", "")
+                source_index = BOOKING_SOURCES.index(current_source) if current_source in BOOKING_SOURCES else 0
+                booking_source = st.selectbox("Booking Source", BOOKING_SOURCES, index=source_index)
             
             # Row 7: Segment, Staflexi Status
             col1, col2 = st.columns(2)
