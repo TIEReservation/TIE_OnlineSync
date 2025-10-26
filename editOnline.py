@@ -160,7 +160,6 @@ def show_edit_online_reservations(selected_booking_id=None):
             room_numbers, room_types = get_room_options(property_name)
             fetched_room_no = str(reservation.get("room_no", "") or "")
             fetched_room_type = str(reservation.get("room_type", "") or "")
-            # Include fetched values in dropdowns, even if invalid
             room_no_options = sorted(set([fetched_room_no] + room_numbers) - {""}) if fetched_room_no else room_numbers
             room_type_options = sorted(set([fetched_room_type] + room_types) - {""}) if fetched_room_type else room_types
             col1, col2 = st.columns(2)
@@ -286,11 +285,11 @@ def show_edit_online_reservations(selected_booking_id=None):
             ota_net_amount = safe_float(reservation.get("ota_net_amount", 0.0))
             room_revenue = safe_float(reservation.get("room_revenue", 0.0))
             
-            # Submit and Delete Buttons
+            # Submit and Delete Buttons (outside columns for reliability)
+            st.markdown("---")  # Separator for clarity
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
-                submit_button = st.form_submit_button("💾 Update Reservation", use_container_width=True)
-                if submit_button:
+                if st.form_submit_button("💾 Update Reservation", use_container_width=True):
                     updated_reservation = {
                         "property": property_name,
                         "booking_made_on": str(reservation.get("booking_made_on")) if reservation.get("booking_made_on") else None,
@@ -337,8 +336,7 @@ def show_edit_online_reservations(selected_booking_id=None):
                         st.error("❌ Failed to update reservation")
             with col_btn2:
                 if st.session_state.get('role') == "Management":
-                    delete_button = st.form_submit_button("🗑️ Delete Reservation", use_container_width=True)
-                    if delete_button:
+                    if st.form_submit_button("🗑️ Delete Reservation", use_container_width=True):
                         if delete_online_reservation_in_supabase(reservation["booking_id"]):
                             st.session_state.online_reservations.pop(edit_index)
                             st.session_state.online_edit_mode = False
@@ -348,3 +346,7 @@ def show_edit_online_reservations(selected_booking_id=None):
                             st.rerun()
                         else:
                             st.error("❌ Failed to delete reservation")
+            # Fallback message if buttons don't render
+            if not st.session_state.get('form_buttons_rendered', False):
+                st.error("⚠️ Form buttons may not have rendered correctly. Please refresh the page or contact support.")
+                st.session_state['form_buttons_rendered'] = True
