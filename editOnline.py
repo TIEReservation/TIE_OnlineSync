@@ -18,7 +18,7 @@ def update_online_reservation_in_supabase(booking_id, updated_reservation):
         truncated_reservation = updated_reservation.copy()
         string_fields_50 = [
             "property", "booking_id", "guest_name", "guest_phone", "room_no", 
-            "room_type", "rate_plans", "booking_source", "segment", "staflexi_status",
+            "room_type", "rate_plans", "segment", "staflexi_status",
             "mode_of_booking", "booking_status", "payment_status", "submitted_by", 
             "modified_by", "advance_mop", "balance_mop"
         ]
@@ -171,26 +171,26 @@ def show_edit_online_reservations(selected_booking_id=None):
             with col3:
                 no_of_infant = st.number_input("No of Infants", min_value=0, value=safe_int(reservation.get("no_of_infant", 0)))
             
-            # Row 6: Rate Plans, Booking Source
+            # Row 6: Rate Plans, Segment
             col1, col2 = st.columns(2)
             with col1:
                 rate_plans = st.text_input("Rate Plans", value=reservation.get("rate_plans", ""))
             with col2:
-                current_source = str(reservation.get("booking_source", "") or "")
-                booking_source_options = [current_source, "Bkg-Direct"] if current_source else ["", "Bkg-Direct"]
-                booking_source = st.selectbox(
-                    "Booking Source",
-                    booking_source_options,
-                    index=0,
-                    help="Select 'Bkg-Direct' if the guest canceled their online booking and rebooked directly."
-                )
+                segment = st.text_input("Segment", value=reservation.get("segment", ""))
             
-            # Row 7: Segment, Staflexi Status
+            # Row 7: Staflexi Status, Mode of Booking
             col1, col2 = st.columns(2)
             with col1:
-                segment = st.text_input("Segment", value=reservation.get("segment", ""))
-            with col2:
                 staflexi_status = st.text_input("Staflexi Status", value=reservation.get("staflexi_status", ""))
+            with col2:
+                current_mob = str(reservation.get("mode_of_booking", "") or "")
+                mob_options = [current_mob, "Bkg-Direct"] if current_mob else ["", "Bkg-Direct"]
+                mode_of_booking = st.selectbox(
+                    "Mode of Booking",
+                    mob_options,
+                    index=0,
+                    help="Select 'Bkg-Direct' if the guest canceled their online booking and rebooked directly. This is used for Daily Status statistics."
+                )
             
             # Row 8: Booking Confirmed On, Booking Amount
             col1, col2 = st.columns(2)
@@ -213,15 +213,9 @@ def show_edit_online_reservations(selected_booking_id=None):
             with col2:
                 balance_mop = st.text_input("Balance MOP", value=reservation.get("balance_mop", ""))
             
-            # Row 11: Mode of Booking, Booking Status, Payment Status
-            col1, col2, col3 = st.columns(3)
+            # Row 11: Booking Status, Payment Status
+            col1, col2 = st.columns(2)
             with col1:
-                mode_of_booking = st.text_input(
-                    "Mode of Booking",
-                    value=reservation.get("mode_of_booking", ""),
-                    help="Enter the booking source for reporting purposes (e.g., Agoda, Go-MMT). This is used for Daily Status statistics."
-                )
-            with col2:
                 booking_status_options = ["Pending", "Confirmed", "Cancelled", "Completed", "No Show"]
                 current_status = reservation.get("booking_status", "Pending")
                 try:
@@ -229,7 +223,7 @@ def show_edit_online_reservations(selected_booking_id=None):
                 except ValueError:
                     status_index = 0
                 booking_status = st.selectbox("Booking Status", booking_status_options, index=status_index)
-            with col3:
+            with col2:
                 payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], index=["Not Paid", "Fully Paid", "Partially Paid"].index(reservation.get("payment_status", "Not Paid")))
             
             # Row 12: Remarks
@@ -267,7 +261,6 @@ def show_edit_online_reservations(selected_booking_id=None):
                         "room_no": room_no,
                         "room_type": room_type,
                         "rate_plans": rate_plans,
-                        "booking_source": booking_source,
                         "segment": segment,
                         "staflexi_status": staflexi_status,
                         "booking_confirmed_on": str(booking_confirmed_on) if booking_confirmed_on else None,
