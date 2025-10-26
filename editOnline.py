@@ -27,10 +27,15 @@ def update_online_reservation_in_supabase(booking_id, updated_reservation):
                 truncated_reservation[field] = str(truncated_reservation[field])[:50] if truncated_reservation[field] else ""
         if "remarks" in truncated_reservation:
             truncated_reservation["remarks"] = str(truncated_reservation["remarks"])[:500] if truncated_reservation["remarks"] else ""
+        # Debug: Log the reservation data being sent
+        st.write(f"Debug: Attempting to update reservation {booking_id} with room_no: {truncated_reservation['room_no']}, room_type: {truncated_reservation['room_type']}")
         response = supabase.table("online_reservations").update(truncated_reservation).eq("booking_id", booking_id).execute()
-        return bool(response.data)
+        if not response.data:
+            st.error(f"Supabase returned no data for booking_id {booking_id}. Check if the booking exists or if there are database constraints.")
+            return False
+        return True
     except Exception as e:
-        st.error(f"Error updating online reservation {booking_id}: {e}")
+        st.error(f"Error updating online reservation {booking_id}: {str(e)}")
         return False
 
 def delete_online_reservation_in_supabase(booking_id):
@@ -174,7 +179,7 @@ def show_edit_online_reservations(selected_booking_id=None):
                     key=f"room_type_{reservation['booking_id']}",
                     help="Select the room type. Choose 'Others' to manually enter a custom room number."
                 )
-                # Update session state when room_type changes
+                # Update session state
                 st.session_state.selected_room_type = room_type
             
             with col1:  # Room No in first column
@@ -187,6 +192,8 @@ def show_edit_online_reservations(selected_booking_id=None):
                         key=f"room_no_text_{reservation['booking_id']}",
                         help="Enter a custom room number for 'Others' room type."
                     )
+                    if not room_no.strip():
+                        st.warning("Please enter a valid Room No for 'Others' room type.")
                 else:
                     room_no_options = sorted(set([fetched_room_no] + room_numbers) - {""}) if fetched_room_no else room_numbers
                     room_no = st.selectbox(
@@ -314,50 +321,54 @@ def show_edit_online_reservations(selected_booking_id=None):
             # Debug log to track button rendering
             st.session_state['form_buttons_rendered'] = True
             if st.form_submit_button("💾 Update Reservation", use_container_width=True):
-                updated_reservation = {
-                    "property": property_name,
-                    "booking_made_on": str(reservation.get("booking_made_on")) if reservation.get("booking_made_on") else None,
-                    "guest_name": guest_name,
-                    "guest_phone": guest_phone,
-                    "check_in": str(check_in) if check_in else None,
-                    "check_out": str(check_out) if check_out else None,
-                    "no_of_adults": no_of_adults,
-                    "no_of_children": no_of_children,
-                    "no_of_infant": no_of_infant,
-                    "total_pax": no_of_adults + no_of_children + no_of_infant,
-                    "room_no": room_no,
-                    "room_type": room_type,
-                    "rate_plans": rate_plans,
-                    "segment": segment,
-                    "staflexi_status": staflexi_status,
-                    "booking_confirmed_on": str(booking_confirmed_on) if booking_confirmed_on else None,
-                    "booking_amount": booking_amount,
-                    "total_payment_made": total_payment_made,
-                    "balance_due": balance_due,
-                    "advance_mop": advance_mop,
-                    "balance_mop": balance_mop,
-                    "mode_of_booking": mode_of_booking,
-                    "booking_status": booking_status,
-                    "payment_status": payment_status,
-                    "remarks": remarks,
-                    "submitted_by": reservation.get("submitted_by", ""),  # Retain original
-                    "modified_by": st.session_state.username,  # Set to logged-in user
-                    "total_amount_with_services": total_amount_with_services,
-                    "ota_gross_amount": ota_gross_amount,
-                    "ota_commission": ota_commission,
-                    "ota_tax": ota_tax,
-                    "ota_net_amount": ota_net_amount,
-                    "room_revenue": room_revenue
-                }
-                if update_online_reservation_in_supabase(reservation["booking_id"], updated_reservation):
-                    st.session_state.online_reservations[edit_index] = {**reservation, **updated_reservation}
-                    st.session_state.online_edit_mode = False
-                    st.session_state.online_edit_index = None
-                    st.query_params.clear()
-                    st.success(f"✅ Reservation {reservation['booking_id']} updated successfully!")
-                    st.rerun()
+                # Validate room_no for 'Others'
+                if room_type == "Others" and not room_no.strip():
+                    st.error("Room No cannot be empty when Room Type is 'Others'.")
                 else:
-                    st.error("❌ Failed to update reservation")
+                    updated_reservation = {
+                        "property": property_name,
+                        "booking_made_on": str(reservation.get("booking_made_on")) if reservation.get("booking_made_on") else None,
+                        "guest_name": guest_name,
+                        "guest_phone": guest_phone,
+                        "check_in": str(check_in) if check_in else None,
+                        "check_out": str(check_out) if check_out else None,
+                        "no_of_adults": no_of_adults,
+                        "no_of_children": no_of_children,
+                        "no_of_infant": no_of_infant,
+                        "total_pax": no_of_adults + no_of_children + no_of_infant,
+                        "room_no": room_no,
+                        "room_type": room_type,
+                        "rate_plans": rate_plans,
+                        "segment": segment,
+                        "staflexi_status": staflexi_status,
+                        "booking_confirmed_on": str(booking_confirmed_on) if booking_confirmed_on else None,
+                        "booking_amount": booking_amount,
+                        "total_payment_made": total_payment_made,
+                        "balance_due": balance_due,
+                        "advance_mop": advance_mop,
+                        "balance_mop": balance_mop,
+                        "mode_of_booking": mode_of_booking,
+                        "booking_status": booking_status,
+                        "payment_status": payment_status,
+                        "remarks": remarks,
+                        "submitted_by": reservation.get("submitted_by", ""),  # Retain original
+                        "modified_by": st.session_state.username,  # Set to logged-in user
+                        "total_amount_with_services": total_amount_with_services,
+                        "ota_gross_amount": ota_gross_amount,
+                        "ota_commission": ota_commission,
+                        "ota_tax": ota_tax,
+                        "ota_net_amount": ota_net_amount,
+                        "room_revenue": room_revenue
+                    }
+                    if update_online_reservation_in_supabase(reservation["booking_id"], updated_reservation):
+                        st.session_state.online_reservations[edit_index] = {**reservation, **updated_reservation}
+                        st.session_state.online_edit_mode = False
+                        st.session_state.online_edit_index = None
+                        st.query_params.clear()
+                        st.success(f"✅ Reservation {reservation['booking_id']} updated successfully!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to update reservation")
             
             if st.session_state.get('role') == "Management":
                 if st.form_submit_button("🗑️ Delete Reservation", use_container_width=True):
