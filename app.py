@@ -302,4 +302,48 @@ def main():
         show_reservations()
     elif page == "Edit Reservations":
         show_edit_reservations()
-    elif page == "Online Reservations
+    elif page == "Online Reservations":
+        show_online_reservations()
+    elif page == "Edit Online Reservations" and edit_online_available:
+        show_edit_online_reservations(st.session_state.selected_booking_id)
+        if st.session_state.selected_booking_id:
+            st.session_state.selected_booking_id = None
+            st.query_params.clear()
+    elif page == "Daily Status":
+        show_daily_status()
+    elif page == "Daily Management Status" and st.session_state.current_page == "Daily Management Status":
+        show_dms()
+    elif page == "Analytics" and st.session_state.role == "Management":
+        show_analytics()
+    elif page == "Monthly Consolidation":
+        show_monthly_consolidation()
+    elif page == "User Management" and st.session_state.role == "Admin":
+        show_user_management()
+    elif page == "Log Report" and st.session_state.role == "Admin":
+        show_log_report(supabase)
+    elif page == "User Dashboard":
+        show_user_dashboard(supabase)
+
+    if st.session_state.authenticated:
+        st.sidebar.write(f"Logged in as: {st.session_state.username}")
+    if st.sidebar.button("Log Out"):
+        log_activity(supabase, st.session_state.username, "Logged out")
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.session_state.authenticated = False
+        st.session_state.role = None
+        st.session_state.reservations = []
+        st.session_state.online_reservations = []
+        st.session_state.edit_mode = False
+        st.session_state.edit_index = None
+        st.session_state.online_edit_mode = False
+        st.session_state.online_edit_index = None
+        st.session_state.current_page = "Direct Reservations"
+        st.session_state.selected_booking_id = None
+        st.query_params.clear()
+        st.rerun()
+
+if __name__ == "__main__":
+    main()
