@@ -13,7 +13,7 @@ BOOKING_SOURCES = [
 
 # MOP (Mode of Payment) options - same as online reservations
 MOP_OPTIONS = [
-    "UPI", "Cash", "Go-MMT", "Agoda", "Not Paid", "Bank Transfer", 
+    "","UPI", "Cash", "Go-MMT", "Agoda", "Not Paid", "Bank Transfer", 
     "Card Payment", "Expedia", "Cleartrip", "Website", "AIRBNB"
 ]
 
