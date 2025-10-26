@@ -171,8 +171,6 @@ def show_edit_online_reservations(selected_booking_id=None):
                     index=room_no_options.index(fetched_room_no) if fetched_room_no in room_no_options else 0,
                     help="Defaults to the fetched room number. Change to a valid room number if needed for the selected property."
                 )
-                if fetched_room_no and fetched_room_no not in room_numbers:
-                    st.warning(f"Fetched Room No '{fetched_room_no}' is invalid for {property_name}. Please select a valid option.")
             with col2:
                 room_type = st.selectbox(
                     "Room Type",
@@ -180,8 +178,6 @@ def show_edit_online_reservations(selected_booking_id=None):
                     index=room_type_options.index(fetched_room_type) if fetched_room_type in room_type_options else 0,
                     help="Defaults to the fetched room type. Change to a valid room type if needed for the selected property."
                 )
-                if fetched_room_type and fetched_room_type not in room_types:
-                    st.warning(f"Fetched Room Type '{fetched_room_type}' is invalid for {property_name}. Please select a valid option.")
             
             # Row 5: No of Adults, No of Children
             col1, col2 = st.columns(2)
