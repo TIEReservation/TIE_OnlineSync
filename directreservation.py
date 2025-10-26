@@ -190,7 +190,7 @@ def show_new_reservation_form():
         # Row 6: Rate Plans, Booking Source
         col1, col2 = st.columns(2)
         with col1:
-            rate_plans = st.selectbox("Rate Plans", ["EP", "CP", "MAP", "AP"], key=f"{form_key}_rate_plans", help="EP: European Plan, CP: Continental Plan, MAP: Modified American Plan, AP: American Plan")
+            rate_plans = st.selectbox("Rate Plans", [" ","EP", "CP"], key=f"{form_key}_rate_plans", help="EP: European Plan, CP: Continental Plan")
         with col2:
             booking_source = st.selectbox("Booking Source", BOOKING_SOURCES, key=f"{form_key}_booking_source")
         
