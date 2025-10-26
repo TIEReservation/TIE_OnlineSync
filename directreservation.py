@@ -75,6 +75,7 @@ def load_property_room_map():
         },
         "La Paradise Luxury": {
             "3BHA Appartment": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"],
+            "Entire Villa": ["101,102,103,201,202,203"]
             "Day Use": ["Day Use 1", "Day Use 2"],
             "No Show": ["No Show"]
         },
