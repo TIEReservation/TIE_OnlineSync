@@ -285,68 +285,72 @@ def show_edit_online_reservations(selected_booking_id=None):
             ota_net_amount = safe_float(reservation.get("ota_net_amount", 0.0))
             room_revenue = safe_float(reservation.get("room_revenue", 0.0))
             
-            # Submit and Delete Buttons (outside columns for reliability)
+            # Submit and Delete Buttons (simplified, outside columns)
             st.markdown("---")  # Separator for clarity
-            col_btn1, col_btn2 = st.columns(2)
-            with col_btn1:
-                if st.form_submit_button("💾 Update Reservation", use_container_width=True):
-                    updated_reservation = {
-                        "property": property_name,
-                        "booking_made_on": str(reservation.get("booking_made_on")) if reservation.get("booking_made_on") else None,
-                        "guest_name": guest_name,
-                        "guest_phone": guest_phone,
-                        "check_in": str(check_in) if check_in else None,
-                        "check_out": str(check_out) if check_out else None,
-                        "no_of_adults": no_of_adults,
-                        "no_of_children": no_of_children,
-                        "no_of_infant": no_of_infant,
-                        "total_pax": no_of_adults + no_of_children + no_of_infant,
-                        "room_no": room_no,
-                        "room_type": room_type,
-                        "rate_plans": rate_plans,
-                        "segment": segment,
-                        "staflexi_status": staflexi_status,
-                        "booking_confirmed_on": str(booking_confirmed_on) if booking_confirmed_on else None,
-                        "booking_amount": booking_amount,
-                        "total_payment_made": total_payment_made,
-                        "balance_due": balance_due,
-                        "advance_mop": advance_mop,
-                        "balance_mop": balance_mop,
-                        "mode_of_booking": mode_of_booking,
-                        "booking_status": booking_status,
-                        "payment_status": payment_status,
-                        "remarks": remarks,
-                        "submitted_by": reservation.get("submitted_by", ""),  # Retain original
-                        "modified_by": st.session_state.username,  # Set to logged-in user
-                        "total_amount_with_services": total_amount_with_services,
-                        "ota_gross_amount": ota_gross_amount,
-                        "ota_commission": ota_commission,
-                        "ota_tax": ota_tax,
-                        "ota_net_amount": ota_net_amount,
-                        "room_revenue": room_revenue
-                    }
-                    if update_online_reservation_in_supabase(reservation["booking_id"], updated_reservation):
-                        st.session_state.online_reservations[edit_index] = {**reservation, **updated_reservation}
+            # Debug log to track button rendering
+            st.session_state['form_buttons_rendered'] = True
+            if st.form_submit_button("💾 Update Reservation", use_container_width=True):
+                updated_reservation = {
+                    "property": property_name,
+                    "booking_made_on": str(reservation.get("booking_made_on")) if reservation.get("booking_made_on") else None,
+                    "guest_name": guest_name,
+                    "guest_phone": guest_phone,
+                    "check_in": str(check_in) if check_in else None,
+                    "check_out": str(check_out) if check_out else None,
+                    "no_of_adults": no_of_adults,
+                    "no_of_children": no_of_children,
+                    "no_of_infant": no_of_infant,
+                    "total_pax": no_of_adults + no_of_children + no_of_infant,
+                    "room_no": room_no,
+                    "room_type": room_type,
+                    "rate_plans": rate_plans,
+                    "segment": segment,
+                    "staflexi_status": staflexi_status,
+                    "booking_confirmed_on": str(booking_confirmed_on) if booking_confirmed_on else None,
+                    "booking_amount": booking_amount,
+                    "total_payment_made": total_payment_made,
+                    "balance_due": balance_due,
+                    "advance_mop": advance_mop,
+                    "balance_mop": balance_mop,
+                    "mode_of_booking": mode_of_booking,
+                    "booking_status": booking_status,
+                    "payment_status": payment_status,
+                    "remarks": remarks,
+                    "submitted_by": reservation.get("submitted_by", ""),  # Retain original
+                    "modified_by": st.session_state.username,  # Set to logged-in user
+                    "total_amount_with_services": total_amount_with_services,
+                    "ota_gross_amount": ota_gross_amount,
+                    "ota_commission": ota_commission,
+                    "ota_tax": ota_tax,
+                    "ota_net_amount": ota_net_amount,
+                    "room_revenue": room_revenue
+                }
+                if update_online_reservation_in_supabase(reservation["booking_id"], updated_reservation):
+                    st.session_state.online_reservations[edit_index] = {**reservation, **updated_reservation}
+                    st.session_state.online_edit_mode = False
+                    st.session_state.online_edit_index = None
+                    st.query_params.clear()
+                    st.success(f"✅ Reservation {reservation['booking_id']} updated successfully!")
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to update reservation")
+            
+            if st.session_state.get('role') == "Management":
+                if st.form_submit_button("🗑️ Delete Reservation", use_container_width=True):
+                    if delete_online_reservation_in_supabase(reservation["booking_id"]):
+                        st.session_state.online_reservations.pop(edit_index)
                         st.session_state.online_edit_mode = False
                         st.session_state.online_edit_index = None
                         st.query_params.clear()
-                        st.success(f"✅ Reservation {reservation['booking_id']} updated successfully!")
+                        st.success(f"🗑️ Reservation {reservation['booking_id']} deleted successfully!")
                         st.rerun()
                     else:
-                        st.error("❌ Failed to update reservation")
-            with col_btn2:
-                if st.session_state.get('role') == "Management":
-                    if st.form_submit_button("🗑️ Delete Reservation", use_container_width=True):
-                        if delete_online_reservation_in_supabase(reservation["booking_id"]):
-                            st.session_state.online_reservations.pop(edit_index)
-                            st.session_state.online_edit_mode = False
-                            st.session_state.online_edit_index = None
-                            st.query_params.clear()
-                            st.success(f"🗑️ Reservation {reservation['booking_id']} deleted successfully!")
-                            st.rerun()
-                        else:
-                            st.error("❌ Failed to delete reservation")
-            # Fallback message if buttons don't render
+                        st.error("❌ Failed to delete reservation")
+            
+            # Fallback message with actionable instructions
             if not st.session_state.get('form_buttons_rendered', False):
-                st.error("⚠️ Form buttons may not have rendered correctly. Please refresh the page or contact support.")
-                st.session_state['form_buttons_rendered'] = True
+                st.error(
+                    "⚠️ Form buttons may not have rendered correctly. "
+                    "Please try the following: 1) Refresh the page, 2) Clear browser cache, "
+                    "3) Ensure Streamlit version is 1.30.0 or higher, 4) Contact support with your Streamlit version and browser details."
+                )
