@@ -25,6 +25,22 @@ def load_property_room_map():
             "Day Use": ["Day Use 1", "Day Use 2"],
             "No Show": ["No Show"]
         },
+        "Le Park Resort": {
+            "Villa with Swimming Pool View": ["555&666", "555", "666"],
+            "Villa with Garden View": ["111&222", "111", "222"],
+            "Family Retreate Villa": ["333&444", "333", "444"],
+            "Day Use" : ["Day Use 1", "Day Use 2"],
+            "No Show" : ["No Show"]
+        },
+        "Villa Shakti": {
+            "2BHA Studio Room": ["101&102"],
+            "2BHA with Balcony": ["202&203", "302&303"],
+            "Family Suite": ["201"],
+            "Family Room": ["301"],
+            "Terrace Room": ["401"],
+            "Day Use" : ["Day Use 1", "Day Use 2"],
+            "No Show" : ["No Show"]
+        },
         "La Millionaire Resort": {
             "Double Room": ["101", "102", "103", "105"],
             "Deluex Double Room with Balcony": ["205", "304", "305"],
