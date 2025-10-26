@@ -6,9 +6,7 @@ from utils import safe_int, safe_float
 
 # Booking source dropdown options
 BOOKING_SOURCES = [
-    "Booking", "Direct", "Bkg-Direct", "Agoda", "Go-MMT", "Walk-In",
-    "TIE Group", "Stayflexi", "Airbnb", "Social Media", "Expedia",
-    "Cleartrip", "Website"
+    "Bkg-Direct"
 ]
 
 # Initialize Supabase client
