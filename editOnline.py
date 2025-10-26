@@ -160,23 +160,30 @@ def show_edit_online_reservations(selected_booking_id=None):
             room_numbers, room_types = get_room_options(property_name)
             fetched_room_no = str(reservation.get("room_no", "") or "")
             fetched_room_type = str(reservation.get("room_type", "") or "")
-            room_no_options = sorted(set([fetched_room_no] + room_numbers) - {""}) if fetched_room_no else room_numbers
             room_type_options = sorted(set([fetched_room_type] + room_types) - {""}) if fetched_room_type else room_types
             col1, col2 = st.columns(2)
-            with col1:
-                room_no = st.selectbox(
-                    "Room No",
-                    room_no_options,
-                    index=room_no_options.index(fetched_room_no) if fetched_room_no in room_no_options else 0,
-                    help="Defaults to the fetched room number. Change to a valid room number if needed for the selected property."
-                )
-            with col2:
+            with col2:  # Room Type in second column for consistency
                 room_type = st.selectbox(
                     "Room Type",
                     room_type_options,
                     index=room_type_options.index(fetched_room_type) if fetched_room_type in room_type_options else 0,
-                    help="Defaults to the fetched room type. Change to a valid room type if needed for the selected property."
+                    help="Select the room type. Choose 'Others' to manually enter a custom room number."
                 )
+            with col1:
+                if room_type == "Others":
+                    room_no = st.text_input(
+                        "Room No",
+                        value=fetched_room_no,
+                        help="Enter a custom room number for 'Others' room type."
+                    )
+                else:
+                    room_no_options = sorted(set([fetched_room_no] + room_numbers) - {""}) if fetched_room_no else room_numbers
+                    room_no = st.selectbox(
+                        "Room No",
+                        room_no_options,
+                        index=room_no_options.index(fetched_room_no) if fetched_room_no in room_no_options else 0,
+                        help="Select a room number for the selected property and room type."
+                    )
             
             # Row 5: No of Adults, No of Children
             col1, col2 = st.columns(2)
