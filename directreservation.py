@@ -11,6 +11,12 @@ BOOKING_SOURCES = [
     "Cleartrip", "Website"
 ]
 
+# MOP (Mode of Payment) options - same as online reservations
+MOP_OPTIONS = [
+    "UPI", "Cash", "Go-MMT", "Agoda", "Not Paid", "Bank Transfer", 
+    "Card Payment", "Expedia", "Cleartrip", "Website", "AIRBNB"
+]
+
 # Initialize Supabase client
 try:
     supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
@@ -195,21 +201,32 @@ def show_new_reservation_form():
         with col2:
             advance_payment = st.number_input("Advance Payment", min_value=0.0, step=0.01, key=f"{form_key}_advance_payment")
         
-        # Row 8: Booking Status, Payment Status
+        # Row 8: Balance (Auto-calculated), Advance MOP
+        col1, col2 = st.columns(2)
+        with col1:
+            balance = total_tariff - advance_payment
+            st.number_input("Balance", value=balance, disabled=True, key=f"{form_key}_balance", help="Auto-calculated: Total Tariff - Advance Payment")
+        with col2:
+            advance_mop = st.selectbox("Advance MOP", MOP_OPTIONS, key=f"{form_key}_advance_mop", help="Mode of Payment for advance amount")
+        
+        # Row 9: Balance MOP
+        balance_mop = st.selectbox("Balance MOP", MOP_OPTIONS, key=f"{form_key}_balance_mop", help="Mode of Payment for balance amount")
+        
+        # Row 10: Booking Status, Payment Status
         col1, col2 = st.columns(2)
         with col1:
             booking_status = st.selectbox("Booking Status", ["Pending", "Confirmed", "Cancelled", "Follow-up", "Completed", "No Show"], key=f"{form_key}_booking_status")
         with col2:
             payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], key=f"{form_key}_payment_status")
         
-        # Row 9: Submitted By, Modified By
+        # Row 11: Submitted By, Modified By
         col1, col2 = st.columns(2)
         with col1:
             submitted_by = st.text_input("Submitted By", value=st.session_state.get("username", ""), disabled=True, key=f"{form_key}_submitted_by")
         with col2:
             modified_by = st.text_input("Modified By", value="", disabled=True, key=f"{form_key}_modified_by")
         
-        # Row 10: Modified Comments, Remarks
+        # Row 12: Modified Comments, Remarks
         modified_comments = st.text_area("Modified Comments", key=f"{form_key}_modified_comments")
         remarks = st.text_area("Remarks", key=f"{form_key}_remarks")
         
@@ -230,6 +247,9 @@ def show_new_reservation_form():
                 "booking_source": booking_source,
                 "total_tariff": total_tariff,
                 "advance_payment": advance_payment,
+                "balance": balance,
+                "advance_mop": advance_mop,
+                "balance_mop": balance_mop,
                 "booking_status": booking_status,
                 "payment_status": payment_status,
                 "submitted_by": st.session_state.get("username", ""),
@@ -257,6 +277,9 @@ def show_new_reservation_form():
                         "Booking Source": booking_source,
                         "Total Tariff": total_tariff,
                         "Advance Payment": advance_payment,
+                        "Balance": balance,
+                        "Advance MOP": advance_mop,
+                        "Balance MOP": balance_mop,
                         "Booking Status": booking_status,
                         "Payment Status": payment_status,
                         "Submitted By": st.session_state.get("username", ""),
@@ -420,21 +443,36 @@ def show_edit_reservations():
             with col2:
                 advance_payment = st.number_input("Advance Payment", min_value=0.0, value=reservation["Advance Payment"])
             
-            # Row 8: Booking Status, Payment Status
+            # Row 8: Balance (Auto-calculated), Advance MOP
+            col1, col2 = st.columns(2)
+            with col1:
+                balance = total_tariff - advance_payment
+                st.number_input("Balance", value=balance, disabled=True, help="Auto-calculated: Total Tariff - Advance Payment")
+            with col2:
+                current_advance_mop = reservation.get("Advance MOP", "Not Paid")
+                advance_mop_index = MOP_OPTIONS.index(current_advance_mop) if current_advance_mop in MOP_OPTIONS else MOP_OPTIONS.index("Not Paid")
+                advance_mop = st.selectbox("Advance MOP", MOP_OPTIONS, index=advance_mop_index, help="Mode of Payment for advance amount")
+            
+            # Row 9: Balance MOP
+            current_balance_mop = reservation.get("Balance MOP", "Not Paid")
+            balance_mop_index = MOP_OPTIONS.index(current_balance_mop) if current_balance_mop in MOP_OPTIONS else MOP_OPTIONS.index("Not Paid")
+            balance_mop = st.selectbox("Balance MOP", MOP_OPTIONS, index=balance_mop_index, help="Mode of Payment for balance amount")
+            
+            # Row 10: Booking Status, Payment Status
             col1, col2 = st.columns(2)
             with col1:
                 booking_status = st.selectbox("Booking Status", ["Pending", "Confirmed", "Cancelled", "Follow-up", "Completed", "No Show"], index=["Pending", "Confirmed", "Cancelled", "Follow-up", "Completed", "No Show"].index(reservation["Booking Status"]))
             with col2:
                 payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], index=["Not Paid", "Fully Paid", "Partially Paid"].index(reservation["Payment Status"]))
             
-            # Row 9: Submitted By, Modified By
+            # Row 11: Submitted By, Modified By
             col1, col2 = st.columns(2)
             with col1:
                 submitted_by = st.text_input("Submitted By", value=reservation["Submitted By"], disabled=True)
             with col2:
                 modified_by = st.text_input("Modified By", value=st.session_state.username, disabled=True)
             
-            # Row 10: Modified Comments, Remarks
+            # Row 12: Modified Comments, Remarks
             modified_comments = st.text_area("Modified Comments", value=reservation["Modified Comments"])
             remarks = st.text_area("Remarks", value=reservation["Remarks"])
             
@@ -457,6 +495,9 @@ def show_edit_reservations():
                         "booking_source": booking_source,
                         "total_tariff": total_tariff,
                         "advance_payment": advance_payment,
+                        "balance": balance,
+                        "advance_mop": advance_mop,
+                        "balance_mop": balance_mop,
                         "booking_status": booking_status,
                         "payment_status": payment_status,
                         "submitted_by": reservation["Submitted By"],
@@ -481,6 +522,9 @@ def show_edit_reservations():
                             "Booking Source": booking_source,
                             "Total Tariff": total_tariff,
                             "Advance Payment": advance_payment,
+                            "Balance": balance,
+                            "Advance MOP": advance_mop,
+                            "Balance MOP": balance_mop,
                             "Booking Status": booking_status,
                             "Payment Status": payment_status,
                             "Submitted By": reservation["Submitted By"],
@@ -620,6 +664,9 @@ def load_reservations_from_supabase():
                 "Booking Source": record.get("booking_source", ""),
                 "Total Tariff": record.get("total_tariff", 0.0),
                 "Advance Payment": record.get("advance_payment", 0.0),
+                "Balance": record.get("balance", 0.0),
+                "Advance MOP": record.get("advance_mop", "Not Paid"),
+                "Balance MOP": record.get("balance_mop", "Not Paid"),
                 "Booking Status": record.get("booking_status", "Pending"),
                 "Payment Status": record.get("payment_status", "Not Paid"),
                 "Submitted By": record.get("submitted_by", ""),
@@ -653,6 +700,9 @@ def update_reservation_in_supabase(booking_id, updated_reservation):
             "booking_source": updated_reservation["booking_source"],
             "total_tariff": updated_reservation["total_tariff"],
             "advance_payment": updated_reservation["advance_payment"],
+            "balance": updated_reservation["balance"],
+            "advance_mop": updated_reservation["advance_mop"],
+            "balance_mop": updated_reservation["balance_mop"],
             "booking_status": updated_reservation["booking_status"],
             "payment_status": updated_reservation["payment_status"],
             "submitted_by": updated_reservation["submitted_by"],
