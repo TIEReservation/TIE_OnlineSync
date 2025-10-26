@@ -184,33 +184,57 @@ def show_new_reservation_form():
         
         if st.form_submit_button("✅ Submit Reservation"):
             reservation = {
-                "Property Name": property_name,
-                "Booking ID": booking_id,
-                "Guest Name": guest_name,
-                "Guest Phone": guest_phone,
-                "Check In": str(check_in),
-                "Check Out": str(check_out),
-                "Room No": room_no,
-                "Room Type": room_type,
-                "No of Adults": no_of_adults,
-                "No of Children": no_of_children,
-                "No of Infants": no_of_infants,
-                "Rate Plans": rate_plans,
-                "Booking Source": booking_source,
-                "Total Tariff": total_tariff,
-                "Advance Payment": advance_payment,
-                "Booking Status": booking_status,
-                "Payment Status": payment_status,
-                "Submitted By": st.session_state.get("username", ""),  # Ensure logged-in user
-                "Modified By": "",  # Empty for new reservation
-                "Modified Comments": modified_comments,
-                "Remarks": remarks
+                "property_name": property_name,  # Use snake_case for Supabase
+                "booking_id": booking_id,
+                "guest_name": guest_name,
+                "guest_phone": guest_phone,
+                "check_in": str(check_in),
+                "check_out": str(check_out),
+                "room_no": room_no,
+                "room_type": room_type,
+                "no_of_adults": no_of_adults,
+                "no_of_children": no_of_children,
+                "no_of_infants": no_of_infants,
+                "rate_plans": rate_plans,
+                "booking_source": booking_source,
+                "total_tariff": total_tariff,
+                "advance_payment": advance_payment,
+                "booking_status": booking_status,
+                "payment_status": payment_status,
+                "submitted_by": st.session_state.get("username", ""),
+                "modified_by": "",
+                "modified_comments": modified_comments,
+                "remarks": remarks
             }
             # Insert into Supabase
             try:
                 response = supabase.table("reservations").insert(reservation).execute()
                 if response.data:
-                    st.session_state.reservations = st.session_state.get('reservations', []) + [reservation]
+                    # Transform to title case for session state
+                    reservation_transformed = {
+                        "Property Name": reservation["property_name"],
+                        "Booking ID": reservation["booking_id"],
+                        "Guest Name": reservation["guest_name"],
+                        "Guest Phone": reservation["guest_phone"],
+                        "Check In": reservation["check_in"],
+                        "Check Out": reservation["check_out"],
+                        "Room No": reservation["room_no"],
+                        "Room Type": reservation["room_type"],
+                        "No of Adults": reservation["no_of_adults"],
+                        "No of Children": reservation["no_of_children"],
+                        "No of Infants": reservation["no_of_infants"],
+                        "Rate Plans": reservation["rate_plans"],
+                        "Booking Source": reservation["booking_source"],
+                        "Total Tariff": reservation["total_tariff"],
+                        "Advance Payment": reservation["advance_payment"],
+                        "Booking Status": reservation["booking_status"],
+                        "Payment Status": reservation["payment_status"],
+                        "Submitted By": reservation["submitted_by"],
+                        "Modified By": reservation["modified_by"],
+                        "Modified Comments": reservation["modified_comments"],
+                        "Remarks": reservation["remarks"]
+                    }
+                    st.session_state.reservations = st.session_state.get('reservations', []) + [reservation_transformed]
                     st.success(f"✅ Reservation {booking_id} created successfully!")
                     st.rerun()
                 else:
@@ -463,30 +487,54 @@ def show_edit_reservations():
                     with col_btn1:
                         if st.form_submit_button("💾 Update Reservation", use_container_width=True):
                             updated_reservation = {
-                                "Property Name": property_name,
-                                "Booking ID": reservation.get("Booking ID", ""),
-                                "Guest Name": guest_name,
-                                "Guest Phone": guest_phone,
-                                "Check In": str(check_in),
-                                "Check Out": str(check_out),
-                                "Room No": room_no,
-                                "Room Type": room_type,
-                                "No of Adults": no_of_adults,
-                                "No of Children": no_of_children,
-                                "No of Infants": no_of_infants,
-                                "Rate Plans": rate_plans,
-                                "Booking Source": booking_source,
-                                "Total Tariff": total_tariff,
-                                "Advance Payment": advance_payment,
-                                "Booking Status": booking_status,
-                                "Payment Status": payment_status,
-                                "Submitted By": reservation.get("Submitted By", ""),  # Retain original
-                                "Modified By": st.session_state.get("username", ""),  # Set to logged-in user
-                                "Modified Comments": modified_comments,
-                                "Remarks": remarks
+                                "property_name": property_name,
+                                "booking_id": reservation.get("Booking ID", ""),
+                                "guest_name": guest_name,
+                                "guest_phone": guest_phone,
+                                "check_in": str(check_in),
+                                "check_out": str(check_out),
+                                "room_no": room_no,
+                                "room_type": room_type,
+                                "no_of_adults": no_of_adults,
+                                "no_of_children": no_of_children,
+                                "no_of_infants": no_of_infants,
+                                "rate_plans": rate_plans,
+                                "booking_source": booking_source,
+                                "total_tariff": total_tariff,
+                                "advance_payment": advance_payment,
+                                "booking_status": booking_status,
+                                "payment_status": payment_status,
+                                "submitted_by": reservation.get("Submitted By", ""),
+                                "modified_by": st.session_state.get("username", ""),
+                                "modified_comments": modified_comments,
+                                "remarks": remarks
                             }
                             if update_reservation_in_supabase(reservation["Booking ID"], updated_reservation):
-                                st.session_state.reservations[edit_index] = updated_reservation
+                                # Transform to title case for session state
+                                updated_reservation_transformed = {
+                                    "Property Name": updated_reservation["property_name"],
+                                    "Booking ID": updated_reservation["booking_id"],
+                                    "Guest Name": updated_reservation["guest_name"],
+                                    "Guest Phone": updated_reservation["guest_phone"],
+                                    "Check In": updated_reservation["check_in"],
+                                    "Check Out": updated_reservation["check_out"],
+                                    "Room No": updated_reservation["room_no"],
+                                    "Room Type": updated_reservation["room_type"],
+                                    "No of Adults": updated_reservation["no_of_adults"],
+                                    "No of Children": updated_reservation["no_of_children"],
+                                    "No of Infants": updated_reservation["no_of_infants"],
+                                    "Rate Plans": updated_reservation["rate_plans"],
+                                    "Booking Source": updated_reservation["booking_source"],
+                                    "Total Tariff": updated_reservation["total_tariff"],
+                                    "Advance Payment": updated_reservation["advance_payment"],
+                                    "Booking Status": updated_reservation["booking_status"],
+                                    "Payment Status": updated_reservation["payment_status"],
+                                    "Submitted By": updated_reservation["submitted_by"],
+                                    "Modified By": updated_reservation["modified_by"],
+                                    "Modified Comments": updated_reservation["modified_comments"],
+                                    "Remarks": updated_reservation["remarks"]
+                                }
+                                st.session_state.reservations[edit_index] = updated_reservation_transformed
                                 st.session_state.edit_mode = False
                                 st.session_state.edit_index = None
                                 st.success(f"✅ Reservation {reservation['Booking ID']} updated successfully!")
@@ -601,8 +649,39 @@ def show_analytics():
 def load_reservations_from_supabase():
     """Load all direct reservations from Supabase."""
     try:
-        response = supabase.table("reservations").select("*").order("Check In", desc=True).execute()
-        return response.data if response.data else []
+        response = supabase.table("reservations").select("*").order("check_in", desc=True).execute()
+        if not response.data:
+            st.warning("No reservations found in Supabase.")
+            return []
+        
+        # Transform Supabase snake_case to title case for UI consistency
+        transformed_data = []
+        for record in response.data:
+            transformed_record = {
+                "Property Name": record.get("property_name", ""),
+                "Booking ID": record.get("booking_id", ""),
+                "Guest Name": record.get("guest_name", ""),
+                "Guest Phone": record.get("guest_phone", ""),
+                "Check In": record.get("check_in", ""),
+                "Check Out": record.get("check_out", ""),
+                "Room No": record.get("room_no", ""),
+                "Room Type": record.get("room_type", ""),
+                "No of Adults": record.get("no_of_adults", 0),
+                "No of Children": record.get("no_of_children", 0),
+                "No of Infants": record.get("no_of_infants", 0),
+                "Rate Plans": record.get("rate_plans", ""),
+                "Booking Source": record.get("booking_source", ""),
+                "Total Tariff": record.get("total_tariff", 0.0),
+                "Advance Payment": record.get("advance_payment", 0.0),
+                "Booking Status": record.get("booking_status", "Pending"),
+                "Payment Status": record.get("payment_status", "Not Paid"),
+                "Submitted By": record.get("submitted_by", ""),
+                "Modified By": record.get("modified_by", ""),
+                "Modified Comments": record.get("modified_comments", ""),
+                "Remarks": record.get("remarks", "")
+            }
+            transformed_data.append(transformed_record)
+        return transformed_data
     except Exception as e:
         st.error(f"Error loading reservations: {e}")
         return []
@@ -610,7 +689,31 @@ def load_reservations_from_supabase():
 def update_reservation_in_supabase(booking_id, updated_reservation):
     """Update a reservation in Supabase."""
     try:
-        response = supabase.table("reservations").update(updated_reservation).eq("Booking ID", booking_id).execute()
+        # Transform to snake_case for Supabase
+        supabase_reservation = {
+            "property_name": updated_reservation["Property Name"],
+            "booking_id": updated_reservation["Booking ID"],
+            "guest_name": updated_reservation["Guest Name"],
+            "guest_phone": updated_reservation["Guest Phone"],
+            "check_in": updated_reservation["Check In"],
+            "check_out": updated_reservation["Check Out"],
+            "room_no": updated_reservation["Room No"],
+            "room_type": updated_reservation["Room Type"],
+            "no_of_adults": updated_reservation["No of Adults"],
+            "no_of_children": updated_reservation["No of Children"],
+            "no_of_infants": updated_reservation["No of Infants"],
+            "rate_plans": updated_reservation["Rate Plans"],
+            "booking_source": updated_reservation["Booking Source"],
+            "total_tariff": updated_reservation["Total Tariff"],
+            "advance_payment": updated_reservation["Advance Payment"],
+            "booking_status": updated_reservation["Booking Status"],
+            "payment_status": updated_reservation["Payment Status"],
+            "submitted_by": updated_reservation["Submitted By"],
+            "modified_by": updated_reservation["Modified By"],
+            "modified_comments": updated_reservation["Modified Comments"],
+            "remarks": updated_reservation["Remarks"]
+        }
+        response = supabase.table("reservations").update(supabase_reservation).eq("booking_id", booking_id).execute()
         return bool(response.data)
     except Exception as e:
         st.error(f"Error updating reservation {booking_id}: {e}")
@@ -619,7 +722,7 @@ def update_reservation_in_supabase(booking_id, updated_reservation):
 def delete_reservation_in_supabase(booking_id):
     """Delete a reservation from Supabase."""
     try:
-        response = supabase.table("reservations").delete().eq("Booking ID", booking_id).execute()
+        response = supabase.table("reservations").delete().eq("booking_id", booking_id).execute()
         return bool(response.data)
     except Exception as e:
         st.error(f"Error deleting reservation {booking_id}: {e}")
