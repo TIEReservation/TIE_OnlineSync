@@ -161,19 +161,30 @@ def show_edit_online_reservations(selected_booking_id=None):
             fetched_room_no = str(reservation.get("room_no", "") or "")
             fetched_room_type = str(reservation.get("room_type", "") or "")
             room_type_options = sorted(set([fetched_room_type] + room_types) - {""}) if fetched_room_type else room_types
+            
             col1, col2 = st.columns(2)
-            with col2:  # Room Type in second column for consistency
+            with col2:  # Room Type in second column
+                # Use session state to track room_type changes
+                if 'selected_room_type' not in st.session_state or st.session_state.selected_room_type != fetched_room_type:
+                    st.session_state.selected_room_type = fetched_room_type
                 room_type = st.selectbox(
                     "Room Type",
                     room_type_options,
-                    index=room_type_options.index(fetched_room_type) if fetched_room_type in room_type_options else 0,
+                    index=room_type_options.index(st.session_state.selected_room_type) if st.session_state.selected_room_type in room_type_options else 0,
+                    key=f"room_type_{reservation['booking_id']}",
                     help="Select the room type. Choose 'Others' to manually enter a custom room number."
                 )
-            with col1:
-                if room_type == "Others":
+                # Update session state when room_type changes
+                st.session_state.selected_room_type = room_type
+            
+            with col1:  # Room No in first column
+                if st.session_state.selected_room_type == "Others":
+                    # Debug message to confirm text input rendering
+                    st.write("Debug: Rendering Room No as text input for 'Others' room type")
                     room_no = st.text_input(
                         "Room No",
                         value=fetched_room_no,
+                        key=f"room_no_text_{reservation['booking_id']}",
                         help="Enter a custom room number for 'Others' room type."
                     )
                 else:
@@ -182,6 +193,7 @@ def show_edit_online_reservations(selected_booking_id=None):
                         "Room No",
                         room_no_options,
                         index=room_no_options.index(fetched_room_no) if fetched_room_no in room_no_options else 0,
+                        key=f"room_no_select_{reservation['booking_id']}",
                         help="Select a room number for the selected property and room type."
                     )
             
@@ -362,7 +374,7 @@ def show_edit_online_reservations(selected_booking_id=None):
             # Fallback message with actionable instructions
             if not st.session_state.get('form_buttons_rendered', False):
                 st.error(
-                    "⚠️ Form buttons may not have rendered correctly. "
+                    "⚠️ Form buttons or Room No input may not have rendered correctly. "
                     "Please try the following: 1) Refresh the page, 2) Clear browser cache, "
-                    "3) Ensure Streamlit version is 1.30.0 or higher, 4) Contact support with your Streamlit version and browser details."
+                    "3) Ensure Streamlit version is 1.30.0 or higher, 4) Contact support with your Streamlit version, browser details, and a screenshot of the Room No field."
                 )
