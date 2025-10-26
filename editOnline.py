@@ -163,16 +163,22 @@ def show_edit_online_reservations(selected_booking_id=None):
             room_numbers, room_types, get_room_type = get_room_options(property_name)
             col1, col2 = st.columns(2)
             with col1:
+                fetched_room_no = str(reservation.get("room_no", "") or "")
+                room_no_index = room_numbers.index(fetched_room_no) if fetched_room_no in room_numbers else 0
                 room_no = st.selectbox(
                     "Room No",
                     room_numbers,
-                    index=room_numbers.index(reservation.get("room_no", "")) if reservation.get("room_no", "") in room_numbers else 0
+                    index=room_no_index,
+                    help="Defaults to the fetched room number. Change if needed for the selected property."
                 )
             with col2:
+                fetched_room_type = str(reservation.get("room_type", "") or "")
+                room_type_index = room_types.index(fetched_room_type) if fetched_room_type in room_types else 0
                 room_type = st.selectbox(
                     "Room Type",
                     room_types,
-                    index=room_types.index(reservation.get("room_type", "")) if reservation.get("room_type", "") in room_types else 0
+                    index=room_type_index,
+                    help="Defaults to the fetched room type. Change if needed for the selected property."
                 )
             
             # Row 5: No of Adults, No of Children
