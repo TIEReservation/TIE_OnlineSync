@@ -211,7 +211,12 @@ def show_edit_online_reservations(selected_booking_id=None):
                     help="Select 'Bkg-Direct' if the guest canceled their online booking and rebooked directly. This is used for Daily Status statistics."
                 )
             with col2:
-                booking_confirmed_on = st.date_input("Booking Confirmed On", value=date.fromisoformat(reservation.get("booking_confirmed_on")) if reservation.get("booking_confirmed_on") else None, min_value=None)
+                fetched_booking_confirmed_on = reservation.get("booking_confirmed_on")
+                if fetched_booking_confirmed_on and str(fetched_booking_confirmed_on).strip():
+                    booking_confirmed_on = str(fetched_booking_confirmed_on)
+                    st.text_input("Booking Confirmed On", value=booking_confirmed_on, disabled=True, help="This field is locked as the booking confirmation date is already set.")
+                else:
+                    booking_confirmed_on = st.date_input("Booking Confirmed On", value=None, min_value=None, help="Set the booking confirmation date if not already set.")
             
             # Row 9: Booking Amount, Total Payment Made
             col1, col2 = st.columns(2)
