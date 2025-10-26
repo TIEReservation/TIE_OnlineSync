@@ -132,53 +132,81 @@ def show_edit_online_reservations(selected_booking_id=None):
         reservation = st.session_state.online_reservations[edit_index]
         
         with st.form(key=f"edit_online_form_{reservation['booking_id']}"):
-            # Row 1: Property, Booking ID
+            # Row 1: Property, Transfer Property Option
             col1, col2 = st.columns(2)
             with col1:
                 properties = load_properties()
-                property_name = st.selectbox("Property", properties, index=properties.index(reservation.get("property", "")) if reservation.get("property") in properties else 0)
+                original_property = reservation.get("property", "")
+                property_name = st.selectbox(
+                    "Property",
+                    properties,
+                    index=properties.index(original_property) if original_property in properties else 0,
+                    disabled=True
+                )
             with col2:
+                transfer_property = st.checkbox("Transfer to Another Property", help="Check to change the property for this reservation.")
+                new_property = property_name
+                if transfer_property:
+                    new_property = st.selectbox(
+                        "New Property",
+                        properties,
+                        index=properties.index(original_property) if original_property in properties else 0,
+                        key="new_property",
+                        help="Select the new property for the guest."
+                    )
+            
+            # Row 2: Booking ID, Guest Name
+            col1, col2 = st.columns(2)
+            with col1:
                 booking_id = st.text_input("Booking ID", value=reservation.get("booking_id", ""), disabled=True)
-            
-            # Row 2: Guest Name, Guest Phone
-            col1, col2 = st.columns(2)
-            with col1:
+            with col2:
                 guest_name = st.text_input("Guest Name", value=reservation.get("guest_name", ""))
-            with col2:
+            
+            # Row 3: Guest Phone, Check In
+            col1, col2 = st.columns(2)
+            with col1:
                 guest_phone = st.text_input("Guest Phone", value=reservation.get("guest_phone", ""))
-            
-            # Row 3: Check In, Check Out
-            col1, col2 = st.columns(2)
-            with col1:
+            with col2:
                 check_in = st.date_input("Check In", value=date.fromisoformat(reservation.get("check_in")) if reservation.get("check_in") else date.today())
-            with col2:
-                check_out = st.date_input("Check Out", value=date.fromisoformat(reservation.get("check_out")) if reservation.get("check_out") else date.today())
             
-            # Row 4: Room No, Room Type
-            room_numbers, room_types, get_room_type = get_room_options(property_name)
+            # Row 4: Check Out, Room No
+            room_numbers, room_types, get_room_type = get_room_options(new_property)
             col1, col2 = st.columns(2)
             with col1:
-                room_no = st.selectbox("Room No", room_numbers, index=room_numbers.index(reservation.get("room_no", "")) if reservation.get("room_no") in room_numbers else 0)
+                check_out = st.date_input("Check Out", value=date.fromisoformat(reservation.get("check_out")) if reservation.get("check_out") else date.today())
             with col2:
-                room_type = st.selectbox("Room Type", room_types, index=room_types.index(reservation.get("room_type", "")) if reservation.get("room_type") in room_types else 0)
+                room_no = st.selectbox(
+                    "Room No",
+                    room_numbers,
+                    index=room_numbers.index(reservation.get("room_no", "")) if reservation.get("room_no", "") in room_numbers else 0
+                )
             
-            # Row 5: No of Adults, Children, Infants
-            col1, col2, col3 = st.columns(3)
+            # Row 5: Room Type, No of Adults
+            col1, col2 = st.columns(2)
             with col1:
-                no_of_adults = st.number_input("No of Adults", min_value=0, value=safe_int(reservation.get("no_of_adults", 1)))
+                room_type = st.selectbox(
+                    "Room Type",
+                    room_types,
+                    index=room_types.index(reservation.get("room_type", "")) if reservation.get("room_type", "") in room_types else 0
+                )
             with col2:
+                no_of_adults = st.number_input("No of Adults", min_value=0, value=safe_int(reservation.get("no_of_adults", 1)))
+            
+            # Row 6: No of Children, No of Infants
+            col1, col2 = st.columns(2)
+            with col1:
                 no_of_children = st.number_input("No of Children", min_value=0, value=safe_int(reservation.get("no_of_children", 0)))
-            with col3:
+            with col2:
                 no_of_infant = st.number_input("No of Infants", min_value=0, value=safe_int(reservation.get("no_of_infant", 0)))
             
-            # Row 6: Rate Plans, Segment
+            # Row 7: Rate Plans, Segment
             col1, col2 = st.columns(2)
             with col1:
                 rate_plans = st.text_input("Rate Plans", value=reservation.get("rate_plans", ""))
             with col2:
                 segment = st.text_input("Segment", value=reservation.get("segment", ""))
             
-            # Row 7: Staflexi Status, Mode of Booking
+            # Row 8: Staflexi Status, Mode of Booking
             col1, col2 = st.columns(2)
             with col1:
                 staflexi_status = st.text_input("Staflexi Status", value=reservation.get("staflexi_status", ""))
@@ -192,28 +220,28 @@ def show_edit_online_reservations(selected_booking_id=None):
                     help="Select 'Bkg-Direct' if the guest canceled their online booking and rebooked directly. This is used for Daily Status statistics."
                 )
             
-            # Row 8: Booking Confirmed On, Booking Amount
+            # Row 9: Booking Confirmed On, Booking Amount
             col1, col2 = st.columns(2)
             with col1:
                 booking_confirmed_on = st.date_input("Booking Confirmed On", value=date.fromisoformat(reservation.get("booking_confirmed_on")) if reservation.get("booking_confirmed_on") else None, min_value=None)
             with col2:
                 booking_amount = st.number_input("Booking Amount", min_value=0.0, value=safe_float(reservation.get("booking_amount", 0.0)))
             
-            # Row 9: Total Payment Made, Balance Due
+            # Row 10: Total Payment Made, Balance Due
             col1, col2 = st.columns(2)
             with col1:
                 total_payment_made = st.number_input("Total Payment Made", min_value=0.0, value=safe_float(reservation.get("total_payment_made", 0.0)))
             with col2:
                 balance_due = st.number_input("Balance Due", min_value=0.0, value=safe_float(reservation.get("balance_due", 0.0)))
             
-            # Row 10: Advance MOP, Balance MOP
+            # Row 11: Advance MOP, Balance MOP
             col1, col2 = st.columns(2)
             with col1:
                 advance_mop = st.text_input("Advance MOP", value=reservation.get("advance_mop", ""))
             with col2:
                 balance_mop = st.text_input("Balance MOP", value=reservation.get("balance_mop", ""))
             
-            # Row 11: Booking Status, Payment Status
+            # Row 12: Booking Status, Payment Status
             col1, col2 = st.columns(2)
             with col1:
                 booking_status_options = ["Pending", "Confirmed", "Cancelled", "Completed", "No Show"]
@@ -226,17 +254,17 @@ def show_edit_online_reservations(selected_booking_id=None):
             with col2:
                 payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], index=["Not Paid", "Fully Paid", "Partially Paid"].index(reservation.get("payment_status", "Not Paid")))
             
-            # Row 12: Remarks
+            # Row 13: Remarks
             remarks = st.text_area("Remarks", value=reservation.get("remarks", ""))
             
-            # Row 13: Submitted by, Modified by
+            # Row 14: Submitted by, Modified by
             col1, col2 = st.columns(2)
             with col1:
                 submitted_by = st.text_input("Submitted by", value=reservation.get("submitted_by", ""), disabled=True)
             with col2:
                 modified_by = st.text_input("Modified by", value=st.session_state.username, disabled=True)
             
-            # Row 14: Hidden/Other fields
+            # Row 15: Hidden/Other fields
             total_amount_with_services = safe_float(reservation.get("total_amount_with_services", 0.0))
             ota_gross_amount = safe_float(reservation.get("ota_gross_amount", 0.0))
             ota_commission = safe_float(reservation.get("ota_commission", 0.0))
@@ -248,7 +276,7 @@ def show_edit_online_reservations(selected_booking_id=None):
             with col_btn1:
                 if st.form_submit_button("💾 Update Reservation", use_container_width=True):
                     updated_reservation = {
-                        "property": property_name,
+                        "property": new_property,  # Use new_property if transferred, else original
                         "booking_made_on": str(reservation.get("booking_made_on")) if reservation.get("booking_made_on") else None,
                         "guest_name": guest_name,
                         "guest_phone": guest_phone,
