@@ -218,6 +218,69 @@ def show_new_reservation_form():
             except Exception as e:
                 st.error(f"Error creating reservation: {e}")
 
+def show_reservations():
+    """Display direct reservations page with view and filters."""
+    st.title("📋 View Direct Reservations")
+    
+    if 'reservations' not in st.session_state:
+        st.session_state.reservations = load_reservations_from_supabase()
+
+    # Refresh button
+    if st.button("🔄 Refresh Reservations"):
+        st.session_state.reservations = load_reservations_from_supabase()
+        st.success("✅ Reservations refreshed!")
+        st.rerun()
+
+    if not st.session_state.reservations:
+        st.info("No direct reservations available.")
+        return
+
+    df = pd.DataFrame(st.session_state.reservations)
+    
+    # Filters
+    st.subheader("Filters")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        start_date = st.date_input("Start Date (Check-In)", value=None)
+    with col2:
+        end_date = st.date_input("End Date (Check-In)", value=None)
+    with col3:
+        filter_status = st.selectbox("Filter by Booking Status", ["All", "Pending", "Confirmed", "Cancelled", "Follow-up", "Completed", "No Show"])
+    with col4:
+        properties = ["All"] + sorted(df["Property Name"].dropna().unique().tolist())
+        filter_property = st.selectbox("Filter by Property", properties)
+
+    # Sorting option
+    sort_order = st.radio("Sort by Check-In Date", ["Descending (Newest First)", "Ascending (Oldest First)"], index=0)
+
+    filtered_df = df.copy()
+    # Apply filters
+    if start_date:
+        filtered_df = filtered_df[pd.to_datetime(filtered_df["Check In"]) >= pd.to_datetime(start_date)]
+    if end_date:
+        filtered_df = filtered_df[pd.to_datetime(filtered_df["Check In"]) <= pd.to_datetime(end_date)]
+    if filter_status != "All":
+        filtered_df = filtered_df[filtered_df["Booking Status"] == filter_status]
+    if filter_property != "All":
+        filtered_df = filtered_df[filtered_df["Property Name"] == filter_property]
+
+    # Apply sorting
+    if sort_order == "Ascending (Oldest First)":
+        filtered_df = filtered_df.sort_values(by="Check In", ascending=True)
+    else:
+        filtered_df = filtered_df.sort_values(by="Check In", ascending=False)
+
+    if filtered_df.empty:
+        st.warning("No reservations match the selected filters.")
+    else:
+        # Display selected columns
+        display_columns = [
+            "Property Name", "Booking ID", "Guest Name", "Check In", "Check Out", 
+            "Room No", "Room Type", "Booking Status", "Payment Status", "Total Tariff", 
+            "Advance Payment"
+        ]
+        st.dataframe(filtered_df[display_columns], use_container_width=True)
+
 def show_edit_reservations():
     """Display edit reservations page."""
     st.title("✏️ Edit Reservations")
