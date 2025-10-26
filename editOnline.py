@@ -84,11 +84,8 @@ def get_room_options(property_name):
     else:
         room_numbers = ["Day Use 1", "Day Use 2", "No Show"]
     
-    def get_room_type(room_no):
-        return "No Show" if room_no == "No Show" else "Day Use"
-    
     room_types = ["Day Use", "No Show", "Others"]
-    return room_numbers, room_types, get_room_type
+    return room_numbers, room_types
 
 def show_edit_online_reservations(selected_booking_id=None):
     """Display edit online reservations page."""
@@ -160,7 +157,10 @@ def show_edit_online_reservations(selected_booking_id=None):
                 check_out = st.date_input("Check Out", value=date.fromisoformat(reservation.get("check_out")) if reservation.get("check_out") else date.today())
             
             # Row 4: Room No, Room Type
-            room_numbers, room_types, get_room_type = get_room_options(property_name)
+            room_numbers, room_types = get_room_options(property_name)
+            # Add empty string to handle invalid/empty fetched values
+            room_numbers = [""] + room_numbers
+            room_types = [""] + room_types
             col1, col2 = st.columns(2)
             with col1:
                 fetched_room_no = str(reservation.get("room_no", "") or "")
@@ -169,7 +169,7 @@ def show_edit_online_reservations(selected_booking_id=None):
                     "Room No",
                     room_numbers,
                     index=room_no_index,
-                    help="Defaults to the fetched room number. Change if needed for the selected property."
+                    help="Shows the fetched room number if valid for the selected property, else empty. Select a valid room number."
                 )
             with col2:
                 fetched_room_type = str(reservation.get("room_type", "") or "")
@@ -178,7 +178,7 @@ def show_edit_online_reservations(selected_booking_id=None):
                     "Room Type",
                     room_types,
                     index=room_type_index,
-                    help="Defaults to the fetched room type. Change if needed for the selected property."
+                    help="Shows the fetched room type if valid for the selected property, else empty. Select a valid room type."
                 )
             
             # Row 5: No of Adults, No of Children
