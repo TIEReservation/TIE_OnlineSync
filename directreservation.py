@@ -184,7 +184,7 @@ def show_new_reservation_form():
         
         if st.form_submit_button("✅ Submit Reservation"):
             reservation = {
-                "property_name": property_name,  # Use snake_case for Supabase
+                "property_name": property_name,
                 "booking_id": booking_id,
                 "guest_name": guest_name,
                 "guest_phone": guest_phone,
@@ -409,7 +409,7 @@ def show_edit_reservations():
                     # Row 1: Property Name, Booking ID
                     col1, col2 = st.columns(2)
                     with col1:
-                        property_name = st.selectbox("Property Name", properties, index=properties.index(reservation.get("Property Name", "")), key=f"{form_key}_property")
+                        property_name = st.selectbox("Property Name", properties, index=properties.index(reservation.get("Property Name", "")) if reservation.get("Property Name") in properties else 0, key=f"{form_key}_property")
                     with col2:
                         booking_id = st.text_input("Booking ID", value=reservation.get("Booking ID", ""), disabled=True, key=f"{form_key}_booking_id")
                     
@@ -437,10 +437,14 @@ def show_edit_reservations():
                     room_types = sorted(property_room_map[property_name].keys())
                     col1, col2 = st.columns(2)
                     with col1:
-                        room_type = st.selectbox("Room Type", room_types, index=room_types.index(reservation.get("Room Type", room_types[0])), key=f"{form_key}_room_type")
+                        current_room_type = reservation.get("Room Type", room_types[0])
+                        room_type_index = room_types.index(current_room_type) if current_room_type in room_types else 0
+                        room_type = st.selectbox("Room Type", room_types, index=room_type_index, key=f"{form_key}_room_type")
                     with col2:
                         room_numbers = property_room_map[property_name][room_type]
-                        room_no = st.selectbox("Room No", room_numbers, index=room_numbers.index(reservation.get("Room No", room_numbers[0])), key=f"{form_key}_room_no")
+                        current_room_no = reservation.get("Room No", room_numbers[0])
+                        room_no_index = room_numbers.index(current_room_no) if current_room_no in room_numbers else 0
+                        room_no = st.selectbox("Room No", room_numbers, index=room_no_index, key=f"{form_key}_room_no")
                     
                     # Row 5: No of Adults, Children, Infants
                     col1, col2, col3 = st.columns(3)
@@ -468,9 +472,15 @@ def show_edit_reservations():
                     # Row 8: Booking Status, Payment Status
                     col1, col2 = st.columns(2)
                     with col1:
-                        booking_status = st.selectbox("Booking Status", ["Pending", "Confirmed", "Cancelled", "Follow-up", "Completed", "No Show"], index=["Pending", "Confirmed", "Cancelled", "Follow-up", "Completed", "No Show"].index(reservation.get("Booking Status", "Pending")), key=f"{form_key}_booking_status")
+                        booking_status_options = ["Pending", "Confirmed", "Cancelled", "Follow-up", "Completed", "No Show"]
+                        current_booking_status = reservation.get("Booking Status", "Pending")
+                        booking_status_index = booking_status_options.index(current_booking_status) if current_booking_status in booking_status_options else 0
+                        booking_status = st.selectbox("Booking Status", booking_status_options, index=booking_status_index, key=f"{form_key}_booking_status")
                     with col2:
-                        payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], index=["Not Paid", "Fully Paid", "Partially Paid"].index(reservation.get("Payment Status", "Not Paid")), key=f"{form_key}_payment_status")
+                        payment_status_options = ["Not Paid", "Fully Paid", "Partially Paid"]
+                        current_payment_status = reservation.get("Payment Status", "Not Paid")
+                        payment_status_index = payment_status_options.index(current_payment_status) if current_payment_status in payment_status_options else 0
+                        payment_status = st.selectbox("Payment Status", payment_status_options, index=payment_status_index, key=f"{form_key}_payment_status")
                     
                     # Row 9: Submitted By, Modified By
                     col1, col2 = st.columns(2)
@@ -483,75 +493,82 @@ def show_edit_reservations():
                     modified_comments = st.text_area("Modified Comments", value=reservation.get("Modified Comments", ""), key=f"{form_key}_modified_comments")
                     remarks = st.text_area("Remarks", value=reservation.get("Remarks", ""), key=f"{form_key}_remarks")
                     
+                    # Ensure submit buttons are always rendered
                     col_btn1, col_btn2 = st.columns(2)
                     with col_btn1:
-                        if st.form_submit_button("💾 Update Reservation", use_container_width=True):
-                            updated_reservation = {
-                                "property_name": property_name,
-                                "booking_id": reservation.get("Booking ID", ""),
-                                "guest_name": guest_name,
-                                "guest_phone": guest_phone,
-                                "check_in": str(check_in),
-                                "check_out": str(check_out),
-                                "room_no": room_no,
-                                "room_type": room_type,
-                                "no_of_adults": no_of_adults,
-                                "no_of_children": no_of_children,
-                                "no_of_infants": no_of_infants,
-                                "rate_plans": rate_plans,
-                                "booking_source": booking_source,
-                                "total_tariff": total_tariff,
-                                "advance_payment": advance_payment,
-                                "booking_status": booking_status,
-                                "payment_status": payment_status,
-                                "submitted_by": reservation.get("Submitted By", ""),
-                                "modified_by": st.session_state.get("username", ""),
-                                "modified_comments": modified_comments,
-                                "remarks": remarks
-                            }
-                            if update_reservation_in_supabase(reservation["Booking ID"], updated_reservation):
-                                # Transform to title case for session state
-                                updated_reservation_transformed = {
-                                    "Property Name": updated_reservation["property_name"],
-                                    "Booking ID": updated_reservation["booking_id"],
-                                    "Guest Name": updated_reservation["guest_name"],
-                                    "Guest Phone": updated_reservation["guest_phone"],
-                                    "Check In": updated_reservation["check_in"],
-                                    "Check Out": updated_reservation["check_out"],
-                                    "Room No": updated_reservation["room_no"],
-                                    "Room Type": updated_reservation["room_type"],
-                                    "No of Adults": updated_reservation["no_of_adults"],
-                                    "No of Children": updated_reservation["no_of_children"],
-                                    "No of Infants": updated_reservation["no_of_infants"],
-                                    "Rate Plans": updated_reservation["rate_plans"],
-                                    "Booking Source": updated_reservation["booking_source"],
-                                    "Total Tariff": updated_reservation["total_tariff"],
-                                    "Advance Payment": updated_reservation["advance_payment"],
-                                    "Booking Status": updated_reservation["booking_status"],
-                                    "Payment Status": updated_reservation["payment_status"],
-                                    "Submitted By": updated_reservation["submitted_by"],
-                                    "Modified By": updated_reservation["modified_by"],
-                                    "Modified Comments": updated_reservation["modified_comments"],
-                                    "Remarks": updated_reservation["remarks"]
-                                }
-                                st.session_state.reservations[edit_index] = updated_reservation_transformed
-                                st.session_state.edit_mode = False
-                                st.session_state.edit_index = None
-                                st.success(f"✅ Reservation {reservation['Booking ID']} updated successfully!")
-                                st.rerun()
-                            else:
-                                st.error("❌ Failed to update reservation")
+                        submit_button = st.form_submit_button("💾 Update Reservation", use_container_width=True)
                     with col_btn2:
+                        delete_button = None
                         if st.session_state.get('role') == "Management":
-                            if st.form_submit_button("🗑️ Delete Reservation", use_container_width=True):
-                                if delete_reservation_in_supabase(reservation["Booking ID"]):
-                                    st.session_state.reservations.pop(edit_index)
-                                    st.session_state.edit_mode = False
-                                    st.session_state.edit_index = None
-                                    st.success(f"🗑️ Reservation {reservation['Booking ID']} deleted successfully!")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Failed to delete reservation")
+                            delete_button = st.form_submit_button("🗑️ Delete Reservation", use_container_width=True)
+                    
+                    # Handle form submission
+                    if submit_button:
+                        updated_reservation = {
+                            "property_name": property_name,
+                            "booking_id": reservation.get("Booking ID", ""),
+                            "guest_name": guest_name,
+                            "guest_phone": guest_phone,
+                            "check_in": str(check_in),
+                            "check_out": str(check_out),
+                            "room_no": room_no,
+                            "room_type": room_type,
+                            "no_of_adults": no_of_adults,
+                            "no_of_children": no_of_children,
+                            "no_of_infants": no_of_infants,
+                            "rate_plans": rate_plans,
+                            "booking_source": booking_source,
+                            "total_tariff": total_tariff,
+                            "advance_payment": advance_payment,
+                            "booking_status": booking_status,
+                            "payment_status": payment_status,
+                            "submitted_by": reservation.get("Submitted By", ""),
+                            "modified_by": st.session_state.get("username", ""),
+                            "modified_comments": modified_comments,
+                            "remarks": remarks
+                        }
+                        if update_reservation_in_supabase(reservation["Booking ID"], updated_reservation):
+                            # Transform to title case for session state
+                            updated_reservation_transformed = {
+                                "Property Name": updated_reservation["property_name"],
+                                "Booking ID": updated_reservation["booking_id"],
+                                "Guest Name": updated_reservation["guest_name"],
+                                "Guest Phone": updated_reservation["guest_phone"],
+                                "Check In": updated_reservation["check_in"],
+                                "Check Out": updated_reservation["check_out"],
+                                "Room No": updated_reservation["room_no"],
+                                "Room Type": updated_reservation["room_type"],
+                                "No of Adults": updated_reservation["no_of_adults"],
+                                "No of Children": updated_reservation["no_of_children"],
+                                "No of Infants": updated_reservation["no_of_infants"],
+                                "Rate Plans": updated_reservation["rate_plans"],
+                                "Booking Source": updated_reservation["booking_source"],
+                                "Total Tariff": updated_reservation["total_tariff"],
+                                "Advance Payment": updated_reservation["advance_payment"],
+                                "Booking Status": updated_reservation["booking_status"],
+                                "Payment Status": updated_reservation["payment_status"],
+                                "Submitted By": updated_reservation["submitted_by"],
+                                "Modified By": updated_reservation["modified_by"],
+                                "Modified Comments": updated_reservation["modified_comments"],
+                                "Remarks": updated_reservation["remarks"]
+                            }
+                            st.session_state.reservations[edit_index] = updated_reservation_transformed
+                            st.session_state.edit_mode = False
+                            st.session_state.edit_index = None
+                            st.success(f"✅ Reservation {reservation['Booking ID']} updated successfully!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to update reservation")
+                    
+                    if delete_button and st.session_state.get('role') == "Management":
+                        if delete_reservation_in_supabase(reservation["Booking ID"]):
+                            st.session_state.reservations.pop(edit_index)
+                            st.session_state.edit_mode = False
+                            st.session_state.edit_index = None
+                            st.success(f"🗑️ Reservation {reservation['Booking ID']} deleted successfully!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to delete reservation")
             except Exception as e:
                 st.error(f"Error rendering edit form: {e}")
                 st.session_state.edit_mode = False
