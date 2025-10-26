@@ -34,8 +34,6 @@ def update_online_reservation_in_supabase(booking_id, updated_reservation):
         if "remarks" in truncated_reservation:
             truncated_reservation["remarks"] = str(truncated_reservation["remarks"])[:500] if truncated_reservation["remarks"] else ""
         
-        # Debug: Log the reservation data
-        st.write(f"Debug: Attempting to update reservation {booking_id} with data: {truncated_reservation}")
         response = supabase.table("online_reservations").update(truncated_reservation).eq("booking_id", booking_id).execute()
         if not response.data:
             st.error(f"Supabase update failed for booking_id {booking_id}. Response: {response}")
@@ -138,12 +136,7 @@ def show_edit_online_reservations(selected_booking_id=None):
         reservation = st.session_state.online_reservations[edit_index]
         
         with st.form(key=f"edit_online_form_{reservation['booking_id']}", clear_on_submit=True):
-            # Initialize session state
             booking_id = reservation['booking_id']
-            if f"room_type_{booking_id}" not in st.session_state:
-                st.session_state[f"room_type_{booking_id}"] = str(reservation.get("room_type", "") or "")
-            if f"room_no_{booking_id}" not in st.session_state:
-                st.session_state[f"room_no_{booking_id}"] = str(reservation.get("room_no", "") or "")
             
             # Row 1: Property, Booking ID
             col1, col2 = st.columns(2)
@@ -172,51 +165,44 @@ def show_edit_online_reservations(selected_booking_id=None):
             with col2:
                 check_out = st.date_input("Check Out", value=date.fromisoformat(reservation.get("check_out")) if reservation.get("check_out") else date.today())
             
-            # Row 4: Room No, Room Type
+            # Row 4: Room Type and Room No (FIXED VERSION)
             room_numbers, room_types = get_room_options(property_name)
             fetched_room_no = str(reservation.get("room_no", "") or "")
             fetched_room_type = str(reservation.get("room_type", "") or "")
+            
+            # Build room_type options including the fetched value
             room_type_options = sorted(set([fetched_room_type] + room_types) - {""}) if fetched_room_type else room_types
             
             col1, col2 = st.columns(2)
             with col2:
-                previous_room_type = st.session_state[f"room_type_{booking_id}"]
                 room_type = st.selectbox(
                     "Room Type",
                     room_type_options,
                     index=room_type_options.index(fetched_room_type) if fetched_room_type in room_type_options else 0,
-                    key=f"room_type_{booking_id}",
                     help="Select the room type. Choose 'Others' to manually enter a custom room number."
                 )
-                # Update room_no if room_type changes to Others
-                if room_type != previous_room_type:
-                    st.write(f"Debug: Room Type changed from {previous_room_type} to {room_type} for booking_id {booking_id}")
-                    if room_type == "Others":
-                        st.session_state[f"room_no_{booking_id}"] = ""
-                    st.session_state[f"room_type_{booking_id}"] = room_type
             
             with col1:
                 if room_type == "Others":
-                    st.write("Debug: Rendering Room No as empty text input for 'Others' room type")
+                    # For "Others", show text input - initialize with fetched value only if it was "Others"
+                    initial_value = fetched_room_no if fetched_room_type == "Others" else ""
                     room_no = st.text_input(
                         "Room No",
-                        value=st.session_state[f"room_no_{booking_id}"],
-                        key=f"room_no_text_{booking_id}",
+                        value=initial_value,
+                        placeholder="Enter custom room number",
                         help="Enter a custom room number for 'Others' room type."
                     )
-                    st.session_state[f"room_no_{booking_id}"] = room_no
                     if not room_no.strip():
-                        st.warning("Please enter a valid Room No for 'Others' room type.")
+                        st.warning("⚠️ Please enter a valid Room No for 'Others' room type.")
                 else:
+                    # For predefined types, show selectbox
                     room_no_options = sorted(set([fetched_room_no] + room_numbers) - {""}) if fetched_room_no else room_numbers
                     room_no = st.selectbox(
                         "Room No",
                         room_no_options,
                         index=room_no_options.index(fetched_room_no) if fetched_room_no in room_no_options else 0,
-                        key=f"room_no_select_{booking_id}",
                         help="Select a room number for the selected property and room type."
                     )
-                    st.session_state[f"room_no_{booking_id}"] = room_no
             
             # Row 5: No of Adults, No of Children
             col1, col2 = st.columns(2)
@@ -332,16 +318,12 @@ def show_edit_online_reservations(selected_booking_id=None):
             
             # Submit and Delete Buttons
             st.markdown("---")
-            st.session_state['form_buttons_rendered'] = True
             if st.form_submit_button("💾 Update Reservation", use_container_width=True):
-                # Debug: Log form data
-                st.write(f"Debug: Form submitted with room_type: {room_type}, room_no: {st.session_state[f'room_no_{booking_id}']}")
-                # Validate room_no
-                room_no = st.session_state[f"room_no_{booking_id}"]
+                # Validate room_no for "Others" room type
                 if room_type == "Others" and not room_no.strip():
-                    st.error("Room No cannot be empty when Room Type is 'Others'.")
+                    st.error("❌ Room No cannot be empty when Room Type is 'Others'.")
                 elif len(room_no) > 50:
-                    st.error("Room No cannot exceed 50 characters.")
+                    st.error("❌ Room No cannot exceed 50 characters.")
                 else:
                     updated_reservation = {
                         "property": property_name,
@@ -354,7 +336,7 @@ def show_edit_online_reservations(selected_booking_id=None):
                         "no_of_children": no_of_children,
                         "no_of_infant": no_of_infant,
                         "total_pax": no_of_adults + no_of_children + no_of_infant,
-                        "room_no": room_no,
+                        "room_no": room_no.strip(),
                         "room_type": room_type,
                         "rate_plans": rate_plans,
                         "segment": segment,
@@ -378,6 +360,7 @@ def show_edit_online_reservations(selected_booking_id=None):
                         "ota_net_amount": ota_net_amount,
                         "room_revenue": room_revenue
                     }
+                    
                     if update_online_reservation_in_supabase(reservation["booking_id"], updated_reservation):
                         st.session_state.online_reservations[edit_index] = {**reservation, **updated_reservation}
                         st.session_state.online_edit_mode = False
@@ -399,13 +382,3 @@ def show_edit_online_reservations(selected_booking_id=None):
                         st.rerun()
                     else:
                         st.error("❌ Failed to delete reservation")
-            
-            # Fallback message
-            if not st.session_state.get('form_buttons_rendered', False):
-                st.error(
-                    "⚠️ Form buttons or Room No input may not have rendered correctly. "
-                    "Please try: 1) Refresh the page, 2) Clear browser cache, "
-                    "3) Ensure Streamlit version is 1.30.0 or higher, 4) Check Supabase connection, "
-                    "5) Verify Room Type sync by changing the selection multiple times and checking debug messages, "
-                    "6) Contact support with Streamlit version, browser details, Supabase error messages, and a screenshot of the Room No field."
-                )
