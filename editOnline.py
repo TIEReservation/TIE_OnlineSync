@@ -241,7 +241,7 @@ def show_edit_online_reservations(selected_booking_id=None):
             
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
-                if st.button("💾 Update Reservation", use_container_width=True):
+                if st.form_submit_button("💾 Update Reservation", use_container_width=True):
                     updated_reservation = {
                         "property": property_name,
                         "booking_made_on": str(reservation.get("booking_made_on")) if reservation.get("booking_made_on") else None,
@@ -289,7 +289,7 @@ def show_edit_online_reservations(selected_booking_id=None):
                         st.error("❌ Failed to update reservation")
             with col_btn2:
                 if st.session_state.get('role') == "Management":
-                    if st.button("🗑️ Delete Reservation", use_container_width=True):
+                    if st.form_submit_button("🗑️ Delete Reservation", use_container_width=True):
                         if delete_online_reservation_in_supabase(reservation["booking_id"]):
                             st.session_state.online_reservations.pop(edit_index)
                             st.session_state.online_edit_mode = False
