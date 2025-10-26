@@ -158,28 +158,30 @@ def show_edit_online_reservations(selected_booking_id=None):
             
             # Row 4: Room No, Room Type
             room_numbers, room_types = get_room_options(property_name)
-            # Add empty string to handle invalid/empty fetched values
-            room_numbers = [""] + room_numbers
-            room_types = [""] + room_types
+            fetched_room_no = str(reservation.get("room_no", "") or "")
+            fetched_room_type = str(reservation.get("room_type", "") or "")
+            # Include fetched values in dropdowns, even if invalid
+            room_no_options = sorted(set([fetched_room_no] + room_numbers) - {""}) if fetched_room_no else room_numbers
+            room_type_options = sorted(set([fetched_room_type] + room_types) - {""}) if fetched_room_type else room_types
             col1, col2 = st.columns(2)
             with col1:
-                fetched_room_no = str(reservation.get("room_no", "") or "")
-                room_no_index = room_numbers.index(fetched_room_no) if fetched_room_no in room_numbers else 0
                 room_no = st.selectbox(
                     "Room No",
-                    room_numbers,
-                    index=room_no_index,
-                    help="Shows the fetched room number if valid for the selected property, else empty. Select a valid room number."
+                    room_no_options,
+                    index=room_no_options.index(fetched_room_no) if fetched_room_no in room_no_options else 0,
+                    help="Defaults to the fetched room number. Change to a valid room number if needed for the selected property."
                 )
+                if fetched_room_no and fetched_room_no not in room_numbers:
+                    st.warning(f"Fetched Room No '{fetched_room_no}' is invalid for {property_name}. Please select a valid option.")
             with col2:
-                fetched_room_type = str(reservation.get("room_type", "") or "")
-                room_type_index = room_types.index(fetched_room_type) if fetched_room_type in room_types else 0
                 room_type = st.selectbox(
                     "Room Type",
-                    room_types,
-                    index=room_type_index,
-                    help="Shows the fetched room type if valid for the selected property, else empty. Select a valid room type."
+                    room_type_options,
+                    index=room_type_options.index(fetched_room_type) if fetched_room_type in room_type_options else 0,
+                    help="Defaults to the fetched room type. Change to a valid room type if needed for the selected property."
                 )
+                if fetched_room_type and fetched_room_type not in room_types:
+                    st.warning(f"Fetched Room Type '{fetched_room_type}' is invalid for {property_name}. Please select a valid option.")
             
             # Row 5: No of Adults, No of Children
             col1, col2 = st.columns(2)
