@@ -3,7 +3,10 @@ from datetime import datetime
 import pandas as pd
 
 def log_activity(supabase, username, action):
-    """Log user activity to Supabase."""
+    """Log user activity to Supabase, only for actions related to adding or updating reservations."""
+    # Only log actions that start with "Added new" or "Updated"
+    if not (action.startswith("Added new") or action.startswith("Updated")):
+        return
     log_entry = {
         "username": username,
         "action": action,
@@ -59,11 +62,11 @@ def show_user_dashboard(supabase):
         start_date = datetime(current_year, month, 1).isoformat()
         end_date = datetime(current_year + (month // 12), (month % 12) + 1, 1).isoformat() if month < 12 else datetime(current_year + 1, 1, 1).isoformat()
         
-        # Fetch logs for the selected user and month, excluding 'Accessed' actions
-        logs = supabase.table("logs").select("*").eq("username", selected_user).gte("timestamp", start_date).lt("timestamp", end_date).not_.like("action", "%Accessed%").order("timestamp").execute().data
+        # Fetch logs for the selected user and month
+        logs = supabase.table("logs").select("*").eq("username", selected_user).gte("timestamp", start_date).lt("timestamp", end_date).order("timestamp").execute().data
         
         if not logs:
-            st.info("No relevant activity (Added, Confirmed, Cancelled, Modified) found for the selected user and month.")
+            st.info("No activity (Added, Confirmed, Cancelled, Modified) found for the selected user and month.")
             return
         
         # Compute counts
@@ -90,7 +93,7 @@ def show_user_dashboard(supabase):
         st.subheader(f"{selected_user}'s Activity Summary for {month_name}")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("New Reservations Added", new_added)
+            st.metric("Added", new_added)
         with col2:
             st.metric("Confirmed", confirmed)
         with col3:
@@ -110,7 +113,7 @@ def show_user_dashboard(supabase):
                 st.write(f"- {action}: {count}")
 
 def show_log_report(supabase):
-    """Display log report for admin users, excluding 'Accessed' actions."""
+    """Display log report for admin users."""
     st.subheader("Log Report")
     
     # Get all users from users table
@@ -129,13 +132,13 @@ def show_log_report(supabase):
         current_month = datetime.now().month
         month = st.selectbox("Select Month", range(1, 13), index=current_month - 1, format_func=lambda x: datetime(current_year, x, 1).strftime("%B"))
         
-        # Fetch logs for the selected user and month, excluding 'Accessed' actions
+        # Fetch logs for the selected user and month
         start_date = datetime(current_year, month, 1).isoformat()
         end_date = datetime(current_year, month + 1, 1).isoformat() if month < 12 else datetime(current_year + 1, 1, 1).isoformat()
-        logs = supabase.table("logs").select("*").eq("username", selected_user).gte("timestamp", start_date).lt("timestamp", end_date).not_.like("action", "%Accessed%").order("timestamp").execute().data
+        logs = supabase.table("logs").select("*").eq("username", selected_user).gte("timestamp", start_date).lt("timestamp", end_date).order("timestamp").execute().data
         
         if not logs:
-            st.info("No relevant activity (Added, Confirmed, Cancelled, Modified) found for the selected user and month.")
+            st.info("No activity (Added, Confirmed, Cancelled, Modified) found for the selected user and month.")
             return
         
         # Group by day
