@@ -59,10 +59,11 @@ def show_user_dashboard(supabase):
         start_date = datetime(current_year, month, 1).isoformat()
         end_date = datetime(current_year + (month // 12), (month % 12) + 1, 1).isoformat() if month < 12 else datetime(current_year + 1, 1, 1).isoformat()
         
-        logs = supabase.table("logs").select("*").eq("username", selected_user).gte("timestamp", start_date).lt("timestamp", end_date).order("timestamp").execute().data
+        # Fetch logs for the selected user and month, excluding 'Accessed' actions
+        logs = supabase.table("logs").select("*").eq("username", selected_user).gte("timestamp", start_date).lt("timestamp", end_date).not_.like("action", "%Accessed%").order("timestamp").execute().data
         
         if not logs:
-            st.info("No activity found for the selected user and month.")
+            st.info("No relevant activity (Added, Confirmed, Cancelled, Modified) found for the selected user and month.")
             return
         
         # Compute counts
@@ -109,7 +110,7 @@ def show_user_dashboard(supabase):
                 st.write(f"- {action}: {count}")
 
 def show_log_report(supabase):
-    """Display log report for admin users."""
+    """Display log report for admin users, excluding 'Accessed' actions."""
     st.subheader("Log Report")
     
     # Get all users from users table
@@ -128,13 +129,13 @@ def show_log_report(supabase):
         current_month = datetime.now().month
         month = st.selectbox("Select Month", range(1, 13), index=current_month - 1, format_func=lambda x: datetime(current_year, x, 1).strftime("%B"))
         
-        # Fetch logs for the selected user and month
+        # Fetch logs for the selected user and month, excluding 'Accessed' actions
         start_date = datetime(current_year, month, 1).isoformat()
         end_date = datetime(current_year, month + 1, 1).isoformat() if month < 12 else datetime(current_year + 1, 1, 1).isoformat()
-        logs = supabase.table("logs").select("*").eq("username", selected_user).gte("timestamp", start_date).lt("timestamp", end_date).order("timestamp").execute().data
+        logs = supabase.table("logs").select("*").eq("username", selected_user).gte("timestamp", start_date).lt("timestamp", end_date).not_.like("action", "%Accessed%").order("timestamp").execute().data
         
         if not logs:
-            st.info("No logs found for the selected user and month.")
+            st.info("No relevant activity (Added, Confirmed, Cancelled, Modified) found for the selected user and month.")
             return
         
         # Group by day
