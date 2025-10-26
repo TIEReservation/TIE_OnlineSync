@@ -1,140 +1,101 @@
-def show_new_reservation_form():
-    """Display form to create a new direct reservation with room types and numbers from load_property_room_map."""
-    st.header("New Direct Reservation")
-    form_key = "new_reservation_form"
-    property_room_map = load_property_room_map()
-    properties = sorted(property_room_map.keys())
-    
-    with st.form(key=form_key):
-        # Row 1: Property Name, Booking ID
-        col1, col2 = st.columns(2)
-        with col1:
-            property_name = st.selectbox("Property Name", properties, key=f"{form_key}_property")
-        with col2:
-            booking_id = st.text_input("Booking ID", key=f"{form_key}_booking_id")
-        
-        # Debug: Display selected property and room types
-        st.write(f"Debug: Selected Property Name = {property_name}")
-        room_types = sorted(property_room_map[property_name].keys())
-        st.write(f"Debug: Room Types = {room_types}")
-        
-        # Row 2: Guest Name, Guest Phone
-        col1, col2 = st.columns(2)
-        with col1:
-            guest_name = st.text_input("Guest Name", key=f"{form_key}_guest_name")
-        with col2:
-            guest_phone = st.text_input("Guest Phone", key=f"{form_key}_guest_phone")
-        
-        # Row 3: Check In, Check Out
-        col1, col2 = st.columns(2)
-        with col1:
-            check_in = st.date_input("Check In", min_value=date.today(), key=f"{form_key}_check_in")
-        with col2:
-            check_out = st.date_input("Check Out", min_value=date.today(), key=f"{form_key}_check_out")
-        
-        # Row 4: Room Type, Room No
-        col1, col2 = st.columns(2)
-        with col1:
-            room_type = st.selectbox("Room Type", room_types, key=f"{form_key}_room_type")
-        with col2:
-            room_numbers = sorted(property_room_map[property_name][room_type])
-            room_no = st.selectbox("Room No", room_numbers, key=f"{form_key}_room_no")
-        
-        # Row 5: No of Adults, Children, Infants
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            no_of_adults = st.number_input("No of Adults", min_value=0, value=1, step=1, key=f"{form_key}_adults")
-        with col2:
-            no_of_children = st.number_input("No of Children", min_value=0, value=0, step=1, key=f"{form_key}_children")
-        with col3:
-            no_of_infants = st.number_input("No of Infants", min_value=0, value=0, step=1, key=f"{form_key}_infants")
-        
-        # Row 6: Rate Plans, Booking Source
-        col1, col2 = st.columns(2)
-        with col1:
-            rate_plans = st.text_input("Rate Plans", key=f"{form_key}_rate_plans")
-        with col2:
-            booking_source = st.text_input("Booking Source", key=f"{form_key}_booking_source")
-        
-        # Row 7: Total Tariff, Advance Payment
-        col1, col2 = st.columns(2)
-        with col1:
-            total_tariff = st.number_input("Total Tariff", min_value=0.0, step=0.01, key=f"{form_key}_total_tariff")
-        with col2:
-            advance_payment = st.number_input("Advance Payment", min_value=0.0, step=0.01, key=f"{form_key}_advance_payment")
-        
-        # Row 8: Booking Status, Payment Status
-        col1, col2 = st.columns(2)
-        with col1:
-            booking_status = st.selectbox("Booking Status", ["Pending", "Confirmed", "Cancelled", "Follow-up", "Completed", "No Show"], key=f"{form_key}_booking_status")
-        with col2:
-            payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], key=f"{form_key}_payment_status")
-        
-        # Row 9: Submitted By, Modified By
-        col1, col2 = st.columns(2)
-        with col1:
-            submitted_by = st.text_input("Submitted By", value=st.session_state.get("username", ""), disabled=True, key=f"{form_key}_submitted_by")
-        with col2:
-            modified_by = st.text_input("Modified By", value="", disabled=True, key=f"{form_key}_modified_by")
-        
-        # Row 10: Modified Comments, Remarks
-        modified_comments = st.text_area("Modified Comments", key=f"{form_key}_modified_comments")
-        remarks = st.text_area("Remarks", key=f"{form_key}_remarks")
-        
-        if st.form_submit_button("✅ Submit Reservation"):
-            reservation = {
-                "property_name": property_name,
-                "booking_id": booking_id,
-                "guest_name": guest_name,
-                "guest_phone": guest_phone,
-                "check_in": str(check_in),
-                "check_out": str(check_out),
-                "room_no": room_no,
-                "room_type": room_type,
-                "no_of_adults": no_of_adults,
-                "no_of_children": no_of_children,
-                "no_of_infants": no_of_infants,
-                "rate_plans": rate_plans,
-                "booking_source": booking_source,
-                "total_tariff": total_tariff,
-                "advance_payment": advance_payment,
-                "booking_status": booking_status,
-                "payment_status": payment_status,
-                "submitted_by": st.session_state.get("username", ""),
-                "modified_by": "",
-                "modified_comments": modified_comments,
-                "remarks": remarks
-            }
-            try:
-                response = supabase.table("reservations").insert(reservation).execute()
-                if response.data:
-                    reservation_transformed = {
-                        "Property Name": reservation["property_name"],
-                        "Booking ID": reservation["booking_id"],
-                        "Guest Name": reservation["guest_name"],
-                        "Guest Phone": reservation["guest_phone"],
-                        "Check In": reservation["check_in"],
-                        "Check Out": reservation["check_out"],
-                        "Room No": reservation["room_no"],
-                        "Room Type": reservation["room_type"],
-                        "No of Adults": reservation["no_of_adults"],
-                        "No of Children": reservation["no_of_children"],
-                        "No of Infants": reservation["no_of_infants"],
-                        "Rate Plans": reservation["rate_plans"],
-                        "Booking Source": reservation["booking_source"],
-                        "Total Tariff": reservation["total_tariff"],
-                        "Advance Payment": reservation["advance_payment"],
-                        "Booking Status": reservation["booking_status"],
-                        "Payment Status": reservation["payment_status"],
-                        "Submitted By": reservation["submitted_by"],
-                        "Modified By": reservation["modified_by"],
-                        "Modified Comments": reservation["modified_comments"],
-                        "Remarks": reservation["remarks"]
-                    }
-                    st.session_state.reservations = st.session_state.get('reservations', []) + [reservation_transformed]
-                    st.success(f"✅ Reservation {booking_id} created successfully!")
-                    st.rerun()
-                else:
-                    st.error("❌ Failed to create reservation: No data returned from Supabase")
-            except Exception as e:
-                st.error(f"Error creating reservation: {e}")
+ "Le Poshe Beach view": {
+            "Double Room": ["101", "102", "202", "203", "204"],
+            "Standard Room": ["201"],
+            "Deluex Double Room Seaview": ["301", "302", "303", "304"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "Le Park Resort": {
+            "Villa with Swimming Pool View": ["555&666", "555", "666"],
+            "Villa with Garden View": ["111&222", "111", "222"],
+            "Family Retreate Villa": ["333&444", "333", "444"],
+            "Day Use" : ["Day Use 1", "Day Use 2"],
+            "No Show" : ["No Show"]
+        },
+        "Villa Shakti": {
+            "2BHA Studio Room": ["101&102"],
+            "2BHA with Balcony": ["202&203", "302&303"],
+            "Family Suite": ["201"],
+            "Family Room": ["301"],
+            "Terrace Room": ["401"],
+            "Day Use" : ["Day Use 1", "Day Use 2"],
+            "No Show" : ["No Show"]
+        },
+        "La Millionaire Resort": {
+            "Double Room": ["101", "102", "103", "105"],
+            "Deluex Double Room with Balcony": ["205", "304", "305"],
+            "Deluex Triple Room with Balcony": ["201", "202", "203", "204", "301", "302", "303"],
+            "Deluex Family Room with Balcony": ["206", "207", "208", "306", "307", "308"],
+            "Deluex Triple Room": ["402"],
+            "Deluex Family Room": ["401"],
+            "Day Use": ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 5"],
+            "No Show": ["No Show"]
+        },
+        "Le Poshe Luxury": {
+            "2BHA Appartment": ["101&102", "101", "102"],
+            "2BHA Appartment with Balcony": ["201&202", "201", "202", "301&302", "301", "302", "401&402", "401", "402"],
+            "3BHA Appartment": ["203to205", "203", "204", "205", "303to305", "303", "304", "305", "403to405", "403", "404", "405"],
+            "Double Room with Private Terrace": ["501"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "Le Poshe Suite": {
+            "2BHA Appartment": ["601&602", "601", "602", "603", "604", "703", "704"],
+            "2BHA Appartment with Balcony": ["701&702", "701", "702"],
+            "Double Room with Terrace": ["801"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "La Paradise Residency": {
+            "Double Room": ["101", "102", "103", "301", "302", "304"],
+            "Family Room": ["201", "203"],
+            "Triple Room": ["202", "303"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "La Paradise Luxury": {
+            "3BHA Appartment": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"],
+            "Entire Villa": ["101,102,103,201,202,203"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "La Villa Heritage": {
+            "Double Room": ["101", "102", "103"],
+            "4BHA Appartment": ["201to203&301", "201", "202", "203", "301"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "Le Pondy Beach Side": {
+            "Villa": ["101to104", "101", "102", "103", "104"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "Le Royce Villa": {
+            "Villa": ["101to102&201to202", "101", "102", "201", "202"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "La Tamara Luxury": {
+            "3BHA": ["101to103", "101", "102", "103", "104to106", "104", "105", "106", "201to203", "201", "202", "203", "204to206", "204", "205", "206", "301to303", "301", "302", "303", "304to306", "304", "305", "306"],
+            "4BHA": ["401to404", "401", "402", "403", "404"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "La Antilia Luxury": {
+            "Deluex Suite Room": ["101"],
+            "Deluex Double Room": ["203", "204", "303", "304"],
+            "Family Room": ["201", "202", "301", "302"],
+            "Deluex suite Room with Tarrace": ["404"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "La Tamara Suite": {
+            "Two Bedroom apartment": ["101&102"],
+            "Deluxe Apartment": ["103&104"],
+            "Deluxe Double Room": ["203", "204", "205"],
+            "Deluxe Triple Room": ["201", "202"],
+            "Deluxe Family Room": ["206"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        }
+    }
