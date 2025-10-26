@@ -1,3 +1,144 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+from datetime import datetime, date, timedelta
+from supabase import create_client, Client
+
+# Booking source dropdown options
+BOOKING_SOURCES = [
+    "Booking", "Direct", "Bkg-Direct", "Agoda", "Go-MMT", "Walk-In",
+    "TIE Group", "Stayflexi", "Airbnb", "Social Media", "Expedia",
+    "Cleartrip", "Website"
+]
+
+# MOP (Mode of Payment) options - same as online reservations
+MOP_OPTIONS = [
+    "","UPI", "Cash", "Go-MMT", "Agoda", "Not Paid", "Bank Transfer", 
+    "Card Payment", "Expedia", "Cleartrip", "Website", "AIRBNB"
+]
+
+# Initialize Supabase client
+try:
+    supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
+except KeyError as e:
+    st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets configuration.")
+    st.stop()
+
+def load_property_room_map():
+    """
+    Loads the property to room type to room numbers mapping based on provided data.
+    Keys and values are kept as-is from the user's input, including typos and combined rooms.
+    Returns a nested dictionary: {"Property": {"Room Type": ["Room No", ...], ...}, ...}
+    """
+    return {
+        "Le Poshe Beach view": {
+            "Double Room": ["101", "102", "202", "203", "204"],
+            "Standard Room": ["201"],
+            "Deluex Double Room Seaview": ["301", "302", "303", "304"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "La Millionaire Resort": {
+            "Double Room": ["101", "102", "103", "105"],
+            "Deluex Double Room with Balcony": ["205", "304", "305"],
+            "Deluex Triple Room with Balcony": ["201", "202", "203", "204", "301", "302", "303"],
+            "Deluex Family Room with Balcony": ["206", "207", "208", "306", "307", "308"],
+            "Deluex Triple Room": ["402"],
+            "Deluex Family Room": ["401"],
+            "Day Use": ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 5"],
+            "No Show": ["No Show"]
+        },
+        "Le Poshe Luxury": {
+            "2BHA Appartment": ["101&102", "101", "102"],
+            "2BHA Appartment with Balcony": ["201&202", "201", "202", "301&302", "301", "302", "401&402", "401", "402"],
+            "3BHA Appartment": ["203to205", "203", "204", "205", "303to305", "303", "304", "305", "403to405", "403", "404", "405"],
+            "Double Room with Private Terrace": ["501"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "Le Poshe Suite": {
+            "2BHA Appartment": ["601&602", "601", "602", "603", "604", "703", "704"],
+            "2BHA Appartment with Balcony": ["701&702", "701", "702"],
+            "Double Room with Terrace": ["801"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "La Paradise Residency": {
+            "Double Room": ["101", "102", "103", "301", "302", "304"],
+            "Family Room": ["201", "203"],
+            "Triple Room": ["202", "303"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "La Paradise Luxury": {
+            "3BHA Appartment": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "La Villa Heritage": {
+            "Double Room": ["101", "102", "103"],
+            "4BHA Appartment": ["201to203&301", "201", "202", "203", "301"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "Le Pondy Beach Side": {
+            "Villa": ["101to104", "101", "102", "103", "104"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "Le Royce Villa": {
+            "Villa": ["101to102&201to202", "101", "102", "201", "202"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "La Tamara Luxury": {
+            "3BHA": ["101to103", "101", "102", "103", "104to106", "104", "105", "106", "201to203", "201", "202", "203", "204to206", "204", "205", "206", "301to303", "301", "302", "303", "304to306", "304", "305", "306"],
+            "4BHA": ["401to404", "401", "402", "403", "404"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "La Antilia Luxury": {
+            "Deluex Suite Room": ["101"],
+            "Deluex Double Room": ["203", "204", "303", "304"],
+            "Family Room": ["201", "202", "301", "302"],
+            "Deluex suite Room with Tarrace": ["404"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "La Tamara Suite": {
+            "Two Bedroom apartment": ["101&102"],
+            "Deluxe Apartment": ["103&104"],
+            "Deluxe Double Room": ["203", "204", "205"],
+            "Deluxe Triple Room": ["201", "202"],
+            "Deluxe Family Room": ["206"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "Le Park Resort": {
+            "Villa with Swimming Pool View": ["555&666", "555", "666"],
+            "Villa with Garden View": ["111&222", "111", "222"],
+            "Family Retreate Villa": ["333&444", "333", "444"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "Villa Shakti": {
+            "2BHA Studio Room": ["101&102"],
+            "2BHA with Balcony": ["202&203", "302&303"],
+            "Family Suite": ["201"],
+            "Family Room": ["301"],
+            "Terrace Room": ["401"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        },
+        "Eden Beach Resort": {
+            "Double Room": ["101", "102"],
+            "Deluex Room": ["103", "202"],
+            "Triple Room": ["201"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"]
+        }
+    }
+
 def show_new_reservation_form():
     """Display form to create a new direct reservation."""
     st.header("New Direct Reservation")
@@ -155,6 +296,58 @@ def show_new_reservation_form():
             except Exception as e:
                 st.error(f"Error creating reservation: {e}")
 
+def show_reservations():
+    """Display all direct reservations with filters."""
+    st.title("📋 View Direct Reservations")
+    
+    if st.button("🔄 Refresh Reservations"):
+        st.cache_data.clear()
+        st.session_state.pop('reservations', None)
+        st.success("Cache cleared! Refreshing reservations...")
+        st.rerun()
+    
+    if 'reservations' not in st.session_state:
+        st.session_state.reservations = load_reservations_from_supabase()
+    
+    if not st.session_state.reservations:
+        st.info("No reservations available to view.")
+        return
+
+    df = pd.DataFrame(st.session_state.reservations)
+    display_columns = [
+        "Property Name", "Booking ID", "Guest Name", "Check In", "Check Out",
+        "Room No", "Room Type", "Booking Status", "Payment Status"
+    ]
+    st.subheader("Filters")
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    with col1:
+        start_date = st.date_input("Start Date", value=None, key="view_filter_start_date")
+    with col2:
+        end_date = st.date_input("End Date", value=None, key="view_filter_end_date")
+    with col3:
+        filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Follow-up", "Completed", "No Show"], key="view_filter_status")
+    with col4:
+        filter_check_in_date = st.date_input("Check-in Date", value=None, key="view_filter_check_in_date")
+    with col5:
+        filter_check_out_date = st.date_input("Check-out Date", value=None, key="view_filter_check_out_date")
+    with col6:
+        filter_property = st.selectbox("Filter by Property", ["All"] + sorted(df["Property Name"].dropna().unique()), key="view_filter_property")
+    
+    filtered_df = display_filtered_analysis(df, start_date, end_date)
+    
+    if filter_status != "All":
+        filtered_df = filtered_df[filtered_df["Booking Status"] == filter_status]
+    if filter_check_in_date:
+        filtered_df = filtered_df[filtered_df["Check In"] == str(filter_check_in_date)]
+    if filter_check_out_date:
+        filtered_df = filtered_df[filtered_df["Check Out"] == str(filter_check_out_date)]
+    if filter_property != "All":
+        filtered_df = filtered_df[filtered_df["Property Name"] == filter_property]
+    
+    if filtered_df.empty:
+        st.warning("No reservations match the selected filters.")
+    else:
+        st.dataframe(filtered_df[display_columns], use_container_width=True)
 
 def show_edit_reservations():
     """Display edit direct reservations page."""
@@ -371,3 +564,190 @@ def show_edit_reservations():
                             st.rerun()
                         else:
                             st.error("❌ Failed to delete reservation")
+
+def show_analytics():
+    """Display analytics dashboard for Management users."""
+    if st.session_state.get('role') != "Management":
+        st.error("❌ Access Denied: Analytics is available only for Management users.")
+        return
+    st.header("📊 Analytics Dashboard")
+    
+    if 'reservations' not in st.session_state:
+        st.session_state.reservations = []
+    
+    try:
+        reservations = load_reservations_from_supabase()
+        if reservations:
+            st.session_state.reservations = reservations
+        else:
+            st.warning("No reservations found in Supabase.")
+    except Exception as e:
+        st.error(f"Error loading reservations from Supabase: {e}")
+        st.session_state.reservations = []
+
+    if not st.session_state.reservations:
+        st.info("No reservations available for analysis.")
+        return
+    
+    try:
+        df = pd.DataFrame(st.session_state.reservations)
+        if df.empty:
+            st.info("No reservations available after processing.")
+            return
+        
+        st.subheader("Filters")
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
+        with col1:
+            start_date = st.date_input("Start Date", value=None, key="analytics_filter_start_date", help="Filter by Check In date range (optional)")
+        with col2:
+            end_date = st.date_input("End Date", value=None, key="analytics_filter_end_date", help="Filter by Check In date range (optional)")
+        with col3:
+            filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Follow-up", "Completed", "No Show"], key="analytics_filter_status")
+        with col4:
+            filter_check_in_date = st.date_input("Check-in Date", value=None, key="analytics_filter_check_in_date")
+        with col5:
+            filter_check_out_date = st.date_input("Check-out Date", value=None, key="analytics_filter_check_out_date")
+        with col6:
+            filter_property = st.selectbox("Filter by Property", ["All"] + sorted(df["Property Name"].dropna().unique()), key="analytics_filter_property")
+        
+        filtered_df = display_filtered_analysis(df, start_date, end_date, view_mode=False)
+        
+        if filter_status != "All":
+            filtered_df = filtered_df[filtered_df["Booking Status"] == filter_status]
+        if filter_check_in_date:
+            filtered_df = filtered_df[filtered_df["Check In"] == str(filter_check_in_date)]
+        if filter_check_out_date:
+            filtered_df = filtered_df[filtered_df["Check Out"] == str(filter_check_out_date)]
+        if filter_property != "All":
+            filtered_df = filtered_df[filtered_df["Property Name"] == filter_property]
+        
+        if filtered_df.empty:
+            st.warning("No reservations match the selected filters.")
+            return
+        
+        st.subheader("Visualizations")
+        col1, col2 = st.columns(2)
+        with col1:
+            property_counts = filtered_df["Property Name"].value_counts().reset_index()
+            property_counts.columns = ["Property Name", "Reservation Count"]
+            fig_pie = px.pie(
+                property_counts,
+                values="Reservation Count",
+                names="Property Name",
+                title="Reservation Distribution by Property",
+                height=400
+            )
+            st.plotly_chart(fig_pie, use_container_width=True, key="analytics_pie_chart")
+        with col2:
+            revenue_by_property = filtered_df.groupby("Property Name")["Total Tariff"].sum().reset_index()
+            fig_bar = px.bar(
+                revenue_by_property,
+                x="Property Name",
+                y="Total Tariff",
+                title="Total Revenue by Property",
+                height=400,
+                labels={"Total Tariff": "Revenue (₹)"}
+            )
+            st.plotly_chart(fig_bar, use_container_width=True, key="analytics_bar_chart")
+    except Exception as e:
+        st.error(f"Error rendering analytics dashboard: {e}")
+
+def load_reservations_from_supabase():
+    """Load all direct reservations from Supabase."""
+    try:
+        response = supabase.table("reservations").select("*").order("check_in", desc=True).execute()
+        if not response.data:
+            st.warning("No reservations found in Supabase.")
+            return []
+        
+        # Transform Supabase snake_case to title case for UI consistency
+        transformed_data = []
+        for record in response.data:
+            transformed_record = {
+                "Property Name": record.get("property_name", ""),
+                "Booking ID": record.get("booking_id", ""),
+                "Guest Name": record.get("guest_name", ""),
+                "Guest Phone": record.get("guest_phone", ""),
+                "Check In": record.get("check_in", ""),
+                "Check Out": record.get("check_out", ""),
+                "Room No": record.get("room_no", ""),
+                "Room Type": record.get("room_type", ""),
+                "No of Adults": record.get("no_of_adults", 0),
+                "No of Children": record.get("no_of_children", 0),
+                "No of Infants": record.get("no_of_infants", 0),
+                "Rate Plans": record.get("rate_plans", ""),
+                "Booking Source": record.get("booking_source", ""),
+                "Total Tariff": record.get("total_tariff", 0.0),
+                "Advance Payment": record.get("advance_payment", 0.0),
+                "Balance": record.get("balance", 0.0),
+                "Advance MOP": record.get("advance_mop", "Not Paid"),
+                "Balance MOP": record.get("balance_mop", "Not Paid"),
+                "Booking Status": record.get("booking_status", "Pending"),
+                "Payment Status": record.get("payment_status", "Not Paid"),
+                "Submitted By": record.get("submitted_by", ""),
+                "Modified By": record.get("modified_by", ""),
+                "Modified Comments": record.get("modified_comments", ""),
+                "Remarks": record.get("remarks", "")
+            }
+            transformed_data.append(transformed_record)
+        return transformed_data
+    except Exception as e:
+        st.error(f"Error loading reservations: {e}")
+        return []
+
+def update_reservation_in_supabase(booking_id, updated_reservation):
+    """Update a reservation in Supabase."""
+    try:
+        # Transform to snake_case for Supabase
+        supabase_reservation = {
+            "property_name": updated_reservation["property_name"],
+            "booking_id": updated_reservation["booking_id"],
+            "guest_name": updated_reservation["guest_name"],
+            "guest_phone": updated_reservation["guest_phone"],
+            "check_in": updated_reservation["check_in"],
+            "check_out": updated_reservation["check_out"],
+            "room_no": updated_reservation["room_no"],
+            "room_type": updated_reservation["room_type"],
+            "no_of_adults": updated_reservation["no_of_adults"],
+            "no_of_children": updated_reservation["no_of_children"],
+            "no_of_infants": updated_reservation["no_of_infants"],
+            "rate_plans": updated_reservation["rate_plans"],
+            "booking_source": updated_reservation["booking_source"],
+            "total_tariff": updated_reservation["total_tariff"],
+            "advance_payment": updated_reservation["advance_payment"],
+            "balance": updated_reservation["balance"],
+            "advance_mop": updated_reservation["advance_mop"],
+            "balance_mop": updated_reservation["balance_mop"],
+            "booking_status": updated_reservation["booking_status"],
+            "payment_status": updated_reservation["payment_status"],
+            "submitted_by": updated_reservation["submitted_by"],
+            "modified_by": updated_reservation["modified_by"],
+            "modified_comments": updated_reservation["modified_comments"],
+            "remarks": updated_reservation["remarks"]
+        }
+        response = supabase.table("reservations").update(supabase_reservation).eq("booking_id", booking_id).execute()
+        return bool(response.data)
+    except Exception as e:
+        st.error(f"Error updating reservation {booking_id}: {e}")
+        return False
+
+def delete_reservation_in_supabase(booking_id):
+    """Delete a reservation from Supabase."""
+    try:
+        response = supabase.table("reservations").delete().eq("booking_id", booking_id).execute()
+        return bool(response.data)
+    except Exception as e:
+        st.error(f"Error deleting reservation {booking_id}: {e}")
+        return False
+
+def display_filtered_analysis(df, start_date, end_date, view_mode=True):
+    """Helper function to filter dataframe for analytics or view."""
+    filtered_df = df.copy()
+    try:
+        if start_date:
+            filtered_df = filtered_df[pd.to_datetime(filtered_df["Check In"]) >= pd.to_datetime(start_date)]
+        if end_date:
+            filtered_df = filtered_df[pd.to_datetime(filtered_df["Check In"]) <= pd.to_datetime(end_date)]
+    except Exception as e:
+        st.error(f"Error filtering data: {e}")
+    return filtered_df
