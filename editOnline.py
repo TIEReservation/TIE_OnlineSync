@@ -20,7 +20,7 @@ def update_online_reservation_in_supabase(booking_id, updated_reservation):
             st.error(f"No reservation found for booking_id {booking_id} in the online_reservations table.")
             return False
         
-        # Truncate string fields to prevent database errors
+        # Truncate string fields
         truncated_reservation = updated_reservation.copy()
         string_fields_50 = [
             "property", "booking_id", "guest_name", "guest_phone", "room_no", 
@@ -56,7 +56,7 @@ def delete_online_reservation_in_supabase(booking_id):
 
 @st.cache_data
 def load_online_reservations_from_supabase():
-    """Load all online reservations from Supabase without limit."""
+    """Load all online reservations from Supabase."""
     try:
         all_data = []
         offset = 0
@@ -95,9 +95,15 @@ def get_room_options(property_name):
         room_numbers = ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show"]
     else:
         room_numbers = ["Day Use 1", "Day Use 2", "No Show"]
-    
     room_types = ["Day Use", "No Show", "Others"]
     return room_numbers, room_types
+
+def handle_room_type_change(booking_id, room_type):
+    """Callback to handle room_type changes and reset room_no if needed."""
+    st.write(f"Debug: Room Type changed to {room_type} for booking_id {booking_id}")
+    if room_type == "Others":
+        st.session_state[f"room_no_{booking_id}"] = ""
+    st.rerun()
 
 def show_edit_online_reservations(selected_booking_id=None):
     """Display edit online reservations page."""
@@ -138,10 +144,10 @@ def show_edit_online_reservations(selected_booking_id=None):
         edit_index = st.session_state.online_edit_index
         reservation = st.session_state.online_reservations[edit_index]
         
-        with st.form(key=f"edit_online_form_{reservation['booking_id']}"):
+        with st.form(key=f"edit_online_form_{reservation['booking_id']}", clear_on_submit=True):
             # Initialize session state for room_no
             if f"room_no_{reservation['booking_id']}" not in st.session_state:
-                st.session_state[f"room_no_{reservation['booking_id']}"] = ""
+                st.session_state[f"room_no_{reservation['booking_id']}"] = str(reservation.get("room_no", "") or "")
             
             # Row 1: Property, Booking ID
             col1, col2 = st.columns(2)
@@ -183,7 +189,9 @@ def show_edit_online_reservations(selected_booking_id=None):
                     room_type_options,
                     index=room_type_options.index(fetched_room_type) if fetched_room_type in room_type_options else 0,
                     key=f"room_type_{reservation['booking_id']}",
-                    help="Select the room type. Choose 'Others' to manually enter a custom room number."
+                    help="Select the room type. Choose 'Others' to manually enter a custom room number.",
+                    on_change=handle_room_type_change,
+                    args=(reservation['booking_id'], st.session_state.get(f"room_type_{reservation['booking_id']}"))
                 )
             
             with col1:
@@ -394,5 +402,6 @@ def show_edit_online_reservations(selected_booking_id=None):
                     "⚠️ Form buttons or Room No input may not have rendered correctly. "
                     "Please try: 1) Refresh the page, 2) Clear browser cache, "
                     "3) Ensure Streamlit version is 1.30.0 or higher, 4) Check Supabase connection, "
-                    "5) Contact support with Streamlit version, browser details, Supabase error messages, and a screenshot of the Room No field."
+                    "5) Verify Room Type sync by changing the selection multiple times, "
+                    "6) Contact support with Streamlit version, browser details, Supabase error messages, and a screenshot of the Room No field."
                 )
