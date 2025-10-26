@@ -133,11 +133,17 @@ def show_new_reservation_form():
     property_room_map = load_property_room_map()
     properties = sorted(property_room_map.keys())
     
+    # Property selection OUTSIDE form for dynamic updates
+    property_name = st.selectbox("Property Name", properties, key="property_select_outside_form")
+    
+    # Get room types for selected property
+    room_types = list(property_room_map[property_name].keys())
+    
     with st.form(key=form_key):
-        # Row 1: Property Name, Booking ID
+        # Row 1: Property Name (display only), Booking ID
         col1, col2 = st.columns(2)
         with col1:
-            property_name = st.selectbox("Property Name", properties, key=f"{form_key}_property")
+            st.text_input("Property Name", value=property_name, disabled=True, key=f"{form_key}_property_display")
         with col2:
             booking_id = st.text_input("Booking ID", key=f"{form_key}_booking_id")
         
@@ -156,9 +162,6 @@ def show_new_reservation_form():
             check_out = st.date_input("Check Out", min_value=date.today(), key=f"{form_key}_check_out")
         
         # Row 4: Room Type, Room No
-        # Get room types for the selected property only
-        room_types = list(property_room_map[property_name].keys())
-        
         col1, col2 = st.columns(2)
         with col1:
             room_type = st.selectbox("Room Type", room_types, key=f"{form_key}_room_type")
@@ -434,11 +437,19 @@ def show_edit_reservations():
                 if not reservation.get("Submitted By"):
                     st.warning(f"⚠️ Reservation {reservation['Booking ID']} has no 'Submitted By' value. Please check Supabase data.")
                 
+                # Property selection OUTSIDE form for dynamic updates
+                current_property = reservation.get("Property Name", properties[0])
+                property_index = properties.index(current_property) if current_property in properties else 0
+                property_name = st.selectbox("Property Name", properties, index=property_index, key=f"{form_key}_property_outside")
+                
+                # Get room types for selected property
+                room_types = list(property_room_map[property_name].keys())
+                
                 with st.form(key=form_key):
-                    # Row 1: Property Name, Booking ID
+                    # Row 1: Property Name (display only), Booking ID
                     col1, col2 = st.columns(2)
                     with col1:
-                        property_name = st.selectbox("Property Name", properties, index=properties.index(reservation.get("Property Name", "")) if reservation.get("Property Name") in properties else 0, key=f"{form_key}_property")
+                        st.text_input("Property Name", value=property_name, disabled=True, key=f"{form_key}_property_display")
                     with col2:
                         booking_id = st.text_input("Booking ID", value=reservation.get("Booking ID", ""), disabled=True, key=f"{form_key}_booking_id")
                     
