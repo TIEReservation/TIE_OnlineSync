@@ -165,7 +165,7 @@ def show_edit_online_reservations(selected_booking_id=None):
             with col2:
                 check_out = st.date_input("Check Out", value=date.fromisoformat(reservation.get("check_out")) if reservation.get("check_out") else date.today())
             
-            # Row 4: Room No (text input) and Room Type (UPDATED VERSION)
+            # Row 4: Room No and Room Type (UPDATED - DROPDOWN WITH EMPTY VALUE)
             room_numbers, room_types = get_room_options(property_name)
             fetched_room_no = str(reservation.get("room_no", "") or "")
             fetched_room_type = str(reservation.get("room_type", "") or "")
@@ -175,25 +175,42 @@ def show_edit_online_reservations(selected_booking_id=None):
             
             col1, col2 = st.columns(2)
             
-            with col1:
-                # Always show text input for Room No
-                room_no = st.text_input(
-                    "Room No",
-                    value=fetched_room_no,
-                    placeholder="Enter or select room number",
-                    help="Enter a custom room number or select from suggestions below based on property."
-                )
-                
-                # Show room number suggestions based on property
-                st.caption(f"**Suggestions for {property_name}:** {', '.join([r for r in room_numbers if r])}")
-            
             with col2:
                 room_type = st.selectbox(
                     "Room Type",
                     room_type_options,
                     index=room_type_options.index(fetched_room_type) if fetched_room_type in room_type_options else 0,
-                    help="Select the room type. Choose 'Others' for custom room types."
+                    help="Select the room type. Choose 'Others' to manually enter a custom room number."
                 )
+            
+            with col1:
+                if room_type == "Others":
+                    # For "Others", show text input
+                    initial_value = fetched_room_no if fetched_room_type == "Others" else ""
+                    room_no = st.text_input(
+                        "Room No",
+                        value=initial_value,
+                        placeholder="Enter custom room number",
+                        help="Enter a custom room number for 'Others' room type."
+                    )
+                    if not room_no.strip():
+                        st.warning("⚠️ Please enter a valid Room No for 'Others' room type.")
+                else:
+                    # For predefined types, show selectbox with empty value included
+                    room_no_options = sorted(set([fetched_room_no] + room_numbers) - {""}) if fetched_room_no and fetched_room_no not in room_numbers else room_numbers
+                    
+                    # Determine the index for the selectbox
+                    if fetched_room_no in room_no_options:
+                        default_index = room_no_options.index(fetched_room_no)
+                    else:
+                        default_index = 0  # Empty value
+                    
+                    room_no = st.selectbox(
+                        "Room No",
+                        room_no_options,
+                        index=default_index,
+                        help="Select a room number. Choose empty to enter custom value, or select from predefined options."
+                    )
             
             # Row 5: No of Adults, No of Children
             col1, col2 = st.columns(2)
@@ -311,8 +328,10 @@ def show_edit_online_reservations(selected_booking_id=None):
             st.markdown("---")
             if st.form_submit_button("💾 Update Reservation", use_container_width=True):
                 # Validate room_no
-                if not room_no.strip():
-                    st.error("❌ Room No cannot be empty. Please enter a room number.")
+                if room_type == "Others" and not room_no.strip():
+                    st.error("❌ Room No cannot be empty when Room Type is 'Others'.")
+                elif not room_no or not room_no.strip():
+                    st.error("❌ Room No cannot be empty. Please select or enter a room number.")
                 elif len(room_no) > 50:
                     st.error("❌ Room No cannot exceed 50 characters.")
                 else:
