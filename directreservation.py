@@ -155,8 +155,10 @@ def show_new_reservation_form():
         with col2:
             check_out = st.date_input("Check Out", min_value=date.today(), key=f"{form_key}_check_out")
         
-        # Row 4: Room No, Room Type
-        room_types = sorted(property_room_map[property_name].keys())
+        # Row 4: Room Type, Room No
+        # Get room types for the selected property only
+        room_types = list(property_room_map[property_name].keys())
+        
         col1, col2 = st.columns(2)
         with col1:
             room_type = st.selectbox("Room Type", room_types, key=f"{form_key}_room_type")
@@ -460,8 +462,8 @@ def show_edit_reservations():
                         except ValueError:
                             check_out = st.date_input("Check Out", value=date.today(), key=f"{form_key}_check_out")
                     
-                    # Row 4: Room No, Room Type
-                    room_types = sorted(property_room_map[property_name].keys())
+                    # Row 4: Room Type, Room No
+                    room_types = list(property_room_map[property_name].keys())
                     col1, col2 = st.columns(2)
                     with col1:
                         current_room_type = reservation.get("Room Type", room_types[0])
