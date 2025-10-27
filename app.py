@@ -163,7 +163,7 @@ def main():
     elif page == "Log Report" and st.session_state.role == "Admin":
         show_log_report(supabase)
         log_activity(supabase, st.session_state.username, "Accessed Log Report")
-    elif page == "Dashboard":
+    elif page == "Dashboard" and st.session_state.role in ["Management", "Admin"]:
         show_dashboard()
         log_activity(supabase, st.session_state.username, "Accessed Dashboard")
 
