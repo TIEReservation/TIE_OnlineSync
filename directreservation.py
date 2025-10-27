@@ -483,7 +483,7 @@ def show_new_reservation_form():
         with row9_col1:
             payment_status = st.selectbox("Payment Status", ["Fully Paid", "Partially Paid", "Not Paid"], index=2, key=f"{form_key}_payment_status")
         with row9_col2:
-            submitted_by = st.text_input("Submitted By", placeholder="Enter submitter name", key=f"{form_key}_submitted_by")
+            submitted_by = st.text_input("Submitted By", value=st.session_state.get("username", ""), disabled=True, key=f"{form_key}_submitted_by")
         # Online Source (conditionally shown when MOB is Online)
         if mob == "Online":
             row10_col1, = st.columns(1)
@@ -797,7 +797,7 @@ def show_edit_form(edit_index):
             payment_status_index = payment_status_options.index(reservation["Payment Status"]) if reservation["Payment Status"] in payment_status_options else 2
             payment_status = st.selectbox("Payment Status", payment_status_options, index=payment_status_index, key=f"{form_key}_payment_status")
         with row9_col2:
-            submitted_by = st.text_input("Submitted By", value=reservation["Submitted By"], key=f"{form_key}_submitted_by")
+            submitted_by = st.text_input("Submitted By", value=reservation["Submitted By"], disabled=True)
 
         # Online Source (conditionally shown when MOB is Online)
         if mob == "Online":
