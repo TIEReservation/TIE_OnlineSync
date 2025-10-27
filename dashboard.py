@@ -3,7 +3,7 @@
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date, timedelta
-import pandas as pd
+import pandas as pd  # Ensure this line is present
 import altair as alt
 from online_reservation import load_online_reservations_from_supabase
 from directreservation import load_reservations_from_supabase
@@ -112,7 +112,7 @@ def show_dashboard():
     global all_bookings
     all_bookings = cached_load_all_bookings()
     
-    ref_date = st.date_input("Select Reference Date", date(2025, 10, 27))  # Default to current date (08:47 PM IST, Oct 27, 2025)
+    ref_date = st.date_input("Select Reference Date", date(2025, 10, 27))  # Default to current date (08:53 PM IST, Oct 27, 2025)
     dates = [ref_date - timedelta(days=1), ref_date, ref_date + timedelta(days=1), ref_date + timedelta(days=2)]
     date_names = [d.strftime("%Y-%m-%d") for d in dates]  # Yesterday, Today, Tomorrow, Day After Tomorrow
     
@@ -153,94 +153,4 @@ def show_dashboard():
         df = pd.DataFrame(table_data, columns=["Property Names", "Team (Total Inv)", 
                                               f"{date_names[0]} Sold", f"{date_names[0]} Unsold",
                                               f"{date_names[1]} Sold", f"{date_names[1]} Unsold",
-                                              f"{date_names[2]} Sold", f"{date_names[2]} Unsold",
-                                              f"{date_names[3]} Sold", f"{date_names[3]} Unsold"])
-        st.table(df)
-
-        st.subheader("Team Leaderboard")
-        sorted_teams = sorted(team_metrics.items(), key=lambda x: x[1]["avg_occ"], reverse=True)
-        for rank, (name, data) in enumerate(sorted_teams, 1):
-            st.write(f"{rank}. {name} - Avg Occupancy: {data['avg_occ']:.2f}%")
-    
-    with tab2:
-        st.subheader("Individual Performance")
-        
-        members = []
-        for team, tdata in teams.items():
-            for mem in tdata["members"]:
-                members.append({"name": mem, "team": team, "properties": tdata["properties"], "total_inv": sum(tdata["properties"].values())})
-        for name, idata in individuals.items():
-            members.append({"name": name, "team": "Individual", "properties": idata["properties"], "total_inv": sum(idata["properties"].values())})
-        
-        individual_metrics = {}
-        for mem in members:
-            props_dict = mem["properties"]
-            props = list(props_dict.keys())
-            total_sold = 0
-            total_follow = 0
-            prop_details = {}
-            for p in props:
-                sold_p = 0
-                follow_p = 0
-                for d in dates:
-                    sold_d = count_status_person([p], d, ["Confirmed"], mem["name"])
-                    follow_d = count_status_person([p], d, ["Follow-up"], mem["name"])
-                    sold_p += sold_d
-                    follow_p += follow_d
-                prop_details[p] = {"sold": sold_p, "follow": follow_p}
-                total_sold += sold_p
-                total_follow += follow_p
-            conv_rate = (total_sold / (total_sold + total_follow)) * 100 if (total_sold + total_follow) > 0 else 0
-            individual_metrics[mem["name"]] = {"total_sold": total_sold, "total_follow": total_follow, "conv_rate": conv_rate, "prop_details": prop_details, "team": mem["team"]}
-        
-        st.subheader("Individual Leaderboard")
-        sorted_inds = sorted(individual_metrics.items(), key=lambda x: x[1]["total_sold"], reverse=True)
-        for rank, (name, data) in enumerate(sorted_inds, 1):
-            st.write(f"{rank}. {name} ({data['team']}) - Sold Room-Nights: {data['total_sold']}, Conversion Rate: {data['conv_rate']:.2f}%")
-        
-        selected_member = st.selectbox("Select Member for Details", list(individual_metrics.keys()))
-        if selected_member:
-            data = individual_metrics[selected_member]
-            st.write(f"**Name:** {selected_member}")
-            st.write(f"**Team:** {data['team']}")
-            st.write(f"**Total Confirmed Room-Nights (over 4 days):** {data['total_sold']}")
-            st.write(f"**Total Follow-ups (over 4 days):** {data['total_follow']}")
-            st.write("**Properties Assigned and Performance:**")
-            for p, pd in data["prop_details"].items():
-                st.write(f"- {p} ({mem['properties'][p]} inventories): Confirmed {pd['sold']}, Follow-ups {pd['follow']}")
-    
-    with tab3:
-        st.subheader("Property Performance")
-        
-        all_props = {}
-        for team, tdata in teams.items():
-            all_props.update(tdata["properties"])
-        for idata in individuals.values():
-            all_props.update(idata["properties"])
-        
-        prop_metrics = {}
-        for p, inv in all_props.items():
-            metrics = []
-            for d in dates:
-                sold = count_status([p], d, ["Confirmed"])
-                follow = count_status([p], d, ["Follow-up"])
-                pend = count_status([p], d, ["Pending"])
-                avail = inv - sold - follow - pend
-                occ = (sold / inv * 100) if inv > 0 else 0
-                metrics.append({"sold": sold, "occ": occ, "follow": follow, "pend": pend, "avail": avail})
-            avg_occ = sum(m["occ"] for m in metrics) / len(metrics)
-            total_sold = sum(m["sold"] for m in metrics)
-            prop_metrics[p] = {"avg_occ": avg_occ, "total_sold": total_sold, "inv": inv, "metrics": metrics}
-        
-        df = pd.DataFrame([{"Property": p, "Inventory": d["inv"], "Total Sold Room-Nights (4 days)": d["total_sold"], "Avg Occupancy %": f"{d['avg_occ']:.2f}"} for p, d in prop_metrics.items()])
-        st.dataframe(df)
-        
-        bar = alt.Chart(df).mark_bar().encode(
-            x="Property",
-            y="Avg Occupancy %:Q",
-            tooltip=["Property", "Avg Occupancy %", "Inventory"]
-        ).properties(width=700)
-        st.altair_chart(bar)
-        
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("Download Property Data", csv, "property_performance.csv", "text/csv")
+                                              f"{date_names[2]}
