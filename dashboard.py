@@ -3,7 +3,7 @@
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date, timedelta
-import pandas as pd  # Explicitly included
+import pandas as pd
 import altair as alt
 from online_reservation import load_online_reservations_from_supabase
 from directreservation import load_reservations_from_supabase
@@ -112,9 +112,9 @@ def show_dashboard():
     global all_bookings
     all_bookings = cached_load_all_bookings()
     
-    ref_date = st.date_input("Select Reference Date", date(2025, 10, 27))  # Default to current date (08:08 PM IST, Oct 27, 2025)
+    ref_date = st.date_input("Select Reference Date", date(2025, 10, 27))  # Default to current date (08:40 PM IST, Oct 27, 2025)
     dates = [ref_date - timedelta(days=1), ref_date, ref_date + timedelta(days=1), ref_date + timedelta(days=2)]
-    date_names = [d.strftime("%Y-%m-%d") for d in dates]  # Use actual dates: Yesterday, Today, Tomorrow, Day After Tomorrow
+    date_names = [d.strftime("%Y-%m-%d") for d in dates]  # Yesterday, Today, Tomorrow, Day After Tomorrow
     
     tab1, tab2, tab3 = st.tabs(["Team Competition", "Individual Performance", "Property Performance"])
     
@@ -130,36 +130,33 @@ def show_dashboard():
                 sold = count_status(props, d, ["Confirmed"])
                 follow = count_status(props, d, ["Follow-up"])
                 pend = count_status(props, d, ["Pending"])
-                avail = total_inv - sold - follow - pend
-                metrics.append({"sold": sold, "follow": follow, "pend": pend, "avail": avail})
+                avail = total_inv - sold - follow - pend  # Total unsold includes follow-up and pending
+                metrics.append({"sold": sold, "unsold": avail})
             team_metrics[team_name] = {"metrics": metrics, "total_inv": total_inv}
             total_sold = sum(m["sold"] for m in metrics)
             avg_occ = (total_sold / (total_inv * len(dates))) * 100 if total_inv > 0 else 0
             team_metrics[team_name]["avg_occ"] = avg_occ
-        
-        cols = st.columns([1] + [3] * len(dates))
-        cols[0].write("**Team (Total Inv)**")
-        for i, name in enumerate(date_names):
-            cols[i+1].write(f"**{name}**")
-        
+
+        # Prepare table data
+        table_data = []
+        table_data.append(["Game Changers"])  # Row 1
+        table_data.append(["Property Names", "Team (Total Inv)"] + [f"{date_names[0]} Sold", f"{date_names[0]} Unsold",
+                                                                  f"{date_names[1]} Sold", f"{date_names[1]} Unsold",
+                                                                  f"{date_names[2]} Sold", f"{date_names[2]} Unsold",
+                                                                  f"{date_names[3]} Sold", f"{date_names[3]} Unsold"])  # Row 2
         for team_name, data in team_metrics.items():
-            cols = st.columns([1] + [3] * len(dates))
-            cols[0].write(f"{team_name} ({data['total_inv']})")
-            for i, m in enumerate(data["metrics"]):
-                with cols[i+1]:
-                    st.write(f"Sold: {m['sold']}")
-                    st.write(f"Follow-up: {m['follow']}")
-                    chart_data = pd.DataFrame({
-                        "Status": ["Sold", "Follow-up", "Available"],
-                        "Count": [m['sold'], m['follow'], m['avail'] + m['pend']]
-                    })
-                    pie = alt.Chart(chart_data).mark_arc().encode(
-                        theta="Count:Q",
-                        color=alt.Color("Status:N", scale=alt.Scale(domain=["Sold", "Follow-up", "Available"], range=["green", "orange", "red"])),
-                        tooltip=["Status", "Count"]
-                    ).properties(width=150, height=150)
-                    st.altair_chart(pie, use_container_width=True)
-        
+            row = [""] * 2  # Blank for Property Names and Team (Total Inv) in Row 3
+            row.extend([m["sold"] for m in data["metrics"]] + [m["unsold"] for m in data["metrics"]])
+            table_data.append(row)
+
+        # Convert to DataFrame for display
+        df = pd.DataFrame(table_data, columns=["Property Names", "Team (Total Inv)", 
+                                              f"{date_names[0]} Sold", f"{date_names[0]} Unsold",
+                                              f"{date_names[1]} Sold", f"{date_names[1]} Unsold",
+                                              f"{date_names[2]} Sold", f"{date_names[2]} Unsold",
+                                              f"{date_names[3]} Sold", f"{date_names[3]} Unsold"])
+        st.table(df)
+
         st.subheader("Team Leaderboard")
         sorted_teams = sorted(team_metrics.items(), key=lambda x: x[1]["avg_occ"], reverse=True)
         for rank, (name, data) in enumerate(sorted_teams, 1):
