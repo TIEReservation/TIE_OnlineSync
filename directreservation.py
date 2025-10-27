@@ -163,12 +163,12 @@ def show_new_reservation_form():
         with col2:
             guest_phone = st.text_input("Guest Phone", key=f"{form_key}_guest_phone")
         
-        # Row 3: Check In, Check Out
+        # Row 3: Check In, Check Out (Allow back dates)
         col1, col2 = st.columns(2)
         with col1:
-            check_in = st.date_input("Check In", min_value=date.today(), key=f"{form_key}_check_in")
+            check_in = st.date_input("Check In", value=date.today(), key=f"{form_key}_check_in")
         with col2:
-            check_out = st.date_input("Check Out", min_value=date.today(), key=f"{form_key}_check_out")
+            check_out = st.date_input("Check Out", value=date.today(), key=f"{form_key}_check_out")
         
         # Row 4: Room Type, Room No
         col1, col2 = st.columns(2)
@@ -230,6 +230,11 @@ def show_new_reservation_form():
         remarks = st.text_area("Remarks", key=f"{form_key}_remarks")
         
         if st.form_submit_button("Submit Reservation"):
+            # Validate Check Out is not before Check In
+            if check_out < check_in:
+                st.error("❌ Check Out date must be on or after Check In date.")
+                return
+                
             new_reservation = {
                 "property_name": property_name,
                 "booking_id": booking_id,
@@ -405,7 +410,7 @@ def show_edit_reservations():
             with col2:
                 guest_phone = st.text_input("Guest Phone", value=reservation["Guest Phone"])
             
-            # Row 3: Check In, Check Out
+            # Row 3: Check In, Check Out (Allow back dates)
             col1, col2 = st.columns(2)
             with col1:
                 check_in = st.date_input("Check In", value=date.fromisoformat(reservation["Check In"]) if reservation["Check In"] else date.today())
@@ -483,6 +488,11 @@ def show_edit_reservations():
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
                 if st.form_submit_button("💾 Update Reservation", use_container_width=True):
+                    # Validate Check Out is not before Check In
+                    if check_out < check_in:
+                        st.error("❌ Check Out date must be on or after Check In date.")
+                        return
+                        
                     updated_reservation = {
                         "property_name": property_name,
                         "booking_id": reservation["Booking ID"],
