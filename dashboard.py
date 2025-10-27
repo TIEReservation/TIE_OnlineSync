@@ -3,7 +3,7 @@
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date, timedelta
-import pandas as pd  # Ensure this import is present
+import pandas as pd  # Explicitly included
 import altair as alt
 from online_reservation import load_online_reservations_from_supabase
 from directreservation import load_reservations_from_supabase
@@ -112,7 +112,7 @@ def show_dashboard():
     global all_bookings
     all_bookings = cached_load_all_bookings()
     
-    ref_date = st.date_input("Select Reference Date", date(2025, 10, 27))  # Default to current date (07:57 PM IST, Oct 27, 2025)
+    ref_date = st.date_input("Select Reference Date", date(2025, 10, 27))  # Default to current date (08:08 PM IST, Oct 27, 2025)
     dates = [ref_date - timedelta(days=1), ref_date, ref_date + timedelta(days=1), ref_date + timedelta(days=2)]
     date_names = [d.strftime("%Y-%m-%d") for d in dates]  # Use actual dates: Yesterday, Today, Tomorrow, Day After Tomorrow
     
