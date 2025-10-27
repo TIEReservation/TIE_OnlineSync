@@ -163,12 +163,16 @@ def show_new_reservation_form():
         with col2:
             guest_phone = st.text_input("Guest Phone", key=f"{form_key}_guest_phone")
         
-        # Row 3: Check In, Check Out (Allow back dates)
+        # Row 3: Check In, Check Out (Fully interactive calendar, no restrictions on back dates)
         col1, col2 = st.columns(2)
         with col1:
-            check_in = st.date_input("Check In", value=date.today(), key=f"{form_key}_check_in")
+            check_in = st.date_input("Check In", value=date.today(), key=f"{form_key}_check_in", help="Select any date, including past dates")
         with col2:
-            check_out = st.date_input("Check Out", value=date.today(), key=f"{form_key}_check_out")
+            check_out = st.date_input("Check Out", value=date.today(), key=f"{form_key}_check_out", help="Select any date, including past dates")
+        
+        # Optional: Warn if past dates are selected
+        if check_in < date.today() or check_out < date.today():
+            st.warning("⚠️ You have selected a past date. Please confirm this is intentional.")
         
         # Row 4: Room Type, Room No
         col1, col2 = st.columns(2)
@@ -410,12 +414,16 @@ def show_edit_reservations():
             with col2:
                 guest_phone = st.text_input("Guest Phone", value=reservation["Guest Phone"])
             
-            # Row 3: Check In, Check Out (Allow back dates)
+            # Row 3: Check In, Check Out (Fully interactive calendar, no restrictions on back dates)
             col1, col2 = st.columns(2)
             with col1:
-                check_in = st.date_input("Check In", value=date.fromisoformat(reservation["Check In"]) if reservation["Check In"] else date.today())
+                check_in = st.date_input("Check In", value=date.fromisoformat(reservation["Check In"]) if reservation["Check In"] else date.today(), help="Select any date, including past dates")
             with col2:
-                check_out = st.date_input("Check Out", value=date.fromisoformat(reservation["Check Out"]) if reservation["Check Out"] else date.today())
+                check_out = st.date_input("Check Out", value=date.fromisoformat(reservation["Check Out"]) if reservation["Check Out"] else date.today(), help="Select any date, including past dates")
+            
+            # Optional: Warn if past dates are selected
+            if check_in < date.today() or check_out < date.today():
+                st.warning("⚠️ You have selected a past date. Please confirm this is intentional.")
             
             # Row 4: Room Type, Room No
             col1, col2 = st.columns(2)
