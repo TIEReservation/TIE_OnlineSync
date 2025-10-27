@@ -13,7 +13,7 @@ BOOKING_SOURCES = [
 
 # MOP (Mode of Payment) options - same as online reservations
 MOP_OPTIONS = [
-    "","UPI", "Cash", "Go-MMT", "Agoda", "Not Paid", "Bank Transfer", 
+    "", "UPI", "Cash", "Go-MMT", "Agoda", "Not Paid", "Bank Transfer", 
     "Card Payment", "Expedia", "Cleartrip", "Website", "AIRBNB"
 ]
 
@@ -107,7 +107,230 @@ def load_property_room_map():
         },
         "La Tamara Suite": {
             "Two Bedroom apartment": ["101&102"],
-            "De...(truncated 28041 characters)...select("*").order("checkIn", desc=True).execute()
+            "Deluxe Apartment": ["103&104"],
+            "Deluxe Double Room": ["203", "204", "205"],
+            "Deluxe Triple Room": ["201", "202"],
+            "Deluxe Family Room": ["206"]
+        }
+    }
+
+def generate_booking_id():
+    """
+    Generate a unique booking ID by checking existing IDs in Supabase.
+    """
+    try:
+        today = datetime.now().strftime('%Y%m%d')
+        response = supabase.table("reservations").select("bookingId").like("bookingId", f"TIE{today}%").execute()
+        existing_ids = [record["bookingId"] for record in response.data]
+        sequence = 1
+        while f"TIE{today}{sequence:03d}" in existing_ids:
+            sequence += 1
+        return f"TIE{today}{sequence:03d}"
+    except Exception as e:
+        st.error(f"Error generating booking ID: {e}")
+        return None
+
+def insert_reservation_in_supabase(reservation):
+    """Insert a new reservation into Supabase."""
+    try:
+        response = supabase.table("reservations").insert(reservation).execute()
+        return bool(response.data)
+    except Exception as e:
+        st.error(f"Error inserting reservation: {e}")
+        return False
+
+def show_new_reservation_form():
+    """Display form to create a new direct reservation."""
+    st.header("🏠 New Direct Reservation")
+    
+    # Form layout
+    with st.form(key="new_reservation_form"):
+        col1, col2 = st.columns(2)
+        
+        # Column 1
+        with col1:
+            property_name = st.selectbox(
+                "Property Name", 
+                sorted(load_property_room_map().keys()),
+                key="new_property_name"
+            )
+            # Get room types for selected property
+            room_types = sorted(load_property_room_map()[property_name].keys())
+            room_type = st.selectbox(
+                "Room Type",
+                room_types,
+                key="new_room_type"
+            )
+            # Get room numbers for selected room type
+            room_numbers = load_property_room_map()[property_name][room_type]
+            room_no = st.selectbox(
+                "Room No",
+                room_numbers,
+                key="new_room_no"
+            )
+            guest_name = st.text_input("Guest Name", key="new_guest_name")
+            guest_phone = st.text_input("Guest Phone", key="new_guest_phone")
+            check_in = st.date_input(
+                "Check In",
+                value=date.today(),
+                key="new_check_in"
+            )
+            check_out = st.date_input(
+                "Check Out",
+                value=date.today() + timedelta(days=1),
+                key="new_check_out"
+            )
+        
+        # Column 2
+        with col2:
+            no_of_adults = st.number_input(
+                "No of Adults",
+                min_value=0,
+                value=1,
+                step=1,
+                key="new_no_of_adults"
+            )
+            no_of_children = st.number_input(
+                "No of Children",
+                min_value=0,
+                value=0,
+                step=1,
+                key="new_no_of_children"
+            )
+            no_of_infants = st.number_input(
+                "No of Infants",
+                min_value=0,
+                value=0,
+                step=1,
+                key="new_no_of_infants"
+            )
+            rate_plans = st.text_input("Rate Plans", key="new_rate_plans")
+            booking_source = st.selectbox(
+                "Booking Source",
+                BOOKING_SOURCES,
+                key="new_booking_source"
+            )
+            total_tariff = st.number_input(
+                "Total Tariff",
+                min_value=0.0,
+                step=100.0,
+                key="new_total_tariff"
+            )
+            advance_payment = st.number_input(
+                "Advance Payment",
+                min_value=0.0,
+                step=100.0,
+                key="new_advance_payment"
+            )
+            balance = st.number_input(
+                "Balance",
+                min_value=0.0,
+                step=100.0,
+                value=total_tariff - advance_payment,
+                key="new_balance"
+            )
+            advance_mop = st.selectbox(
+                "Advance MOP",
+                MOP_OPTIONS,
+                key="new_advance_mop"
+            )
+            balance_mop = st.selectbox(
+                "Balance MOP",
+                MOP_OPTIONS,
+                key="new_balance_mop"
+            )
+            booking_status = st.selectbox(
+                "Booking Status",
+                ["Pending", "Confirmed", "Cancelled", "Completed", "No Show"],
+                key="new_booking_status"
+            )
+            payment_status = st.selectbox(
+                "Payment Status",
+                ["Not Paid", "Partially Paid", "Fully Paid"],
+                key="new_payment_status"
+            )
+            submitted_by = st.text_input(
+                "Submitted By",
+                value=st.session_state.username if st.session_state.get('username') else "",
+                key="new_submitted_by"
+            )
+            remarks = st.text_area("Remarks", key="new_remarks")
+        
+        # Submit button
+        submitted = st.form_submit_button("Submit Reservation")
+        
+        if submitted:
+            # Generate booking ID
+            booking_id = generate_booking_id()
+            if not booking_id:
+                st.error("Failed to generate booking ID. Please try again.")
+                return
+            
+            # Prepare reservation data for Supabase
+            reservation = {
+                "propertyName": property_name,
+                "bookingId": booking_id,
+                "guestName": guest_name,
+                "guestPhone": guest_phone,
+                "checkIn": check_in.isoformat(),
+                "checkOut": check_out.isoformat(),
+                "roomNo": room_no,
+                "roomType": room_type,
+                "noOfAdults": int(no_of_adults),
+                "noOfChildren": int(no_of_children),
+                "noOfInfants": int(no_of_infants),
+                "ratePlans": rate_plans,
+                "bookingSource": booking_source,
+                "totalTariff": float(total_tariff),
+                "advancePayment": float(advance_payment),
+                "balance": float(balance),
+                "advanceMop": advance_mop,
+                "balanceMop": balance_mop,
+                "bookingStatus": booking_status,
+                "paymentStatus": payment_status,
+                "submittedBy": submitted_by,
+                "modifiedBy": "",
+                "modifiedComments": "",
+                "remarks": remarks
+            }
+            
+            # Insert reservation into Supabase
+            if insert_reservation_in_supabase(reservation):
+                st.success(f"✅ Reservation {booking_id} created successfully!")
+                st.session_state.reservations.append({
+                    "Property Name": property_name,
+                    "Booking ID": booking_id,
+                    "Guest Name": guest_name,
+                    "Guest Phone": guest_phone,
+                    "Check In": check_in.isoformat(),
+                    "Check Out": check_out.isoformat(),
+                    "Room No": room_no,
+                    "Room Type": room_type,
+                    "No of Adults": int(no_of_adults),
+                    "No of Children": int(no_of_children),
+                    "No of Infants": int(no_of_infants),
+                    "Rate Plans": rate_plans,
+                    "Booking Source": booking_source,
+                    "Total Tariff": float(total_tariff),
+                    "Advance Payment": float(advance_payment),
+                    "Balance": float(balance),
+                    "Advance MOP": advance_mop,
+                    "Balance MOP": balance_mop,
+                    "Booking Status": booking_status,
+                    "Payment Status": payment_status,
+                    "Submitted By": submitted_by,
+                    "Modified By": "",
+                    "Modified Comments": "",
+                    "Remarks": remarks
+                })
+                st.rerun()
+            else:
+                st.error("❌ Failed to create reservation. Please try again.")
+
+def load_reservations_from_supabase():
+    """Load all reservations from Supabase."""
+    try:
+        response = supabase.table("reservations").select("*").order("checkIn", desc=True).execute()
         if not response.data:
             st.warning("No reservations found in Supabase.")
             return []
@@ -147,24 +370,6 @@ def load_property_room_map():
         st.error(f"Error loading reservations: {e}")
         return []
 
-# Added generate_booking_id function from old logic, corrected to use "bookingId"
-def generate_booking_id():
-    """
-    Generate a unique booking ID by checking existing IDs in Supabase.
-    """
-    try:
-        today = datetime.now().strftime('%Y%m%d')
-        response = supabase.table("reservations").select("bookingId").like("bookingId", f"TIE{today}%").execute()
-        existing_ids = [record["bookingId"] for record in response.data]
-        sequence = 1
-        while f"TIE{today}{sequence:03d}" in existing_ids:
-            sequence += 1
-        return f"TIE{today}{sequence:03d}"
-    except Exception as e:
-        st.error(f"Error generating booking ID: {e}")
-        return None
-
-# Added insert_reservation_in_supabase if missing, modeled after update
 def insert_reservation_in_supabase(reservation):
     """Insert a new reservation into Supabase."""
     try:
@@ -177,7 +382,6 @@ def insert_reservation_in_supabase(reservation):
 def update_reservation_in_supabase(booking_id, updated_reservation):
     """Update a reservation in Supabase."""
     try:
-        # Transform to camelCase for Supabase
         supabase_reservation = {
             "propertyName": updated_reservation["propertyName"],
             "bookingId": updated_reservation["bookingId"],
