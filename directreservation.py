@@ -327,6 +327,53 @@ def show_new_reservation_form():
             else:
                 st.error("❌ Failed to create reservation. Please try again.")
 
+def show_reservations():
+    """Display a table of all reservations."""
+    st.header("📋 View Reservations")
+    
+    if not st.session_state.get('reservations'):
+        st.session_state.reservations = load_reservations_from_supabase()
+    
+    if not st.session_state.reservations:
+        st.info("No reservations available to display.")
+        return
+    
+    df = pd.DataFrame(st.session_state.reservations)
+    
+    # Display filters
+    st.subheader("Filters")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        start_date = st.date_input("Start Date", value=None, key="view_filter_start_date")
+    with col2:
+        end_date = st.date_input("End Date", value=None, key="view_filter_end_date")
+    with col3:
+        property_filter = st.selectbox(
+            "Filter by Property",
+            ["All"] + sorted(df["Property Name"].unique()),
+            key="view_filter_property"
+        )
+    
+    # Apply filters
+    filtered_df = display_filtered_analysis(df, start_date, end_date)
+    if property_filter != "All":
+        filtered_df = filtered_df[filtered_df["Property Name"] == property_filter]
+    
+    if filtered_df.empty:
+        st.warning("No reservations match the selected filters.")
+        return
+    
+    # Display table
+    st.dataframe(
+        filtered_df,
+        use_container_width=True,
+        column_config={
+            "Total Tariff": st.column_config.NumberColumn(format="₹%.2f"),
+            "Advance Payment": st.column_config.NumberColumn(format="₹%.2f"),
+            "Balance": st.column_config.NumberColumn(format="₹%.2f")
+        }
+    )
+
 def load_reservations_from_supabase():
     """Load all reservations from Supabase."""
     try:
