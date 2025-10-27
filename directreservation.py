@@ -170,10 +170,6 @@ def show_new_reservation_form():
         with col2:
             check_out = st.date_input("Check Out", value=date.today(), key=f"{form_key}_check_out", help="Select any date, including past dates")
         
-        # Optional: Warn if past dates are selected
-        if check_in < date.today() or check_out < date.today():
-            st.warning("⚠️ You have selected a past date. Please confirm this is intentional.")
-        
         # Row 4: Room Type, Room No
         col1, col2 = st.columns(2)
         with col1:
@@ -240,29 +236,29 @@ def show_new_reservation_form():
                 return
                 
             new_reservation = {
-                "property_name": property_name,
-                "booking_id": booking_id,
-                "guest_name": guest_name,
-                "guest_phone": guest_phone,
-                "check_in": str(check_in),
-                "check_out": str(check_out),
-                "room_no": room_no,
-                "room_type": room_type,
-                "no_of_adults": no_of_adults,
-                "no_of_children": no_of_children,
-                "no_of_infants": no_of_infants,
-                "rate_plans": rate_plans,
-                "booking_source": booking_source,
-                "total_tariff": total_tariff,
-                "advance_payment": advance_payment,
+                "propertyName": property_name,
+                "bookingId": booking_id,
+                "guestName": guest_name,
+                "guestPhone": guest_phone,
+                "checkIn": str(check_in),
+                "checkOut": str(check_out),
+                "roomNo": room_no,
+                "roomType": room_type,
+                "noOfAdults": no_of_adults,
+                "noOfChildren": no_of_children,
+                "noOfInfants": no_of_infants,
+                "ratePlans": rate_plans,
+                "bookingSource": booking_source,
+                "totalTariff": total_tariff,
+                "advancePayment": advance_payment,
                 "balance": balance,
-                "advance_mop": advance_mop,
-                "balance_mop": balance_mop,
-                "booking_status": booking_status,
-                "payment_status": payment_status,
-                "submitted_by": st.session_state.get("username", ""),
-                "modified_by": "",
-                "modified_comments": modified_comments,
+                "advanceMop": advance_mop,
+                "balanceMop": balance_mop,
+                "bookingStatus": booking_status,
+                "paymentStatus": payment_status,
+                "submittedBy": st.session_state.get("username", ""),
+                "modifiedBy": "",
+                "modifiedComments": modified_comments,
                 "remarks": remarks
             }
             try:
@@ -421,10 +417,6 @@ def show_edit_reservations():
             with col2:
                 check_out = st.date_input("Check Out", value=date.fromisoformat(reservation["Check Out"]) if reservation["Check Out"] else date.today(), help="Select any date, including past dates")
             
-            # Optional: Warn if past dates are selected
-            if check_in < date.today() or check_out < date.today():
-                st.warning("⚠️ You have selected a past date. Please confirm this is intentional.")
-            
             # Row 4: Room Type, Room No
             col1, col2 = st.columns(2)
             with col1:
@@ -502,29 +494,29 @@ def show_edit_reservations():
                         return
                         
                     updated_reservation = {
-                        "property_name": property_name,
-                        "booking_id": reservation["Booking ID"],
-                        "guest_name": guest_name,
-                        "guest_phone": guest_phone,
-                        "check_in": str(check_in),
-                        "check_out": str(check_out),
-                        "room_no": room_no,
-                        "room_type": room_type,
-                        "no_of_adults": no_of_adults,
-                        "no_of_children": no_of_children,
-                        "no_of_infants": no_of_infants,
-                        "rate_plans": rate_plans,
-                        "booking_source": booking_source,
-                        "total_tariff": total_tariff,
-                        "advance_payment": advance_payment,
+                        "propertyName": property_name,
+                        "bookingId": reservation["Booking ID"],
+                        "guestName": guest_name,
+                        "guestPhone": guest_phone,
+                        "checkIn": str(check_in),
+                        "checkOut": str(check_out),
+                        "roomNo": room_no,
+                        "roomType": room_type,
+                        "noOfAdults": no_of_adults,
+                        "noOfChildren": no_of_children,
+                        "noOfInfants": no_of_infants,
+                        "ratePlans": rate_plans,
+                        "bookingSource": booking_source,
+                        "totalTariff": total_tariff,
+                        "advancePayment": advance_payment,
                         "balance": balance,
-                        "advance_mop": advance_mop,
-                        "balance_mop": balance_mop,
-                        "booking_status": booking_status,
-                        "payment_status": payment_status,
-                        "submitted_by": reservation["Submitted By"],
-                        "modified_by": st.session_state.username,
-                        "modified_comments": modified_comments,
+                        "advanceMop": advance_mop,
+                        "balanceMop": balance_mop,
+                        "bookingStatus": booking_status,
+                        "paymentStatus": payment_status,
+                        "submittedBy": reservation["Submitted By"],
+                        "modifiedBy": st.session_state.username,
+                        "modifiedComments": modified_comments,
                         "remarks": remarks
                     }
                     if update_reservation_in_supabase(reservation["Booking ID"], updated_reservation):
@@ -662,38 +654,38 @@ def show_analytics():
 def load_reservations_from_supabase():
     """Load all direct reservations from Supabase."""
     try:
-        response = supabase.table("reservations").select("*").order("check_in", desc=True).execute()
+        response = supabase.table("reservations").select("*").order("checkIn", desc=True).execute()
         if not response.data:
             st.warning("No reservations found in Supabase.")
             return []
         
-        # Transform Supabase snake_case to title case for UI consistency
+        # Transform Supabase camelCase to title case for UI consistency
         transformed_data = []
         for record in response.data:
             transformed_record = {
-                "Property Name": record.get("property_name", ""),
-                "Booking ID": record.get("booking_id", ""),
-                "Guest Name": record.get("guest_name", ""),
-                "Guest Phone": record.get("guest_phone", ""),
-                "Check In": record.get("check_in", ""),
-                "Check Out": record.get("check_out", ""),
-                "Room No": record.get("room_no", ""),
-                "Room Type": record.get("room_type", ""),
-                "No of Adults": record.get("no_of_adults", 0),
-                "No of Children": record.get("no_of_children", 0),
-                "No of Infants": record.get("no_of_infants", 0),
-                "Rate Plans": record.get("rate_plans", ""),
-                "Booking Source": record.get("booking_source", ""),
-                "Total Tariff": record.get("total_tariff", 0.0),
-                "Advance Payment": record.get("advance_payment", 0.0),
+                "Property Name": record.get("propertyName", ""),
+                "Booking ID": record.get("bookingId", ""),
+                "Guest Name": record.get("guestName", ""),
+                "Guest Phone": record.get("guestPhone", ""),
+                "Check In": record.get("checkIn", ""),
+                "Check Out": record.get("checkOut", ""),
+                "Room No": record.get("roomNo", ""),
+                "Room Type": record.get("roomType", ""),
+                "No of Adults": record.get("noOfAdults", 0),
+                "No of Children": record.get("noOfChildren", 0),
+                "No of Infants": record.get("noOfInfants", 0),
+                "Rate Plans": record.get("ratePlans", ""),
+                "Booking Source": record.get("bookingSource", ""),
+                "Total Tariff": record.get("totalTariff", 0.0),
+                "Advance Payment": record.get("advancePayment", 0.0),
                 "Balance": record.get("balance", 0.0),
-                "Advance MOP": record.get("advance_mop", "Not Paid"),
-                "Balance MOP": record.get("balance_mop", "Not Paid"),
-                "Booking Status": record.get("booking_status", "Pending"),
-                "Payment Status": record.get("payment_status", "Not Paid"),
-                "Submitted By": record.get("submitted_by", ""),
-                "Modified By": record.get("modified_by", ""),
-                "Modified Comments": record.get("modified_comments", ""),
+                "Advance MOP": record.get("advanceMop", "Not Paid"),
+                "Balance MOP": record.get("balanceMop", "Not Paid"),
+                "Booking Status": record.get("bookingStatus", "Pending"),
+                "Payment Status": record.get("paymentStatus", "Not Paid"),
+                "Submitted By": record.get("submittedBy", ""),
+                "Modified By": record.get("modifiedBy", ""),
+                "Modified Comments": record.get("modifiedComments", ""),
                 "Remarks": record.get("remarks", "")
             }
             transformed_data.append(transformed_record)
@@ -705,34 +697,34 @@ def load_reservations_from_supabase():
 def update_reservation_in_supabase(booking_id, updated_reservation):
     """Update a reservation in Supabase."""
     try:
-        # Transform to snake_case for Supabase
+        # Transform to camelCase for Supabase
         supabase_reservation = {
-            "property_name": updated_reservation["property_name"],
-            "booking_id": updated_reservation["booking_id"],
-            "guest_name": updated_reservation["guest_name"],
-            "guest_phone": updated_reservation["guest_phone"],
-            "check_in": updated_reservation["check_in"],
-            "check_out": updated_reservation["check_out"],
-            "room_no": updated_reservation["room_no"],
-            "room_type": updated_reservation["room_type"],
-            "no_of_adults": updated_reservation["no_of_adults"],
-            "no_of_children": updated_reservation["no_of_children"],
-            "no_of_infants": updated_reservation["no_of_infants"],
-            "rate_plans": updated_reservation["rate_plans"],
-            "booking_source": updated_reservation["booking_source"],
-            "total_tariff": updated_reservation["total_tariff"],
-            "advance_payment": updated_reservation["advance_payment"],
+            "propertyName": updated_reservation["propertyName"],
+            "bookingId": updated_reservation["bookingId"],
+            "guestName": updated_reservation["guestName"],
+            "guestPhone": updated_reservation["guestPhone"],
+            "checkIn": updated_reservation["checkIn"],
+            "checkOut": updated_reservation["checkOut"],
+            "roomNo": updated_reservation["roomNo"],
+            "roomType": updated_reservation["roomType"],
+            "noOfAdults": updated_reservation["noOfAdults"],
+            "noOfChildren": updated_reservation["noOfChildren"],
+            "noOfInfants": updated_reservation["noOfInfants"],
+            "ratePlans": updated_reservation["ratePlans"],
+            "bookingSource": updated_reservation["bookingSource"],
+            "totalTariff": updated_reservation["totalTariff"],
+            "advancePayment": updated_reservation["advancePayment"],
             "balance": updated_reservation["balance"],
-            "advance_mop": updated_reservation["advance_mop"],
-            "balance_mop": updated_reservation["balance_mop"],
-            "booking_status": updated_reservation["booking_status"],
-            "payment_status": updated_reservation["payment_status"],
-            "submitted_by": updated_reservation["submitted_by"],
-            "modified_by": updated_reservation["modified_by"],
-            "modified_comments": updated_reservation["modified_comments"],
+            "advanceMop": updated_reservation["advanceMop"],
+            "balanceMop": updated_reservation["balanceMop"],
+            "bookingStatus": updated_reservation["bookingStatus"],
+            "paymentStatus": updated_reservation["paymentStatus"],
+            "submittedBy": updated_reservation["submittedBy"],
+            "modifiedBy": updated_reservation["modifiedBy"],
+            "modifiedComments": updated_reservation["modifiedComments"],
             "remarks": updated_reservation["remarks"]
         }
-        response = supabase.table("reservations").update(supabase_reservation).eq("booking_id", booking_id).execute()
+        response = supabase.table("reservations").update(supabase_reservation).eq("bookingId", booking_id).execute()
         return bool(response.data)
     except Exception as e:
         st.error(f"Error updating reservation {booking_id}: {e}")
@@ -741,7 +733,7 @@ def update_reservation_in_supabase(booking_id, updated_reservation):
 def delete_reservation_in_supabase(booking_id):
     """Delete a reservation from Supabase."""
     try:
-        response = supabase.table("reservations").delete().eq("booking_id", booking_id).execute()
+        response = supabase.table("reservations").delete().eq("bookingId", booking_id).execute()
         return bool(response.data)
     except Exception as e:
         st.error(f"Error deleting reservation {booking_id}: {e}")
