@@ -168,24 +168,22 @@ def show_new_reservation_form():
     room_types = list(property_room_map[property_name].keys())
     
     with st.form(key=form_key):
-        # Row 1: Booking ID
-        booking_id = st.text_input("Booking ID", key=f"{form_key}_booking_id")
-        
-        # Row 2: Guest Name, Guest Phone
+             
+        # Row 1: Guest Name, Guest Phone
         col1, col2 = st.columns(2)
         with col1:
             guest_name = st.text_input("Guest Name", key=f"{form_key}_guest_name")
         with col2:
             guest_phone = st.text_input("Guest Phone", key=f"{form_key}_guest_phone")
         
-        # Row 3: Check In, Check Out
+        # Row 2: Check In, Check Out
         col1, col2 = st.columns(2)
         with col1:
             check_in = st.date_input("Check In", min_value=date.today(), key=f"{form_key}_check_in")
         with col2:
             check_out = st.date_input("Check Out", min_value=date.today(), key=f"{form_key}_check_out")
         
-        # Row 4: Room Type, Room No (WITH EDITABLE ROOM NUMBER)
+        # Row 3: Room Type, Room No (WITH EDITABLE ROOM NUMBER)
         col1, col2 = st.columns(2)
         with col2:
             room_type = st.selectbox("Room Type", room_types, key=f"{form_key}_room_type", help="Select the room type. Choose 'Others' to manually enter a custom room number.")
@@ -218,7 +216,7 @@ def show_new_reservation_form():
                 if suggestion_list:
                     st.caption(f"💡 **Quick suggestions:** {', '.join(suggestion_list)}")
         
-        # Row 5: No of Adults, Children, Infants
+        # Row 4: No of Adults, Children, Infants
         col1, col2, col3 = st.columns(3)
         with col1:
             no_of_adults = st.number_input("No of Adults", min_value=0, value=1, step=1, key=f"{form_key}_adults")
@@ -227,21 +225,21 @@ def show_new_reservation_form():
         with col3:
             no_of_infants = st.number_input("No of Infants", min_value=0, value=0, step=1, key=f"{form_key}_infants")
         
-        # Row 6: Rate Plans, Booking Source
+        # Row 5: Rate Plans, Booking Source
         col1, col2 = st.columns(2)
         with col1:
             rate_plans = st.selectbox("Rate Plans", [" ", "EP", "CP"], key=f"{form_key}_rate_plans", help="EP: European Plan, CP: Continental Plan")
         with col2:
             booking_source = st.selectbox("Booking Source", BOOKING_SOURCES, key=f"{form_key}_booking_source")
         
-        # Row 7: Total Tariff, Advance Payment
+        # Row 6: Total Tariff, Advance Payment
         col1, col2 = st.columns(2)
         with col1:
             total_tariff = st.number_input("Total Tariff", min_value=0.0, step=0.01, key=f"{form_key}_total_tariff")
         with col2:
             advance_payment = st.number_input("Advance Payment", min_value=0.0, step=0.01, key=f"{form_key}_advance_payment")
         
-        # Row 8: Balance (Auto-calculated), Advance MOP
+        # Row 7: Balance (Auto-calculated), Advance MOP
         col1, col2 = st.columns(2)
         with col1:
             balance = total_tariff - advance_payment
@@ -249,24 +247,24 @@ def show_new_reservation_form():
         with col2:
             advance_mop = st.selectbox("Advance MOP", MOP_OPTIONS, key=f"{form_key}_advance_mop", help="Mode of Payment for advance amount")
         
-        # Row 9: Balance MOP
+        # Row 8: Balance MOP
         balance_mop = st.selectbox("Balance MOP", MOP_OPTIONS, key=f"{form_key}_balance_mop", help="Mode of Payment for balance amount")
         
-        # Row 10: Booking Status, Payment Status
+        # Row 9: Booking Status, Payment Status
         col1, col2 = st.columns(2)
         with col1:
             booking_status = st.selectbox("Booking Status", ["Pending", "Confirmed", "Cancelled", "Follow-up", "Completed", "No Show"], key=f"{form_key}_booking_status")
         with col2:
             payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], key=f"{form_key}_payment_status")
         
-        # Row 11: Submitted By, Modified By
+        # Row 10: Submitted By, Modified By
         col1, col2 = st.columns(2)
         with col1:
             submitted_by = st.text_input("Submitted By", value=st.session_state.get("username", ""), disabled=True, key=f"{form_key}_submitted_by")
         with col2:
             modified_by = st.text_input("Modified By", value="", disabled=True, key=f"{form_key}_modified_by")
         
-        # Row 12: Modified Comments, Remarks
+        # Row 11: Modified Comments, Remarks
         modified_comments = st.text_area("Modified Comments", key=f"{form_key}_modified_comments")
         remarks = st.text_area("Remarks", key=f"{form_key}_remarks")
         
