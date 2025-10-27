@@ -613,110 +613,93 @@ def show_edit_reservations():
                     else:
                         st.error("❌ Failed to delete reservation")
 
-def load_reservations_from_supabase():
-    """Load all reservations from Supabase."""
-    try:
-        response = supabase.table("reservations").select("*").order("checkIn", desc=True).execute()
-        if not response.data:
-            st.warning("No reservations found in Supabase.")
-            return []
-        
-        # Transform Supabase camelCase to title case for UI consistency
-        transformed_data = []
-        for record in response.data:
-            transformed_record = {
-                "Property Name": record.get("propertyName", ""),
-                "Booking ID": record.get("bookingId", ""),
-                "Guest Name": record.get("guestName", ""),
-                "Guest Phone": record.get("guestPhone", ""),
-                "Check In": record.get("checkIn", ""),
-                "Check Out": record.get("checkOut", ""),
-                "Room No": record.get("roomNo", ""),
-                "Room Type": record.get("roomType", ""),
-                "No of Adults": record.get("noOfAdults", 0),
-                "No of Children": record.get("noOfChildren", 0),
-                "No of Infants": record.get("noOfInfants", 0),
-                "Rate Plans": record.get("ratePlans", ""),
-                "Booking Source": record.get("bookingSource", ""),
-                "Total Tariff": record.get("totalTariff", 0.0),
-                "Advance Payment": record.get("advancePayment", 0.0),
-                "Balance": record.get("balance", 0.0),
-                "Advance MOP": record.get("advanceMop", "Not Paid"),
-                "Balance MOP": record.get("balanceMop", "Not Paid"),
-                "Booking Status": record.get("bookingStatus", "Pending"),
-                "Payment Status": record.get("paymentStatus", "Not Paid"),
-                "Submitted By": record.get("submittedBy", ""),
-                "Modified By": record.get("modifiedBy", ""),
-                "Modified Comments": record.get("modifiedComments", ""),
-                "Remarks": record.get("remarks", "")
+def show_analytics():
+    """Display analytics dashboard for reservations (Management only)."""
+    st.header("📊 Reservation Analytics")
+    
+    if st.session_state.get('role') != "Management":
+        st.error("❌ Access Denied: Only Management can view analytics.")
+        return
+    
+    if not st.session_state.get('reservations'):
+        st.session_state.reservations = load_reservations_from_supabase()
+    
+    if not st.session_state.reservations:
+        st.info("No reservations available for analytics.")
+        return
+    
+    df = pd.DataFrame(st.session_state.reservations)
+    
+    # Filters
+    st.subheader("Filters")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        start_date = st.date_input("Start Date", value=None, key="analytics_filter_start_date")
+    with col2:
+        end_date = st.date_input("End Date", value=None, key="analytics_filter_end_date")
+    with col3:
+        property_filter = st.selectbox(
+            "Filter by Property",
+            ["All"] + sorted(df["Property Name"].unique()),
+            key="analytics_filter_property"
+        )
+    
+    # Apply filters
+    filtered_df = display_filtered_analysis(df, start_date, end_date, view_mode=False)
+    if property_filter != "All":
+        filtered_df = filtered_df[filtered_df["Property Name"] == property_filter]
+    
+    if filtered_df.empty:
+        st.warning("No data available for the selected filters.")
+        return
+    
+    # Summary Metrics
+    st.subheader("Summary Metrics")
+    col_metric1, col_metric2, col_metric3 = st.columns(3)
+    with col_metric1:
+        total_bookings = len(filtered_df)
+        st.metric("Total Bookings", total_bookings)
+    with col_metric2:
+        total_revenue = filtered_df["Total Tariff"].sum()
+        st.metric("Total Revenue", f"₹{total_revenue:,.2f}")
+    with col_metric3:
+        avg_tariff = filtered_df["Total Tariff"].mean()
+        st.metric("Average Tariff", f"₹{avg_tariff:,.2f}")
+    
+    # Charts
+    st.subheader("Visualizations")
+    
+    # Booking Source Distribution
+    booking_source_counts = filtered_df["Booking Source"].value_counts().reset_index()
+    booking_source_counts.columns = ["Booking Source", "Count"]
+    
+    # Create bar chart for Booking Source Distribution
+    ```chartjs
+    {
+        "type": "bar",
+        "data": {
+            "labels": ${booking_source_counts["Booking Source"].tolist()},
+            "datasets": [{
+                "label": "Number of Bookings",
+                "data": ${booking_source_counts["Count"].tolist()},
+                "backgroundColor": ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"],
+                "borderColor": ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"],
+                "borderWidth": 1
+            }]
+        },
+        "options": {
+            "scales": {
+                "y": {
+                    "beginAtZero": true,
+                    "title": {"display": true, "text": "Number of Bookings"}
+                },
+                "x": {
+                    "title": {"display": true, "text": "Booking Source"}
+                }
+            },
+            "plugins": {
+                "legend": {"display": false},
+                "title": {"display": true, "text": "Booking Source Distribution"}
             }
-            transformed_data.append(transformed_record)
-        return transformed_data
-    except Exception as e:
-        st.error(f"Error loading reservations: {e}")
-        return []
-
-def insert_reservation_in_supabase(reservation):
-    """Insert a new reservation into Supabase."""
-    try:
-        response = supabase.table("reservations").insert(reservation).execute()
-        return bool(response.data)
-    except Exception as e:
-        st.error(f"Error inserting reservation: {e}")
-        return False
-
-def update_reservation_in_supabase(booking_id, updated_reservation):
-    """Update a reservation in Supabase."""
-    try:
-        supabase_reservation = {
-            "propertyName": updated_reservation["propertyName"],
-            "bookingId": updated_reservation["bookingId"],
-            "guestName": updated_reservation["guestName"],
-            "guestPhone": updated_reservation["guestPhone"],
-            "checkIn": updated_reservation["checkIn"],
-            "checkOut": updated_reservation["checkOut"],
-            "roomNo": updated_reservation["roomNo"],
-            "roomType": updated_reservation["roomType"],
-            "noOfAdults": updated_reservation["noOfAdults"],
-            "noOfChildren": updated_reservation["noOfChildren"],
-            "noOfInfants": updated_reservation["noOfInfants"],
-            "ratePlans": updated_reservation["ratePlans"],
-            "bookingSource": updated_reservation["bookingSource"],
-            "totalTariff": updated_reservation["totalTariff"],
-            "advancePayment": updated_reservation["advancePayment"],
-            "balance": updated_reservation["balance"],
-            "advanceMop": updated_reservation["advanceMop"],
-            "balanceMop": updated_reservation["balanceMop"],
-            "bookingStatus": updated_reservation["bookingStatus"],
-            "paymentStatus": updated_reservation["paymentStatus"],
-            "submittedBy": updated_reservation["submittedBy"],
-            "modifiedBy": updated_reservation["modifiedBy"],
-            "modifiedComments": updated_reservation["modifiedComments"],
-            "remarks": updated_reservation["remarks"]
         }
-        response = supabase.table("reservations").update(supabase_reservation).eq("bookingId", booking_id).execute()
-        return bool(response.data)
-    except Exception as e:
-        st.error(f"Error updating reservation {booking_id}: {e}")
-        return False
-
-def delete_reservation_in_supabase(booking_id):
-    """Delete a reservation from Supabase."""
-    try:
-        response = supabase.table("reservations").delete().eq("bookingId", booking_id).execute()
-        return bool(response.data)
-    except Exception as e:
-        st.error(f"Error deleting reservation {booking_id}: {e}")
-        return False
-
-def display_filtered_analysis(df, start_date, end_date, view_mode=True):
-    """Helper function to filter dataframe for analytics or view."""
-    filtered_df = df.copy()
-    try:
-        if start_date:
-            filtered_df = filtered_df[pd.to_datetime(filtered_df["Check In"]) >= pd.to_datetime(start_date)]
-        if end_date:
-            filtered_df = filtered_df[pd.to_datetime(filtered_df["Check In"]) <= pd.to_datetime(end_date)]
-    except Exception as e:
-        st.error(f"Error filtering data: {e}")
-    return filtered_df
+    }
