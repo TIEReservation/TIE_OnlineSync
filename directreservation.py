@@ -21,7 +21,10 @@ def load_property_room_map():
         "Le Poshe Beachview": {
             "Double Room": ["101", "102", "202", "203", "204"],
             "Standard Room": ["201"],
-            "Deluex Double Room Seaview": ["301", "302", "303", "304"]
+            "Deluex Double Room Seaview": ["301", "302", "303", "304"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"],
+            "Others": []
         },
         "La Millionare Resort": {
             "Double Room": ["101", "102", "103", "105"],
@@ -29,70 +32,112 @@ def load_property_room_map():
             "Deluex Triple Room with Balcony": ["201", "202", "203", "204", "301", "302", "303"],
             "Deluex Family Room with Balcony": ["206", "207", "208", "306", "307", "308"],
             "Deluex Triple Room": ["402"],
-            "Deluex Family Room": ["401"]
+            "Deluex Family Room": ["401"],
+            "Day Use": ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 5"],
+            "No Show": ["No Show"],
+            "Others": []
         },
         "Le Poshe Luxury": {
             "2BHA Appartment": ["101&102", "101", "102"],
             "2BHA Appartment with Balcony": ["201&202", "201", "202", "301&302", "301", "302", "401&402", "401", "402"],
             "3BHA Appartment": ["203to205", "203", "204", "205", "303to305", "303", "304", "305", "403to405", "403", "404", "405"],
-            "Double Room with Private Terrace": ["501"]
+            "Double Room with Private Terrace": ["501"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"],
+            "Others": []
         },
         "Le Poshe Suite": {
             "2BHA Appartment": ["601&602", "601", "602", "603", "604", "703", "704"],
             "2BHA Appartment with Balcony": ["701&702", "701", "702"],
-            "Double Room with Terrace": ["801"]
+            "Double Room with Terrace": ["801"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"],
+            "Others": []
         },
         "La Paradise Residency": {
             "Double Room": ["101", "102", "103", "301", "304"],
             "Family Room": ["201", "203"],
-            "Triple Room": ["202", "303"]
+            "Triple Room": ["202", "303"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"],
+            "Others": []
         },
         "La Paradise Luxury": {
-            "3BHA Appartment": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"]
+            "3BHA Appartment": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"],
+            "Others": []
         },
         "La Villa Heritage": {
             "Double Room": ["101", "102", "103"],
-            "4BHA Appartment": ["201to203&301", "201", "202", "203", "301"]
+            "4BHA Appartment": ["201to203&301", "201", "202", "203", "301"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"],
+            "Others": []
         },
         "Le Pondy Beach Side": {
-            "Villa": ["101to104", "101", "102", "103", "104"]
+            "Villa": ["101to104", "101", "102", "103", "104"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"],
+            "Others": []
         },
         "Le Royce Villa": {
-            "Villa": ["101to102&201to202", "101", "102", "202", "202"]  # Note: duplicate "202" as per data
+            "Villa": ["101to102&201to202", "101", "102", "202", "202"],  # Note: duplicate "202" as per data
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"],
+            "Others": []
         },
         "La Tamara Luxury": {
             "3BHA": ["101to103", "101", "102", "103", "104to106", "104", "105", "106", "201to203", "201", "202", "203", "204to206", "204", "205", "206", "301to303", "301", "302", "303", "304to306", "304", "305", "306"],
-            "4BHA": ["401to404", "401", "402", "403", "404"]  # Note: duplicate "404" as per data
+            "4BHA": ["401to404", "401", "402", "403", "404"],  # Note: duplicate "404" as per data
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"],
+            "Others": []
         },
         "La Antilia": {
             "Deluex Suite Room": ["101"],
             "Deluex Double Room": ["203", "204", "303", "304"],
             "Family Room": ["201", "202", "301", "302"],
-            "Deluex suite Room with Tarrace": ["404"]
+            "Deluex suite Room with Tarrace": ["404"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"],
+            "Others": []
         },
         "La Tamara Suite": {
             "Two Bedroom apartment": ["101&102"],
             "Deluxe Apartment": ["103&104"],
             "Deluxe Double Room": ["203", "204", "205"],
             "Deluxe Triple Room": ["201", "202"],
-            "Deluxe Family Room": ["206"]
+            "Deluxe Family Room": ["206"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"],
+            "Others": []
         },
         "Le Park Resort": {
             "Villa with Swimming Pool View": ["555&666", "555", "666"],
             "Villa with Garden View": ["111&222", "111", "222"],
-            "Family Retreate Villa": ["333&444", "333", "444"]
+            "Family Retreate Villa": ["333&444", "333", "444"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"],
+            "Others": []
         },
         "Villa Shakti": {
             "2BHA Studio Room": ["101&102"],
             "2BHA with Balcony": ["202&203", "302&303"],
             "Family Suite": ["201"],
             "Family Room": ["301"],
-            "Terrace Room": ["401"]
+            "Terrace Room": ["401"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"],
+            "Others": []
         },
         "Eden Beach Resort": {
             "Double Room": ["101", "102"],
             "Deluex Room": ["103", "202"],
-            "Triple Room": ["201"]
+            "Triple Room": ["201"],
+            "Day Use": ["Day Use 1", "Day Use 2"],
+            "No Show": ["No Show"],
+            "Others": []
         }
     }
 
@@ -373,15 +418,18 @@ def show_new_reservation_form():
     try:
         st.header("📝 Direct Reservations")
         form_key = "new_reservation"
+        property_room_map = load_property_room_map()
+        
         # Initialize session state for dynamic updates
         if f"{form_key}_property" not in st.session_state:
-            st.session_state[f"{form_key}_property"] = sorted(load_property_room_map().keys())[0]
+            st.session_state[f"{form_key}_property"] = sorted(property_room_map.keys())[0]
         if f"{form_key}_roomtype" not in st.session_state:
             st.session_state[f"{form_key}_roomtype"] = ""
+
         # Row 1: Property Name, Guest Name, Mobile No
         row1_col1, row1_col2, row1_col3 = st.columns(3)
         with row1_col1:
-            property_options = sorted(load_property_room_map().keys())
+            property_options = sorted(property_room_map.keys())
             property_name = st.selectbox("Property Name", property_options,
                                         key=f"{form_key}_property",
                                         on_change=lambda: st.session_state.update({f"{form_key}_roomtype": ""}))
@@ -389,6 +437,7 @@ def show_new_reservation_form():
             guest_name = st.text_input("Guest Name", placeholder="Enter guest name", key=f"{form_key}_guest")
         with row1_col3:
             mobile_no = st.text_input("Mobile No", placeholder="Enter mobile number", key=f"{form_key}_mobile")
+
         # Row 2: Enquiry Date, Check In, Check Out, No of Days
         row2_col1, row2_col2, row2_col3, row2_col4 = st.columns(4)
         with row2_col1:
@@ -400,6 +449,7 @@ def show_new_reservation_form():
         with row2_col4:
             no_of_days = calculate_days(check_in, check_out)
             st.text_input("No of Days", value=str(no_of_days), disabled=True, key=f"{form_key}_no_of_days_row2", help="Check-out - Check-in")
+
         # Row 3: No of Adults, No of Children, No of Infants, Breakfast
         row3_col1, row3_col2, row3_col3, row3_col4 = st.columns(4)
         with row3_col1:
@@ -410,7 +460,8 @@ def show_new_reservation_form():
             infants = st.number_input("No of Infants", min_value=0, value=0, key=f"{form_key}_infants")
         with row3_col4:
             breakfast = st.selectbox("Breakfast", ["CP", "EP"], key=f"{form_key}_breakfast")
-        # Row 4: Total Pax, MOB, Room Type, Room No
+
+        # Row 4: Total Pax, MOB, Room Type, Room No (WITH EDITABLE ROOM NUMBER LOGIC)
         row4_col1, row4_col2, row4_col3, row4_col4 = st.columns(4)
         with row4_col1:
             total_pax = safe_int(adults) + safe_int(children) + safe_int(infants)
@@ -424,17 +475,36 @@ def show_new_reservation_form():
             else:
                 custom_mob = None
         with row4_col3:
-            room_map = load_property_room_map()
-            available_room_types = sorted(room_map.get(property_name, {}).keys())
-            room_type_options = available_room_types + ["Other"] if "Other" not in available_room_types else available_room_types
-            room_type = st.selectbox("Room Type", room_type_options, key=f"{form_key}_roomtype")
-            if room_type == "Other":
-                custom_room_type = st.text_input("Custom Room Type", key=f"{form_key}_custom_roomtype")
-            else:
-                custom_room_type = None
+            room_types = list(property_room_map[property_name].keys()) if property_name in property_room_map else []
+            room_type = st.selectbox("Room Type", room_types, key=f"{form_key}_room_type", help="Select the room type. Choose 'Others' to manually enter a custom room number.")
         with row4_col4:
-            available_rooms = sorted(room_map.get(property_name, {}).get(room_type, [])) if room_type != "Other" else []
-            room_no = st.selectbox("Room No", available_rooms, key=f"{form_key}_room")
+            if room_type == "Others":
+                # For "Others", show text input
+                room_no = st.text_input(
+                    "Room No",
+                    value="",
+                    placeholder="Enter custom room number",
+                    key=f"{form_key}_room_no",
+                    help="Enter a custom room number for 'Others' room type."
+                )
+                if not room_no.strip():
+                    st.warning("⚠️ Please enter a valid Room No for 'Others' room type.")
+            else:
+                # For predefined types, show editable text input with suggestions
+                room_numbers = property_room_map[property_name].get(room_type, [])
+                room_no = st.text_input(
+                    "Room No",
+                    value="",
+                    placeholder="Enter or select room number",
+                    key=f"{form_key}_room_no",
+                    help="Enter or edit the room number. You can type any custom value or use suggestions below."
+                )
+                
+                # Show helpful suggestions based on property
+                suggestion_list = [r for r in room_numbers if r.strip()]
+                if suggestion_list:
+                    st.caption(f"💡 **Quick suggestions:** {', '.join(suggestion_list)}")
+
         # Row 5: Total Tariff, Tariff (per day), Advance Amount, Advance MOP
         row5_col1, row5_col2, row5_col3, row5_col4 = st.columns(4)
         with row5_col1:
@@ -452,6 +522,7 @@ def show_new_reservation_form():
                 custom_advance_mop = st.text_input("Custom Advance MOP", key=f"{form_key}_custom_advmop")
             else:
                 custom_advance_mop = None
+
         # Row 6: Balance Amount, Balance MOP
         row6_col1, row6_col2 = st.columns(2)
         with row6_col1:
@@ -466,6 +537,7 @@ def show_new_reservation_form():
                 custom_balance_mop = st.text_input("Custom Balance MOP", key=f"{form_key}_custom_balmop")
             else:
                 custom_balance_mop = None
+
         # Row 7: Booking Date, Invoice No, Booking Status
         row7_col1, row7_col2, row7_col3 = st.columns(3)
         with row7_col1:
@@ -474,16 +546,19 @@ def show_new_reservation_form():
             invoice_no = st.text_input("Invoice No", placeholder="Enter invoice number", key=f"{form_key}_invoice")
         with row7_col3:
             booking_status = st.selectbox("Booking Status", ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"], index=1, key=f"{form_key}_status")
+
         # Row 8: Remarks
         row8_col1, = st.columns(1)
         with row8_col1:
             remarks = st.text_area("Remarks", value="", key=f"{form_key}_remarks")
+
         # Row 9: Payment Status, Submitted By
         row9_col1, row9_col2 = st.columns(2)
         with row9_col1:
             payment_status = st.selectbox("Payment Status", ["Fully Paid", "Partially Paid", "Not Paid"], index=2, key=f"{form_key}_payment_status")
         with row9_col2:
             submitted_by = st.text_input("Submitted By", value=st.session_state.get("username", ""), disabled=True, key=f"{form_key}_submitted_by")
+
         # Online Source (conditionally shown when MOB is Online)
         if mob == "Online":
             row10_col1, = st.columns(1)
@@ -498,8 +573,14 @@ def show_new_reservation_form():
         else:
             online_source = None
             custom_online_source = None
+
         if st.button("💾 Save Reservation", use_container_width=True):
-            if not all([property_name, room_no, guest_name, mobile_no]):
+            # Validate room_no
+            if not room_no or not room_no.strip():
+                st.error("❌ Room No cannot be empty. Please enter a room number.")
+            elif len(room_no) > 50:
+                st.error("❌ Room No cannot exceed 50 characters.")
+            elif not all([property_name, guest_name, mobile_no]):
                 st.error("❌ Please fill in all required fields")
             elif check_out < check_in:
                 st.error("❌ Check-out date must be on or after check-in")
@@ -507,7 +588,7 @@ def show_new_reservation_form():
                 st.error("❌ Number of days cannot be negative")
             else:
                 mob_value = custom_mob if mob == "Others" else mob
-                is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no, mob=mob_value)
+                is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no.strip(), mob=mob_value)
                 if is_duplicate:
                     st.error(f"❌ Guest already exists! Booking ID: {existing_booking_id}")
                 else:
@@ -517,7 +598,7 @@ def show_new_reservation_form():
                         return
                     reservation = {
                         "Property Name": property_name,
-                        "Room No": room_no,
+                        "Room No": room_no.strip(),
                         "Guest Name": guest_name,
                         "Mobile No": mobile_no,
                         "No of Adults": safe_int(adults),
@@ -539,7 +620,7 @@ def show_new_reservation_form():
                         "Enquiry Date": enquiry_date,
                         "Booking Date": booking_date,
                         "Booking ID": booking_id,
-                        "Room Type": custom_room_type if room_type == "Other" else room_type,
+                        "Room Type": room_type,
                         "Breakfast": breakfast,
                         "Booking Status": booking_status,
                         "Submitted By": submitted_by,
@@ -665,6 +746,7 @@ def show_edit_form(edit_index):
         st.subheader(f"✏️ Editing Reservation: {st.session_state.reservations[edit_index]['Booking ID']}")
         reservation = st.session_state.reservations[edit_index]
         form_key = f"edit_reservation_{edit_index}"
+        property_room_map = load_property_room_map()
 
         # Initialize session state only if not already set
         if f"{form_key}_property" not in st.session_state:
@@ -675,7 +757,7 @@ def show_edit_form(edit_index):
         # Row 1: Property Name, Guest Name, Mobile No
         row1_col1, row1_col2, row1_col3 = st.columns(3)
         with row1_col1:
-            property_options = sorted(load_property_room_map().keys())
+            property_options = sorted(property_room_map.keys())
             if reservation["Property Name"] == "Property 16":
                 property_options = sorted(property_options + ["Property 16"])
             property_name = st.selectbox("Property Name", property_options,
@@ -710,7 +792,10 @@ def show_edit_form(edit_index):
         with row3_col4:
             breakfast = st.selectbox("Breakfast", ["CP", "EP"], index=["CP", "EP"].index(reservation["Breakfast"]), key=f"{form_key}_breakfast")
 
-        # Row 4: Total Pax, MOB, Room Type, Room No
+        # Row 4: Total Pax, MOB, Room Type, Room No (WITH EDITABLE ROOM NUMBER LOGIC)
+        fetched_room_no = str(reservation.get("Room No", "") or "")
+        fetched_room_type = str(reservation.get("Room Type", "") or "")
+        
         row4_col1, row4_col2, row4_col3, row4_col4 = st.columns(4)
         with row4_col1:
             total_pax = safe_int(adults) + safe_int(children) + safe_int(infants)
@@ -724,23 +809,36 @@ def show_edit_form(edit_index):
             else:
                 custom_mob = None
         with row4_col3:
-            room_map = load_property_room_map()
-            available_room_types = sorted(room_map.get(property_name, {}).keys())
-            is_custom_type = reservation["Room Type"] not in available_room_types or not reservation["Room Type"]
-            room_type_options = available_room_types + ["Other"] if "Other" not in available_room_types else available_room_types
-            room_type_index = room_type_options.index("Other" if is_custom_type else reservation["Room Type"]) if reservation["Room Type"] else 0
-            room_type = st.selectbox("Room Type", room_type_options, index=room_type_index, key=f"{form_key}_roomtype")
-            if room_type == "Other":
-                custom_room_type = st.text_input("Custom Room Type", value=reservation["Room Type"] if is_custom_type else "", key=f"{form_key}_custom_roomtype")
-            else:
-                custom_room_type = None
+            room_types = list(property_room_map[property_name].keys()) if property_name in property_room_map else []
+            room_type = st.selectbox("Room Type", room_types, index=room_types.index(fetched_room_type) if fetched_room_type in room_types else 0, key=f"{form_key}_room_type", help="Select the room type. Choose 'Others' to manually enter a custom room number.")
         with row4_col4:
-            available_rooms = sorted(room_map.get(property_name, {}).get(room_type, [])) if room_type != "Other" else []
-            existing_room_no = reservation["Room No"] or ""
-            if existing_room_no and existing_room_no not in available_rooms:
-                available_rooms = sorted(set(available_rooms + [existing_room_no]))
-            room_no_index = available_rooms.index(existing_room_no) if existing_room_no in available_rooms else 0
-            room_no = st.selectbox("Room No", available_rooms, index=room_no_index, key=f"{form_key}_room")
+            if room_type == "Others":
+                # For "Others", show text input
+                initial_value = fetched_room_no if fetched_room_type == "Others" else ""
+                room_no = st.text_input(
+                    "Room No",
+                    value=initial_value,
+                    placeholder="Enter custom room number",
+                    key=f"{form_key}_room_no",
+                    help="Enter a custom room number for 'Others' room type."
+                )
+                if not room_no.strip():
+                    st.warning("⚠️ Please enter a valid Room No for 'Others' room type.")
+            else:
+                # For predefined types, show editable text input with suggestions
+                room_numbers = property_room_map[property_name].get(room_type, [])
+                room_no = st.text_input(
+                    "Room No",
+                    value=fetched_room_no,
+                    placeholder="Enter room number",
+                    key=f"{form_key}_room_no",
+                    help="Enter or edit the room number. You can type any custom value or use suggestions below."
+                )
+                
+                # Show helpful suggestions based on property
+                suggestion_list = [r for r in room_numbers if r.strip()]
+                if suggestion_list:
+                    st.caption(f"💡 **Quick suggestions:** {', '.join(suggestion_list)}")
 
         # Row 5: Total Tariff, Tariff (per day), Advance Amount, Advance MOP
         row5_col1, row5_col2, row5_col3, row5_col4 = st.columns(4)
@@ -824,7 +922,12 @@ def show_edit_form(edit_index):
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             if st.button("💾 Save Reservation", key=f"{form_key}_update", use_container_width=True):
-                if not all([property_name, room_no, guest_name, mobile_no]):
+                # Validate room_no
+                if not room_no or not room_no.strip():
+                    st.error("❌ Room No cannot be empty. Please enter a room number.")
+                elif len(room_no) > 50:
+                    st.error("❌ Room No cannot exceed 50 characters.")
+                elif not all([property_name, guest_name, mobile_no]):
                     st.error("❌ Please fill in all required fields")
                 elif check_out < check_in:
                     st.error("❌ Check-out date must be on or after check-in")
@@ -832,13 +935,13 @@ def show_edit_form(edit_index):
                     st.error("❌ Number of days cannot be negative")
                 else:
                     mob_value = custom_mob if mob == "Others" else mob
-                    is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=reservation["Booking ID"], mob=mob_value)
+                    is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no.strip(), exclude_booking_id=reservation["Booking ID"], mob=mob_value)
                     if is_duplicate:
                         st.error(f"❌ Guest already exists! Booking ID: {existing_booking_id}")
                     else:
                         updated_reservation = {
                             "Property Name": property_name,
-                            "Room No": room_no,
+                            "Room No": room_no.strip(),
                             "Guest Name": guest_name,
                             "Mobile No": mobile_no,
                             "No of Adults": safe_int(adults),
@@ -860,7 +963,7 @@ def show_edit_form(edit_index):
                             "Enquiry Date": enquiry_date,
                             "Booking Date": booking_date,
                             "Booking ID": reservation["Booking ID"],
-                            "Room Type": custom_room_type if room_type == "Other" else room_type,
+                            "Room Type": room_type,
                             "Breakfast": breakfast,
                             "Booking Status": booking_status,
                             "Submitted By": submitted_by,
@@ -919,7 +1022,7 @@ def show_analytics():
     with col6:
         filter_property = st.selectbox("Filter by Property", ["All"] + sorted(df["Property Name"].unique()), key="analytics_filter_property")
 
-    filtered_df = display_filtered_analysis(df, start_date, end_date, view_mode=False)
+    filtered_df = display_filtered_analysis(df, start_date, end_date, view_mode=True)
     
     if filter_status != "All":
         filtered_df = filtered_df[filtered_df["Booking Status"] == filter_status]
