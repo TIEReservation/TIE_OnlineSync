@@ -3,7 +3,7 @@
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date, timedelta
-import pandas as pd
+import pandas as pd  # Added pandas import here
 import altair as alt
 from online_reservation import load_online_reservations_from_supabase
 from directreservation import load_reservations_from_supabase
@@ -112,9 +112,9 @@ def show_dashboard():
     global all_bookings
     all_bookings = cached_load_all_bookings()
     
-    ref_date = st.date_input("Select Reference Date", date.today())
-    dates = [ref_date, ref_date + timedelta(days=1), ref_date + timedelta(days=2)]
-    date_names = ["Today" if d == date.today() else "Tomorrow" if d == date.today() + timedelta(days=1) else "Day After Tomorrow" for d in dates]
+    ref_date = st.date_input("Select Reference Date", date(2025, 10, 27))  # Default to current date
+    dates = [ref_date - timedelta(days=1), ref_date, ref_date + timedelta(days=1), ref_date + timedelta(days=2)]
+    date_names = [d.strftime("%Y-%m-%d") for d in dates]  # Use actual dates instead of "Today," etc.
     
     tab1, tab2, tab3 = st.tabs(["Team Competition", "Individual Performance", "Property Performance"])
     
@@ -206,8 +206,8 @@ def show_dashboard():
             data = individual_metrics[selected_member]
             st.write(f"**Name:** {selected_member}")
             st.write(f"**Team:** {data['team']}")
-            st.write(f"**Total Confirmed Room-Nights (over 3 days):** {data['total_sold']}")
-            st.write(f"**Total Follow-ups (over 3 days):** {data['total_follow']}")
+            st.write(f"**Total Confirmed Room-Nights (over 4 days):** {data['total_sold']}")
+            st.write(f"**Total Follow-ups (over 4 days):** {data['total_follow']}")
             st.write("**Properties Assigned and Performance:**")
             for p, pd in data["prop_details"].items():
                 st.write(f"- {p} ({mem['properties'][p]} inventories): Confirmed {pd['sold']}, Follow-ups {pd['follow']}")
@@ -235,7 +235,7 @@ def show_dashboard():
             total_sold = sum(m["sold"] for m in metrics)
             prop_metrics[p] = {"avg_occ": avg_occ, "total_sold": total_sold, "inv": inv, "metrics": metrics}
         
-        df = pd.DataFrame([{"Property": p, "Inventory": d["inv"], "Total Sold Room-Nights (3 days)": d["total_sold"], "Avg Occupancy %": f"{d['avg_occ']:.2f}"} for p, d in prop_metrics.items()])
+        df = pd.DataFrame([{"Property": p, "Inventory": d["inv"], "Total Sold Room-Nights (4 days)": d["total_sold"], "Avg Occupancy %": f"{d['avg_occ']:.2f}"} for p, d in prop_metrics.items()])
         st.dataframe(df)
         
         bar = alt.Chart(df).mark_bar().encode(
