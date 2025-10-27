@@ -1,193 +1,246 @@
+# dashboard.py
+
 import streamlit as st
-import os
 from supabase import create_client, Client
-from directreservation import show_new_reservation_form, show_reservations, show_edit_reservations, show_analytics, load_reservations_from_supabase
-from online_reservation import show_online_reservations, load_online_reservations_from_supabase
-try:
-    from editOnline import show_edit_online_reservations
-    edit_online_available = True
-except Exception as e:
-    st.error(f"Failed to import editOnline module: {e}. 'Edit Online Reservations' page will be disabled.")
-    show_edit_online_reservations = None
-    edit_online_available = False
-from inventory import show_daily_status
-from dms import show_dms
-from monthlyconsolidation import show_monthly_consolidation
+from datetime import date, timedelta
 import pandas as pd
-from log import show_log_report, log_activity
-from dashboard import show_dashboard  # Added import for dashboard
+import altair as alt
+from online_reservation import load_online_reservations_from_supabase
+from directreservation import load_reservations_from_supabase
 
-# Page config
-st.set_page_config(
-    page_title="TIE Reservations",
-    page_icon="https://github.com/TIEReservation/TIEReservation-System/raw/main/TIE_Logo_Icon.png",
-    layout="wide"
-)
-
-# Display logo in top-left corner
-st.image("https://github.com/TIEReservation/TIEReservation-System/raw/main/TIE_Logo_Icon.png", width=100)
-
-# Initialize Supabase client with environment variables
+# Initialize Supabase client
 try:
-    os.environ["SUPABASE_URL"] = "https://oxbrezracnmazucnnqox.supabase.co"
-    os.environ["SUPABASE_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94YnJlenJhY25tYXp1Y25ucW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjUxMTgsImV4cCI6MjA2OTM0MTExOH0.nqBK2ZxntesLY9qYClpoFPVnXOW10KrzF-UI_DKjbKo"
-    supabase: Client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
-except Exception as e:
-    st.error(f"Failed to initialize Supabase client: {e}")
+    supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
+except KeyError as e:
+    st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets configuration.")
     st.stop()
 
-def check_authentication():
-    if 'authenticated' not in st.session_state:
-        st.session_state.authenticated = False
-        st.session_state.username = None
-        st.session_state.role = None
-        st.session_state.reservations = []
-        st.session_state.online_reservations = []
-        st.session_state.edit_mode = False
-        st.session_state.edit_index = None
-        st.session_state.online_edit_mode = False
-        st.session_state.online_edit_index = None
-        st.session_state.current_page = "Direct Reservations"
-        st.session_state.selected_booking_id = None
-        st.session_state.user_data = None
-        st.session_state.permissions = None  # Initialize permissions attribute
+# Property synonym mapping
+property_mapping = {
+    "La Millionaire Luxury Resort": "La Millionaire Resort",
+    "Le Poshe Beach View": "Le Poshe Beach view",
+    "Le Poshe Beach view": "Le Poshe Beach view",
+    "Le Poshe Beach VIEW": "Le Poshe Beach view",
+    "Millionaire": "La Millionaire Resort",
+}
 
-    if not st.session_state.authenticated:
-        st.title("🔐 TIE Reservations Login")
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        if st.button("🔑 Login"):
-            if username == "Admin" and password == "Admin2024":
-                st.session_state.authenticated = True
-                st.session_state.username = "Admin"
-                st.session_state.role = "Admin"
-                st.session_state.current_page = "User Management"
-                st.session_state.permissions = {"add": True, "edit": True, "delete": True}  # Default for Admin
-            elif username == "Management" and password == "TIE2024":
-                st.session_state.authenticated = True
-                st.session_state.username = "Management"
-                st.session_state.role = "Management"
-                st.session_state.current_page = "Direct Reservations"
-                st.session_state.permissions = {"add": True, "edit": True, "delete": False}  # Example for Management
-            elif username == "ReservationTeam" and password == "TIE123":
-                st.session_state.authenticated = True
-                st.session_state.username = "ReservationTeam"
-                st.session_state.role = "ReservationTeam"
-                st.session_state.current_page = "Direct Reservations"
-                st.session_state.permissions = {"add": True, "edit": False, "delete": False}  # Example for ReservationTeam
-            else:
-                try:
-                    users = supabase.table("users").select("*").eq("username", username).eq("password_hash", password).execute().data
-                    if users and len(users) == 1:
-                        user_data = users[0]
-                        st.session_state.authenticated = True
-                        st.session_state.username = username
-                        st.session_state.role = user_data["role"]
-                        st.session_state.user_data = user_data
-                        st.session_state.permissions = user_data.get("permissions", {"add": False, "edit": False, "delete": False})  # Extract permissions
-                        valid_screens = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
-                        st.session_state.current_page = "Direct Reservations"
-                except Exception as e:
-                    st.error(f"Login failed: {e}")
-        return False  # Indicate that authentication is not complete
-    return True  # Indicate that authentication is complete
+def get_property_name(booking):
+    return booking.get("property") or booking.get("property_name")
 
-def main():
-    if not check_authentication():  # Only show login screen if not authenticated
-        return
+@st.cache_data(ttl=300)
+def cached_load_all_bookings():
+    online = load_online_reservations_from_supabase()
+    direct = load_reservations_from_supabase()
+    # normalize properties
+    for b in online:
+        if "property" in b:
+            b["property"] = property_mapping.get(b["property"], b["property"])
+        b["source"] = "online"
+        b["submitted_by"] = "online"
+    for b in direct:
+        if "property_name" in b:
+            b["property_name"] = property_mapping.get(b["property_name"], b["property_name"])
+        b["source"] = "direct"
+        if "plan_status" in b:
+            b["booking_status"] = b["plan_status"]
+    return online + direct
 
-    st.title("🏢 TIE Reservations")
-    st.markdown("---")
-    st.sidebar.title("Navigation")
-    page_options = ["Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Daily Status", "Daily Management Status", "Monthly Consolidation"]
-    if st.session_state.role == "Management":
-        page_options.append("Analytics")
-    if edit_online_available:
-        page_options.insert(4, "Edit Online Reservations")
-    if st.session_state.role == "Admin":
-        page_options.append("User Management")
-        page_options.append("Log Report")  # Added Log Report for Admin
-    if st.session_state.role in ["Management", "Admin"]:
-        page_options.append("Dashboard")  # Added Dashboard for Management and Admin
-
-    if st.session_state.user_data:
-        page_options = [p for p in page_options if p in st.session_state.user_data.get("screens", page_options)]
-
-    page = st.sidebar.selectbox("Choose a page", page_options, index=page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0, key="page_select")
-    st.session_state.current_page = page
-
-    if st.sidebar.button("🔄 Refresh All Data"):
-        st.cache_data.clear()
+def filter_bookings_for_day(bookings, target_date):
+    filtered = []
+    for b in bookings:
         try:
-            st.session_state.reservations = load_reservations_from_supabase()
-            st.session_state.online_reservations = load_online_reservations_from_supabase()
-            log_activity(supabase, st.session_state.username, "Refreshed all data")
-            st.success("✅ Data refreshed from database!")
-        except Exception as e:
-            st.warning(f"⚠️ Data refresh partially failed: {e}")
-        st.rerun()
+            check_in = date.fromisoformat(b["check_in"]) if b.get("check_in") else None
+            check_out = date.fromisoformat(b["check_out"]) if b.get("check_out") else None
+            if check_in and check_out and check_in <= target_date < check_out:
+                filtered.append(b)
+        except:
+            pass
+    return filtered
 
-    if page == "Direct Reservations":
-        show_new_reservation_form()
-        log_activity(supabase, st.session_state.username, "Accessed Direct Reservations")
-    elif page == "View Reservations":
-        show_reservations()
-        log_activity(supabase, st.session_state.username, "Accessed View Reservations")
-    elif page == "Edit Reservations":
-        show_edit_reservations()
-        log_activity(supabase, st.session_state.username, "Accessed Edit Reservations")
-    elif page == "Online Reservations":
-        show_online_reservations()
-        log_activity(supabase, st.session_state.username, "Accessed Online Reservations")
-    elif page == "Edit Online Reservations" and edit_online_available:
-        show_edit_online_reservations(st.session_state.selected_booking_id)
-        if st.session_state.selected_booking_id:
-            st.session_state.selected_booking_id = None
-            st.query_params.clear()
-        log_activity(supabase, st.session_state.username, "Accessed Edit Online Reservations")
-    elif page == "Daily Status":
-        show_daily_status()
-        log_activity(supabase, st.session_state.username, "Accessed Daily Status")
-    elif page == "Daily Management Status" and st.session_state.current_page == "Daily Management Status":
-        show_dms()
-        log_activity(supabase, st.session_state.username, "Accessed Daily Management Status")
-    elif page == "Analytics" and st.session_state.role == "Management":
-        show_analytics()
-        log_activity(supabase, st.session_state.username, "Accessed Analytics")
-    elif page == "Monthly Consolidation":
-        show_monthly_consolidation()
-        log_activity(supabase, st.session_state.username, "Accessed Monthly Consolidation")
-    elif page == "User Management" and st.session_state.role == "Admin":
-        show_user_management()
-        log_activity(supabase, st.session_state.username, "Accessed User Management")
-    elif page == "Log Report" and st.session_state.role == "Admin":
-        show_log_report(supabase)
-        log_activity(supabase, st.session_state.username, "Accessed Log Report")
-    elif page == "Dashboard":
-        show_dashboard()
-        log_activity(supabase, st.session_state.username, "Accessed Dashboard")
+def count_status(properties, target_date, statuses):
+    relevant = [b for b in all_bookings if get_property_name(b) in properties]
+    active = filter_bookings_for_day(relevant, target_date)
+    count = len([b for b in active if b.get("booking_status") in statuses])
+    return count
 
-    # Display username before Log Out button
-    if st.session_state.authenticated:
-        st.sidebar.write(f"Logged in as: {st.session_state.username}")
-    if st.sidebar.button("Log Out"):
-        log_activity(supabase, st.session_state.username, "Logged out")
+def count_status_person(properties, target_date, statuses, person):
+    relevant = [b for b in all_bookings if get_property_name(b) in properties and b.get("submitted_by", "").lower() == person.lower()]
+    active = filter_bookings_for_day(relevant, target_date)
+    count = len([b for b in active if b.get("booking_status") in statuses])
+    return count
+
+teams = {
+    "Game Changers": {
+        "members": ["Shan", "Barathan", "Anand"],
+        "properties": {
+            "Le Park Resort": 6,
+            "Le Royce Villa": 4,
+            "Villa Shakti": 11,
+            "Le Poshe Luxury": 18,
+            "La Millionaire Resort": 22
+        },
+        "total_inventory": 61
+    },
+    "Dream Squad": {
+        "members": ["Nandhini", "Thilak", "Prakash"],
+        "properties": {
+            "Eden Beach Resort": 5,
+            "La Paradise Luxury": 6,
+            "La Villa Heritage": 7,
+            "Le Pondy Beachside": 4,
+            "Le Poshe Beach view": 10,
+            "Le Poshe Suite": 9
+        },
+        "total_inventory": 41
+    }
+}
+
+individuals = {
+    "Barath": {"properties": {"La Antilia Luxury": 10}},
+    "Rajesh": {"properties": {"La Tamara Luxury": 22}},
+    "Bala": {"properties": {"La Tamara Suite": 10}}
+}
+
+def show_dashboard():
+    st.title("Gamified Reservation Dashboard")
+    
+    if st.button("🔄 Refresh Data"):
         st.cache_data.clear()
-        st.cache_resource.clear()
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        st.session_state.authenticated = False
-        st.session_state.role = None
-        st.session_state.reservations = []
-        st.session_state.online_reservations = []
-        st.session_state.edit_mode = False
-        st.session_state.edit_index = None
-        st.session_state.online_edit_mode = False
-        st.session_state.online_edit_index = None
-        st.session_state.current_page = "Direct Reservations"
-        st.session_state.selected_booking_id = None
-        st.query_params.clear()
+        st.success("Cache cleared! Refreshing data...")
         st.rerun()
+    
+    global all_bookings
+    all_bookings = cached_load_all_bookings()
+    
+    ref_date = st.date_input("Select Reference Date", date(2025, 10, 27))  # Default to current date (08:47 PM IST, Oct 27, 2025)
+    dates = [ref_date - timedelta(days=1), ref_date, ref_date + timedelta(days=1), ref_date + timedelta(days=2)]
+    date_names = [d.strftime("%Y-%m-%d") for d in dates]  # Yesterday, Today, Tomorrow, Day After Tomorrow
+    
+    tab1, tab2, tab3 = st.tabs(["Team Competition", "Individual Performance", "Property Performance"])
+    
+    with tab1:
+        st.subheader("Team Competition View")
+        
+        team_metrics = {}
+        for team_name, team_data in teams.items():
+            props = list(team_data["properties"].keys())
+            total_inv = team_data["total_inventory"]
+            metrics = []
+            for d in dates:
+                sold = count_status(props, d, ["Confirmed"])
+                follow = count_status(props, d, ["Follow-up"])
+                pend = count_status(props, d, ["Pending"])
+                avail = total_inv - sold - follow - pend  # Total unsold includes follow-up and pending
+                metrics.append({"sold": sold, "unsold": avail})
+            team_metrics[team_name] = {"metrics": metrics, "total_inv": total_inv}
+            total_sold = sum(m["sold"] for m in metrics)
+            avg_occ = (total_sold / (total_inv * len(dates))) * 100 if total_inv > 0 else 0
+            team_metrics[team_name]["avg_occ"] = avg_occ
 
-if __name__ == "__main__":
-    main()
+        # Prepare table data
+        table_data = []
+        table_data.append(["Game Changers"])  # Row 1
+        table_data.append(["Property Names", "Team (Total Inv)"] + [f"{date_names[0]} Sold", f"{date_names[0]} Unsold",
+                                                                  f"{date_names[1]} Sold", f"{date_names[1]} Unsold",
+                                                                  f"{date_names[2]} Sold", f"{date_names[2]} Unsold",
+                                                                  f"{date_names[3]} Sold", f"{date_names[3]} Unsold"])  # Row 2
+        for team_name, data in team_metrics.items():
+            row = [""] * 2  # Blank for Property Names and Team (Total Inv) in Row 3
+            row.extend([m["sold"] for m in data["metrics"]] + [m["unsold"] for m in data["metrics"]])
+            table_data.append(row)
+
+        # Convert to DataFrame for display
+        df = pd.DataFrame(table_data, columns=["Property Names", "Team (Total Inv)", 
+                                              f"{date_names[0]} Sold", f"{date_names[0]} Unsold",
+                                              f"{date_names[1]} Sold", f"{date_names[1]} Unsold",
+                                              f"{date_names[2]} Sold", f"{date_names[2]} Unsold",
+                                              f"{date_names[3]} Sold", f"{date_names[3]} Unsold"])
+        st.table(df)
+
+        st.subheader("Team Leaderboard")
+        sorted_teams = sorted(team_metrics.items(), key=lambda x: x[1]["avg_occ"], reverse=True)
+        for rank, (name, data) in enumerate(sorted_teams, 1):
+            st.write(f"{rank}. {name} - Avg Occupancy: {data['avg_occ']:.2f}%")
+    
+    with tab2:
+        st.subheader("Individual Performance")
+        
+        members = []
+        for team, tdata in teams.items():
+            for mem in tdata["members"]:
+                members.append({"name": mem, "team": team, "properties": tdata["properties"], "total_inv": sum(tdata["properties"].values())})
+        for name, idata in individuals.items():
+            members.append({"name": name, "team": "Individual", "properties": idata["properties"], "total_inv": sum(idata["properties"].values())})
+        
+        individual_metrics = {}
+        for mem in members:
+            props_dict = mem["properties"]
+            props = list(props_dict.keys())
+            total_sold = 0
+            total_follow = 0
+            prop_details = {}
+            for p in props:
+                sold_p = 0
+                follow_p = 0
+                for d in dates:
+                    sold_d = count_status_person([p], d, ["Confirmed"], mem["name"])
+                    follow_d = count_status_person([p], d, ["Follow-up"], mem["name"])
+                    sold_p += sold_d
+                    follow_p += follow_d
+                prop_details[p] = {"sold": sold_p, "follow": follow_p}
+                total_sold += sold_p
+                total_follow += follow_p
+            conv_rate = (total_sold / (total_sold + total_follow)) * 100 if (total_sold + total_follow) > 0 else 0
+            individual_metrics[mem["name"]] = {"total_sold": total_sold, "total_follow": total_follow, "conv_rate": conv_rate, "prop_details": prop_details, "team": mem["team"]}
+        
+        st.subheader("Individual Leaderboard")
+        sorted_inds = sorted(individual_metrics.items(), key=lambda x: x[1]["total_sold"], reverse=True)
+        for rank, (name, data) in enumerate(sorted_inds, 1):
+            st.write(f"{rank}. {name} ({data['team']}) - Sold Room-Nights: {data['total_sold']}, Conversion Rate: {data['conv_rate']:.2f}%")
+        
+        selected_member = st.selectbox("Select Member for Details", list(individual_metrics.keys()))
+        if selected_member:
+            data = individual_metrics[selected_member]
+            st.write(f"**Name:** {selected_member}")
+            st.write(f"**Team:** {data['team']}")
+            st.write(f"**Total Confirmed Room-Nights (over 4 days):** {data['total_sold']}")
+            st.write(f"**Total Follow-ups (over 4 days):** {data['total_follow']}")
+            st.write("**Properties Assigned and Performance:**")
+            for p, pd in data["prop_details"].items():
+                st.write(f"- {p} ({mem['properties'][p]} inventories): Confirmed {pd['sold']}, Follow-ups {pd['follow']}")
+    
+    with tab3:
+        st.subheader("Property Performance")
+        
+        all_props = {}
+        for team, tdata in teams.items():
+            all_props.update(tdata["properties"])
+        for idata in individuals.values():
+            all_props.update(idata["properties"])
+        
+        prop_metrics = {}
+        for p, inv in all_props.items():
+            metrics = []
+            for d in dates:
+                sold = count_status([p], d, ["Confirmed"])
+                follow = count_status([p], d, ["Follow-up"])
+                pend = count_status([p], d, ["Pending"])
+                avail = inv - sold - follow - pend
+                occ = (sold / inv * 100) if inv > 0 else 0
+                metrics.append({"sold": sold, "occ": occ, "follow": follow, "pend": pend, "avail": avail})
+            avg_occ = sum(m["occ"] for m in metrics) / len(metrics)
+            total_sold = sum(m["sold"] for m in metrics)
+            prop_metrics[p] = {"avg_occ": avg_occ, "total_sold": total_sold, "inv": inv, "metrics": metrics}
+        
+        df = pd.DataFrame([{"Property": p, "Inventory": d["inv"], "Total Sold Room-Nights (4 days)": d["total_sold"], "Avg Occupancy %": f"{d['avg_occ']:.2f}"} for p, d in prop_metrics.items()])
+        st.dataframe(df)
+        
+        bar = alt.Chart(df).mark_bar().encode(
+            x="Property",
+            y="Avg Occupancy %:Q",
+            tooltip=["Property", "Avg Occupancy %", "Inventory"]
+        ).properties(width=700)
+        st.altair_chart(bar)
+        
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("Download Property Data", csv, "property_performance.csv", "text/csv")
