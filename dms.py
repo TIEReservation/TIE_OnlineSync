@@ -89,7 +89,7 @@ def filter_bookings_for_day(bookings, target_date):
 def create_bookings_table(bookings):
     """Create a DataFrame for bookings with specified columns, including edit links and unified fields for online/direct."""
     columns = [
-        "Source", "Booking ID", "Guest Name", "Check-in Date", "Check-out Date", "Room No",
+        "Source", "Booking ID", "Guest Name", "Mobile No", "Check-in Date", "Check-out Date", "Room No",
         "Advance MOP", "Balance MOP", "Total Tariff", "Advance Amount", "Balance Due",
         "Booking Status", "Remarks"
     ]
@@ -97,46 +97,53 @@ def create_bookings_table(bookings):
     for booking in bookings:
         booking_id = booking.get("booking_id", "")
         source = booking.get("source", "online")  # From filter_bookings_for_day
-        # Create a clickable link for Booking ID (route to appropriate edit page)
-        edit_page = "Edit+Online+Reservations" if source == "online" else "Edit+Reservations"
-        booking_id_link = f'<a href="?page={edit_page}&booking_id={booking_id}" target="_self">{booking_id}</a>'
-        
-        # Unified field mapping for online vs. direct
-        total_tariff = booking.get("booking_amount", booking.get("total_tariff", 0.0))
-        advance_amount = booking.get("total_payment_made", booking.get("advance_amount", 0.0))
-        balance_due = booking.get("balance_due", booking.get("balance_amount", 0.0))
-        advance_mop = booking.get("mode_of_booking", booking.get("advance_mop", ""))  # Fallback for online
-        balance_mop = booking.get("balance_mop", "")  # Online may not have this; leave blank
-        
+        # Create a clickable link for Booking ID (route to edit page)
+        if source == "online":
+            edit_page = "Edit Online Reservations"
+            edit_link = f'<a href="?page={edit_page}&booking_id={booking_id}" target="_self">{booking_id}</a>'
+        else:
+            edit_page = "Edit Reservations"
+            edit_link = f'<a href="?page={edit_page}&booking_id={booking_id}" target="_self">{booking_id}</a>'
+        guest_name = booking.get("guest_name", "")
+        mobile_no = booking.get("guest_phone") if source == "online" else booking.get("mobile_no", "")
+        check_in_date = booking.get("check_in", "")
+        check_out_date = booking.get("check_out", "")
+        room_no = booking.get("room_no", "")
+        advance_mop = booking.get("advance_mop", "")
+        balance_mop = booking.get("balance_mop", "")
+        total_tariff = booking.get("booking_amount") if source == "online" else booking.get("total_tariff", 0.0)
+        advance_amount = booking.get("total_payment_made") if source == "online" else booking.get("advance_amount", 0.0)
+        balance_due = booking.get("balance_due", 0.0)
+        booking_status = booking.get("booking_status", "")
+        remarks = booking.get("remarks", "")
         df_data.append({
-            "Source": source.upper(),
-            "Booking ID": booking_id_link,
-            "Guest Name": booking.get("guest_name", ""),
-            "Check-in Date": booking.get("check_in", ""),
-            "Check-out Date": booking.get("check_out", ""),
-            "Room No": booking.get("room_no", ""),
+            "Source": source.capitalize(),
+            "Booking ID": edit_link,
+            "Guest Name": guest_name,
+            "Mobile No": mobile_no,
+            "Check-in Date": check_in_date,
+            "Check-out Date": check_out_date,
+            "Room No": room_no,
             "Advance MOP": advance_mop,
             "Balance MOP": balance_mop,
             "Total Tariff": total_tariff,
             "Advance Amount": advance_amount,
             "Balance Due": balance_due,
-            "Booking Status": booking.get("booking_status", ""),
-            "Remarks": booking.get("remarks", "")
+            "Booking Status": booking_status,
+            "Remarks": remarks
         })
     return pd.DataFrame(df_data, columns=columns)
 
-@st.cache_data
+@st.cache_data(ttl=300)
 def cached_load_online_reservations():
-    """Cache the loading of online reservations."""
     return load_online_reservations_from_supabase()
 
-@st.cache_data
+@st.cache_data(ttl=300)
 def cached_load_direct_reservations():
-    """Cache the loading of direct reservations."""
     return load_direct_reservations_from_supabase()
 
 def show_dms():
-    """Display Daily Management Status page with Pending, Follow-up, and Confirmed/Not Paid bookings from both online and direct sources."""
+    """Display bookings from both online and direct sources."""
     st.title("📋 Daily Management Status")
     
     if st.button("🔄 Refresh Bookings"):
@@ -207,7 +214,7 @@ def show_dms():
                 st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
                 if daily_bookings:
                     df = create_bookings_table(daily_bookings)
-                    tooltip_columns = ['Guest Name', 'Room No', 'Remarks']
+                    tooltip_columns = ['Guest Name', 'Mobile No', 'Room No', 'Remarks']
                     for col in tooltip_columns:
                         if col in df.columns:
                             df[col] = df[col].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x, str) else x)
