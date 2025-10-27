@@ -89,9 +89,13 @@ def check_authentication():
                         st.session_state.current_page = "Direct Reservations"
                 except Exception as e:
                     st.error(f"Login failed: {e}")
+        return False  # Indicate that authentication is not complete
+    return True  # Indicate that authentication is complete
 
 def main():
-    check_authentication()
+    if not check_authentication():  # Only show login screen if not authenticated
+        return
+
     st.title("🏢 TIE Reservations")
     st.markdown("---")
     st.sidebar.title("Navigation")
