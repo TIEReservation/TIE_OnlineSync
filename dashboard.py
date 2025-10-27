@@ -112,7 +112,7 @@ def show_dashboard():
     global all_bookings
     all_bookings = cached_load_all_bookings()
     
-    ref_date = st.date_input("Select Reference Date", date(2025, 10, 27))  # Default to current date (08:40 PM IST, Oct 27, 2025)
+    ref_date = st.date_input("Select Reference Date", date(2025, 10, 27))  # Default to current date (08:47 PM IST, Oct 27, 2025)
     dates = [ref_date - timedelta(days=1), ref_date, ref_date + timedelta(days=1), ref_date + timedelta(days=2)]
     date_names = [d.strftime("%Y-%m-%d") for d in dates]  # Yesterday, Today, Tomorrow, Day After Tomorrow
     
