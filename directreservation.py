@@ -674,8 +674,7 @@ def show_analytics():
     booking_source_counts.columns = ["Booking Source", "Count"]
     
     # Create bar chart for Booking Source Distribution
-    chartjs
-    {
+        {
         "type": "bar",
         "data": {
             "labels": ${booking_source_counts["Booking Source"].tolist()},
