@@ -727,34 +727,41 @@ def show_daily_status():
                     
                     # Compute and display statistics
                     dtd_df, mtd_df, summary, mop_df = compute_statistics(bookings, prop, day, month_dates)
-                    # Display MOP Report and D.T.D Statistics side by side
-                    col1, col2 = st.columns(2)
+                    
+                    # Display all 4 reports side by side in 4 columns
+                    col1, col2, col3, col4 = st.columns(4)
+                    
                     with col1:
                         st.subheader("MOP Report")
                         st.dataframe(mop_df, use_container_width=True)
+                    
                     with col2:
                         st.subheader("D.T.D Statistics")
                         st.dataframe(dtd_df, use_container_width=True)
-                    st.subheader("M.T.D Statistics")
-                    st.dataframe(mtd_df, use_container_width=True)
-                    st.subheader("Summary")
-                    summary_df = pd.DataFrame([
-                        {"Metric": "Rooms Sold", "Value": summary["rooms_sold"]},
-                        {"Metric": "Value", "Value": f"{summary['value']:.2f}"},
-                        {"Metric": "ARR", "Value": f"{summary['arr']:.2f}"},
-                        {"Metric": "Occ%", "Value": f"{summary['occ_percent']:.2f}%"},
-                        {"Metric": "Total Pax", "Value": summary["total_pax"]},
-                        {"Metric": "Total Inventory", "Value": summary["total_inventory"]},
-                        {"Metric": "GST ", "Value": f"{summary['gst']:.2f}"},
-                        {"Metric": "Commission", "Value": f"{summary['commission']:.2f}"},
-                        {"Metric": "TAX Deduction", "Value": f"{summary['tax_deduction']:.2f}"},
-                        {"Metric": "M.T.D Occ %", "Value": f"{summary['mtd_occ_percent']:.2f}%"},
-                        {"Metric": "M.T.D Pax", "Value": summary["mtd_pax"]},
-                        {"Metric": "M.T.D Rooms", "Value": summary["mtd_rooms"]},
-                        {"Metric": "M.T.D GST", "Value": f"{summary['mtd_gst']:.2f}"},
-                        {"Metric": "M.T.D Tax Deduc", "Value": f"{summary['mtd_tax_deduction']:.2f}"},
-                        {"Metric": "M.T.D Value", "Value": f"{summary['mtd_value']:.2f}"}
-                    ])
-                    st.dataframe(summary_df, use_container_width=True)
+                    
+                    with col3:
+                        st.subheader("M.T.D Statistics")
+                        st.dataframe(mtd_df, use_container_width=True)
+                    
+                    with col4:
+                        st.subheader("Summary")
+                        summary_df = pd.DataFrame([
+                            {"Metric": "Rooms Sold", "Value": summary["rooms_sold"]},
+                            {"Metric": "Value", "Value": f"{summary['value']:.2f}"},
+                            {"Metric": "ARR", "Value": f"{summary['arr']:.2f}"},
+                            {"Metric": "Occ%", "Value": f"{summary['occ_percent']:.2f}%"},
+                            {"Metric": "Total Pax", "Value": summary["total_pax"]},
+                            {"Metric": "Total Inventory", "Value": summary["total_inventory"]},
+                            {"Metric": "GST ", "Value": f"{summary['gst']:.2f}"},
+                            {"Metric": "Commission", "Value": f"{summary['commission']:.2f}"},
+                            {"Metric": "TAX Deduction", "Value": f"{summary['tax_deduction']:.2f}"},
+                            {"Metric": "M.T.D Occ %", "Value": f"{summary['mtd_occ_percent']:.2f}%"},
+                            {"Metric": "M.T.D Pax", "Value": summary["mtd_pax"]},
+                            {"Metric": "M.T.D Rooms", "Value": summary["mtd_rooms"]},
+                            {"Metric": "M.T.D GST", "Value": f"{summary['mtd_gst']:.2f}"},
+                            {"Metric": "M.T.D Tax Deduc", "Value": f"{summary['mtd_tax_deduction']:.2f}"},
+                            {"Metric": "M.T.D Value", "Value": f"{summary['mtd_value']:.2f}"}
+                        ])
+                        st.dataframe(summary_df, use_container_width=True)
                 else:
                     st.info("No active bookings on this day.")
