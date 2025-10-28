@@ -718,9 +718,9 @@ def show_daily_status():
                 if daily_bookings:
                     daily_bookings, overbookings = assign_inventory_numbers(daily_bookings, prop)
                     df = create_inventory_table(daily_bookings, overbookings, prop)
-                    # Remove HTML links from Booking ID column
+                    # Remove HTML links from Booking ID column and apply styling
                     if 'Booking ID' in df.columns:
-                        df['Booking ID'] = df['Booking ID'].apply(lambda x: x.split('">')[1].split('</a>')[0] if '">' in str(x) and '</a>' in str(x) else x)
+                        df['Booking ID'] = df['Booking ID'].apply(lambda x: f'<span style="font-size: 0.75em; word-break: break-all;">{x.split(">")[1].split("</a>")[0] if ">" in str(x) and "</a>" in str(x) else x}</span>')
                     tooltip_columns = ['Guest Name', 'Room No', 'Remarks', 'Mobile No', 'MOB', 'Plan', 'Submitted by', 'Modified by']
                     for col in tooltip_columns:
                         if col in df.columns:
