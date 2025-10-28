@@ -272,9 +272,9 @@ def show_edit_online_reservations(selected_booking_id=None):
         # Row 9: Submitted by, Modified by
         col1, col2 = st.columns(2)
         with col1:
-            submitted_by = st.text_input("Submitted by", value=reservation.get("submitted_by", ""))
+            submitted_by = st.text_input("Submitted by", value=reservation.get("submitted_by", ""), disabled=True)
         with col2:
-            modified_by = st.text_input("Modified by", value=reservation.get("modified_by", ""))
+            modified_by = st.text_input("Modified by", value=st.session_state.username, disabled=True)
 
         # Hidden/Other fields
         total_amount_with_services = safe_float(reservation.get("total_amount_with_services", 0.0))
@@ -314,8 +314,8 @@ def show_edit_online_reservations(selected_booking_id=None):
                     "booking_status": booking_status,
                     "payment_status": payment_status,
                     "remarks": remarks,
-                    "submitted_by": submitted_by,
-                    "modified_by": modified_by,
+                    "submitted_by": reservation.get("submitted_by", ""),
+                    "modified_by": st.session_state.username,
                     "total_amount_with_services": total_amount_with_services,
                     "ota_gross_amount": ota_gross_amount,
                     "ota_commission": ota_commission,
