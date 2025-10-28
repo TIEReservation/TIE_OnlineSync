@@ -59,15 +59,6 @@ def truncate_string(value, max_length=50):
         return value
     return str(value)[:max_length] if len(str(value)) > max_length else str(value)
 
-def get_room_options(property_name):
-    """Return room number and room type options based on property."""
-    if property_name == "Millionaire":
-        room_numbers = ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", " ", "No Show"]
-    else:
-        room_numbers = ["Day Use 1", "Day Use 2", " ", "No Show"]
-    room_types = ["Day Use", "No Show", "Others"]
-    return room_numbers, room_types
-
 def insert_online_reservation(reservation):
     """Insert a new online reservation into Supabase."""
     try:
@@ -139,20 +130,21 @@ def process_and_sync_excel(uploaded_file):
             no_of_adults, no_of_children, no_of_infant = parse_pax(pax_str)
             total_pax = no_of_adults + no_of_children + no_of_infant
             
-            # Room No: truncate and strip, respecting the 50-character limit
-            room_no = truncate_string(str(row.get("room ids", "")).strip(), 50)
+            # Room No: truncate and strip
+            room_no_raw = str(row.get("room ids", "")).strip()
+            room_no = truncate_string(room_no_raw, 50)
             
-            # Room Type: Get from Excel, ensure it's one of the valid types
+            # Room Type: validate based on property
             room_type_raw = str(row.get("room types", "")).strip()
-            room_numbers, room_types = get_room_options(property_name)
+            if property_name == "Millionaire":
+                valid_room_types = ["Day Use", "No Show", "Others"]
+            else:
+                valid_room_types = ["Day Use", "No Show", "Others"]
             
-            # If room_type_raw is in the valid room_types list, use it; otherwise default to first option
-            if room_type_raw in room_types:
+            if room_type_raw in valid_room_types:
                 room_type = room_type_raw
             else:
-                # Default to "Day Use" if available, otherwise first in list
-                room_type = "Day Use" if "Day Use" in room_types else room_types[0]
-            
+                room_type = "Day Use"
             room_type = truncate_string(room_type, 50)
             
             rate_plans = truncate_string(row.get("rate_plans", ""), 50)
