@@ -238,7 +238,7 @@ def show_edit_online_reservations(selected_booking_id=None):
         with col5:
             current_balance_mop = reservation.get("balance_mop", "")
             balance_mop_index = mop_options.index(current_balance_mop) if current_balance_mop in mop_options else 0
-            balance_mop = st.selectbox("Balance Mop", mop_attack_options, index=balance_mop_index)
+            balance_mop = st.selectbox("Balance Mop", mop_options, index=balance_mop_index)
 
         # Row 7: MOB, Booking Status, Payment Status
         col1, col2, col3 = st.columns(3)
