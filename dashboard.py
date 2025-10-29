@@ -219,7 +219,7 @@ def highlight_group_totals(row):
     return ['background-color: #e6f3ff; font-weight: bold'] * len(row) if row["Property"] == "TOTAL" else [''] * len(row)
 
 def show_dashboard():
-    st.title("Overall Summary")  # ← Changed
+    st.title("Overall Summary")
 
     if st.button("Refresh Dashboard Data"):
         st.cache_data.clear()
@@ -240,7 +240,7 @@ def show_dashboard():
         # === DISPLAY DATES ===
         date_labels = [d.strftime('%b %d') for d in dates]
         
-        # === DISPLAY COLUMNS (Same for all tables) ===
+        # === DISPLAY COLUMNS (Same for all) ===
         display_df = df.copy()
         display_df.columns = [
             "Property Name", "Total Inv",
@@ -277,25 +277,37 @@ def show_dashboard():
         
         # === TIE TEAMS ===
         st.markdown("---")
-        st.subheader("TIE Teams")  # ← Changed
+        st.subheader("TIE Teams")
 
         def make_team_df(prop_list):
             team_df = df[df["Property Name"].isin(prop_list)].copy()
             if team_df.empty:
                 return pd.DataFrame(), None
-            
+
+            # Extract only needed columns
             team_df = team_df[["Property Name", "Total Inventory"] + 
-                             [f"{d.strftime('%Y-%m-%d')} Sold" for d in dates] + 
-                             [f"{d.strftime('%Y-%m-%d')} Unsold" for d in dates]]
+                             [f"{d.strftime('%Y-%m-%d')} Sold" for d in dates]].copy()
             
-            team_totals = {"Property Name": "TOTAL", "Total Inventory": team_df["Total Inventory"].sum()}
+            # === RECALCULATE UNSOLD CORRECTLY ===
             for d in dates:
                 d_str = d.strftime('%Y-%m-%d')
-                team_totals[f"{d_str} Sold"] = team_df[f"{d_str} Sold"].sum()
-                team_totals[f"{d_str} Unsold"] = team_df[f"{d_str} Unsold"].sum()
-            
+                team_df[f"{d_str} Unsold"] = team_df["Total Inventory"] - team_df[f"{d_str} Sold"]
+
+            # === TOTAL ROW ===
+            team_totals = {
+                "Property Name": "TOTAL",
+                "Total Inventory": team_df["Total Inventory"].sum()
+            }
+            for d in dates:
+                d_str = d.strftime('%Y-%m-%d')
+                sold = team_df[f"{d_str} Sold"].sum()
+                unsold = team_totals["Total Inventory"] - sold
+                team_totals[f"{d_str} Sold"] = sold
+                team_totals[f"{d_str} Unsold"] = unsold
+
             team_df = pd.concat([team_df, pd.DataFrame([team_totals])], ignore_index=True)
             
+            # === RENAME COLUMNS ===
             team_df.columns = [
                 "Property", "Total Inv",
                 f"{date_labels[0]} Sold", f"{date_labels[0]} Unsold",
