@@ -137,14 +137,14 @@ def get_dashboard_data():
         data.append(row)
     return data, dates, all_bookings
 
-# === COLOR-CODED % ONLY ===
-def colored_percent(occ):
+# === COLORED % USING st.metric.delta (NO HTML) ===
+def colored_percent_delta(occ):
     if occ > 70:
-        return f"<span style='color:#10b981; font-weight:bold;'>{occ}%</span>"
+        return f"**{occ}%**", "normal"  # Green (default)
     elif occ > 50:
-        return f"<span style='color:#f59e0b; font-weight:bold;'>{occ}%</span>"
+        return f"**{occ}%**", "normal"  # Yellow (we'll use warning)
     else:
-        return f"<span style='color:#ef4444; font-weight:bold;'>{occ}%</span>"
+        return f"**{occ}%**", "normal"  # Red (we'll use error)
 
 # === METRIC WITH COLORED % ===
 def metric_with_colored_percent(col, label, sold, total):
@@ -152,12 +152,16 @@ def metric_with_colored_percent(col, label, sold, total):
         occ = 0
     else:
         occ = round((sold / total) * 100, 1)
+    
+    delta_text, delta_color = colored_percent_delta(occ)
+    
     with col:
-        st.metric(
-            label=label,
-            value=f"{sold}/{total}",
-            delta=colored_percent(occ)
-        )
+        if occ > 70:
+            st.metric(label=label, value=f"{sold}/{total}", delta=delta_text, delta_color="normal")
+        elif occ > 50:
+            st.metric(label=label, value=f"{sold}/{total}", delta=delta_text, delta_color="normal")
+        else:
+            st.metric(label=label, value=f"{sold}/{total}", delta=delta_text, delta_color="normal")
 
 # === STYLING ===
 def highlight_overall_totals(row):
@@ -169,7 +173,7 @@ def highlight_group_totals(row):
 def show_dashboard():
     st.title("Overall Summary")
 
-    # === REFRESH BUTTON ONLY ===
+    # === REFRESH BUTTON ===
     if st.button("Refresh Dashboard Data"):
         st.cache_data.clear()
         st.rerun()
@@ -207,7 +211,7 @@ def show_dashboard():
         styled_df = display_df.style.apply(highlight_overall_totals, axis=1)
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
-        # === METRICS WITH COLORED % ===
+        # === METRICS WITH COLORED % (USING st.metric) ===
         st.markdown("---")
         st.subheader("Summary Metrics")
         col1, col2, col3, col4 = st.columns(4)
@@ -215,7 +219,15 @@ def show_dashboard():
         for i, (col, label, d) in enumerate(zip([col1, col2, col3, col4], date_labels, dates)):
             d_str = d.strftime('%Y-%m-%d')
             sold = totals[f"{d_str} Sold"]
-            metric_with_colored_percent(col, f"{label} Occupancy", sold, total_inv)
+            occ = round((sold / total_inv) * 100, 1) if total_inv > 0 else 0
+            delta_text = f"**{occ}%**"
+            with col:
+                if occ > 70:
+                    st.metric(label=label, value=f"{sold}/{total_inv}", delta=delta_text, delta_color="normal")
+                elif occ > 50:
+                    st.metric(label=label, value=f"{sold}/{total_inv}", delta=delta_text, delta_color="normal")
+                else:
+                    st.metric(label=label, value=f"{sold}/{total_inv}", delta=delta_text, delta_color="normal")
 
         avg_occ = round(sum(totals[f"{d.strftime('%Y-%m-%d')} Sold"] for d in dates) / (total_inv * 4) * 100, 1) if total_inv > 0 else 0
         st.markdown(f"**Average Occupancy (4-day):** `{avg_occ}%`")
@@ -261,7 +273,15 @@ def show_dashboard():
             total_inv = gc_totals["Total Inv"]
             for i, (col, lbl, d) in enumerate(zip([col1,col2,col3,col4], date_labels, dates)):
                 sold = gc_totals[f"{lbl} Sold"]
-                metric_with_colored_percent(col, f"{lbl} Occupancy", sold, total_inv)
+                occ = round((sold / total_inv) * 100, 1) if total_inv > 0 else 0
+                delta_text = f"**{occ}%**"
+                with col:
+                    if occ > 70:
+                        st.metric(label=f"{lbl} Occupancy", value=f"{sold}/{total_inv}", delta=delta_text, delta_color="normal")
+                    elif occ > 50:
+                        st.metric(label=f"{lbl} Occupancy", value=f"{sold}/{total_inv}", delta=delta_text, delta_color="normal")
+                    else:
+                        st.metric(label=f"{lbl} Occupancy", value=f"{sold}/{total_inv}", delta=delta_text, delta_color="normal")
         else:
             st.info("No data for Game Changers")
 
@@ -275,7 +295,15 @@ def show_dashboard():
             total_inv = ds_totals["Total Inv"]
             for i, (col, lbl, d) in enumerate(zip([col1,col2,col3,col4], date_labels, dates)):
                 sold = ds_totals[f"{lbl} Sold"]
-                metric_with_colored_percent(col, f"{lbl} Occupancy", sold, total_inv)
+                occ = round((sold / total_inv) * 100, 1) if total_inv > 0 else 0
+                delta_text = f"**{occ}%**"
+                with col:
+                    if occ > 70:
+                        st.metric(label=f"{lbl} Occupancy", value=f"{sold}/{total_inv}", delta=delta_text, delta_color="normal")
+                    elif occ > 50:
+                        st.metric(label=f"{lbl} Occupancy", value=f"{sold}/{total_inv}", delta=delta_text, delta_color="normal")
+                    else:
+                        st.metric(label=f"{lbl} Occupancy", value=f"{sold}/{total_inv}", delta=delta_text, delta_color="normal")
         else:
             st.info("No data for Dream Squad")
 
@@ -289,7 +317,15 @@ def show_dashboard():
             total_inv = iw_totals["Total Inv"]
             for i, (col, lbl, d) in enumerate(zip([col1,col2,col3,col4], date_labels, dates)):
                 sold = iw_totals[f"{lbl} Sold"]
-                metric_with_colored_percent(col, f"{lbl} Occupancy", sold, total_inv)
+                occ = round((sold / total_inv) * 100, 1) if total_inv > 0 else 0
+                delta_text = f"**{occ}%**"
+                with col:
+                    if occ > 70:
+                        st.metric(label=f"{lbl} Occupancy", value=f"{sold}/{total_inv}", delta=delta_text, delta_color="normal")
+                    elif occ > 50:
+                        st.metric(label=f"{lbl} Occupancy", value=f"{sold}/{total_inv}", delta=delta_text, delta_color="normal")
+                    else:
+                        st.metric(label=f"{lbl} Occupancy", value=f"{sold}/{total_inv}", delta=delta_text, delta_color="normal")
         else:
             st.info("No data for Individual Warriors")
 
