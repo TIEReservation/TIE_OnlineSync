@@ -205,11 +205,9 @@ def get_dashboard_data():
         for d in dates:
             d_str = d.strftime('%Y-%m-%d')
             sold = count_rooms_sold(filter_bookings_for_day(all_bookings, d), prop)
-            unsold = total_inv - sold
             row[f"{d_str} Sold"] = sold
-            row[f"{d_str} Unsold"] = unsold
         data.append(row)
-    return data, dates
+    return data, dates, all_bookings
 
 # === STYLING ===
 def highlight_overall_totals(row):
@@ -226,8 +224,13 @@ def show_dashboard():
         st.rerun()
     
     try:
-        dashboard_data, dates = get_dashboard_data()
+        dashboard_data, dates, all_bookings = get_dashboard_data()
         df = pd.DataFrame(dashboard_data)
+        
+        # === ADD UNSOLD TO MAIN DF ===
+        for d in dates:
+            d_str = d.strftime('%Y-%m-%d')
+            df[f"{d_str} Unsold"] = df["Total Inventory"] - df[f"{d_str} Sold"]
         
         # === OVERALL TOTALS ===
         totals = {"Property Name": "TOTAL", "Total Inventory": df["Total Inventory"].sum()}
@@ -240,7 +243,7 @@ def show_dashboard():
         # === DISPLAY DATES ===
         date_labels = [d.strftime('%b %d') for d in dates]
         
-        # === DISPLAY COLUMNS (Same for all) ===
+        # === DISPLAY COLUMNS ===
         display_df = df.copy()
         display_df.columns = [
             "Property Name", "Total Inv",
@@ -280,42 +283,37 @@ def show_dashboard():
         st.subheader("TIE Teams")
 
         def make_team_df(prop_list):
-            team_df = df[df["Property Name"].isin(prop_list)].copy()
-            if team_df.empty:
-                return pd.DataFrame(), None
+            team_data = []
+            total_inv_sum = 0
+            total_sold = {d: 0 for d in dates}
 
-            # Extract only needed columns
-            team_df = team_df[["Property Name", "Total Inventory"] + 
-                             [f"{d.strftime('%Y-%m-%d')} Sold" for d in dates]].copy()
-            
-            # === RECALCULATE UNSOLD CORRECTLY ===
-            for d in dates:
-                d_str = d.strftime('%Y-%m-%d')
-                team_df[f"{d_str} Unsold"] = team_df["Total Inventory"] - team_df[f"{d_str} Sold"]
+            for prop in prop_list:
+                if prop not in PROPERTY_INVENTORY:
+                    continue
+                total_inv = get_total_inventory(prop)
+                row = {"Property": prop, "Total Inv": total_inv}
+                for d in dates:
+                    sold = count_rooms_sold(filter_bookings_for_day(all_bookings, d), prop)
+                    unsold = total_inv - sold
+                    d_label = d.strftime('%b %d')
+                    row[f"{d_label} Sold"] = sold
+                    row[f"{d_label} Unsold"] = unsold
+                    total_sold[d] += sold
+                team_data.append(row)
+                total_inv_sum += total_inv
 
             # === TOTAL ROW ===
-            team_totals = {
-                "Property Name": "TOTAL",
-                "Total Inventory": team_df["Total Inventory"].sum()
-            }
+            total_row = {"Property": "TOTAL", "Total Inv": total_inv_sum}
             for d in dates:
-                d_str = d.strftime('%Y-%m-%d')
-                sold = team_df[f"{d_str} Sold"].sum()
-                unsold = team_totals["Total Inventory"] - sold
-                team_totals[f"{d_str} Sold"] = sold
-                team_totals[f"{d_str} Unsold"] = unsold
+                d_label = d.strftime('%b %d')
+                sold = total_sold[d]
+                unsold = total_inv_sum - sold
+                total_row[f"{d_label} Sold"] = sold
+                total_row[f"{d_label} Unsold"] = unsold
+            team_data.append(total_row)
 
-            team_df = pd.concat([team_df, pd.DataFrame([team_totals])], ignore_index=True)
-            
-            # === RENAME COLUMNS ===
-            team_df.columns = [
-                "Property", "Total Inv",
-                f"{date_labels[0]} Sold", f"{date_labels[0]} Unsold",
-                f"{date_labels[1]} Sold", f"{date_labels[1]} Unsold",
-                f"{date_labels[2]} Sold", f"{date_labels[2]} Unsold",
-                f"{date_labels[3]} Sold", f"{date_labels[3]} Unsold"
-            ]
-            return team_df, team_totals
+            team_df = pd.DataFrame(team_data)
+            return team_df, total_row
 
         # === 1. Game Changers ===
         st.markdown("### Game Changers")
@@ -324,10 +322,9 @@ def show_dashboard():
             styled_gc = gc_df.style.apply(highlight_group_totals, axis=1)
             st.dataframe(styled_gc, use_container_width=True, hide_index=True)
             col1, col2, col3, col4 = st.columns(4)
-            total_inv = gc_totals["Total Inventory"]
+            total_inv = gc_totals["Total Inv"]
             for i, (col, lbl, d) in enumerate(zip([col1,col2,col3,col4], date_labels, dates)):
-                d_str = d.strftime('%Y-%m-%d')
-                sold = gc_totals[f"{d_str} Sold"]
+                sold = gc_totals[f"{lbl} Sold"]
                 occ = round((sold / total_inv) * 100, 1) if total_inv > 0 else 0
                 with col:
                     st.metric(f"{lbl} Occupancy", f"{sold}/{total_inv}", f"{occ}%")
@@ -341,10 +338,9 @@ def show_dashboard():
             styled_ds = ds_df.style.apply(highlight_group_totals, axis=1)
             st.dataframe(styled_ds, use_container_width=True, hide_index=True)
             col1, col2, col3, col4 = st.columns(4)
-            total_inv = ds_totals["Total Inventory"]
+            total_inv = ds_totals["Total Inv"]
             for i, (col, lbl, d) in enumerate(zip([col1,col2,col3,col4], date_labels, dates)):
-                d_str = d.strftime('%Y-%m-%d')
-                sold = ds_totals[f"{d_str} Sold"]
+                sold = ds_totals[f"{lbl} Sold"]
                 occ = round((sold / total_inv) * 100, 1) if total_inv > 0 else 0
                 with col:
                     st.metric(f"{lbl} Occupancy", f"{sold}/{total_inv}", f"{occ}%")
@@ -358,10 +354,9 @@ def show_dashboard():
             styled_iw = iw_df.style.apply(highlight_group_totals, axis=1)
             st.dataframe(styled_iw, use_container_width=True, hide_index=True)
             col1, col2, col3, col4 = st.columns(4)
-            total_inv = iw_totals["Total Inventory"]
+            total_inv = iw_totals["Total Inv"]
             for i, (col, lbl, d) in enumerate(zip([col1,col2,col3,col4], date_labels, dates)):
-                d_str = d.strftime('%Y-%m-%d')
-                sold = iw_totals[f"{d_str} Sold"]
+                sold = iw_totals[f"{lbl} Sold"]
                 occ = round((sold / total_inv) * 100, 1) if total_inv > 0 else 0
                 with col:
                     st.metric(f"{lbl} Occupancy", f"{sold}/{total_inv}", f"{occ}%")
