@@ -516,7 +516,7 @@ def show_new_reservation_form():
             advance_amount = st.number_input("Advance Amount", min_value=0.0, value=0.0, step=100.0, key=f"{form_key}_advance")
         with row5_col4:
             advance_mop = st.selectbox("Advance MOP",
-                                       ["Cash", "Card", "UPI", "Bank Transfer", "ClearTrip", "TIE Management", "Booking.com", "Pending", "Other"],
+                                       [" ", "Cash", "Card", "UPI", "Bank Transfer", "ClearTrip", "TIE Management", "Booking.com", "Pending", "Other"],
                                        key=f"{form_key}_advmop")
             if advance_mop == "Other":
                 custom_advance_mop = st.text_input("Custom Advance MOP", key=f"{form_key}_custom_advmop")
@@ -530,7 +530,7 @@ def show_new_reservation_form():
             st.text_input("Balance Amount", value=f"₹{balance_amount:.2f}", disabled=True, key=f"{form_key}_balance_amount", help="Total Tariff - Advance Amount")
         with row6_col2:
             balance_mop = st.selectbox("Balance MOP",
-                                       ["Pending", "Cash", "Card", "UPI", "Bank Transfer", "Other"],
+                                       [" ", "Pending", "Cash", "Card", "UPI", "Bank Transfer", "Other"],
                                        index=0,
                                        key=f"{form_key}_balmop")
             if balance_mop == "Other":
