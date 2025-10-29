@@ -20,76 +20,6 @@ except KeyError as e:
     st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets configuration.")
     st.stop()
 
-# === DARK MODE TOGGLE ===
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = False
-
-def toggle_dark_mode():
-    st.session_state.dark_mode = not st.session_state.dark_mode
-    st.rerun()
-
-# === APPLY DARK MODE (FULL OVERRIDE) ===
-def apply_theme():
-    if st.session_state.dark_mode:
-        st.markdown("""
-        <style>
-        /* Main App */
-        .main > div {
-            background-color: #0e1117 !important;
-            color: #fafafa !important;
-        }
-        .stApp {
-            background-color: #0e1117 !important;
-            color: #fafafa !important;
-        }
-        /* Headers */
-        h1, h2, h3, h4, h5, h6 {
-            color: #ffffff !important;
-        }
-        /* Sidebar */
-        .css-1d391kg, .css-1v0mbdj {
-            background-color: #1f2937 !important;
-        }
-        /* DataFrame */
-        .stDataFrame {
-            background-color: #1f2937 !important;
-            border: 1px solid #374151 !important;
-        }
-        .stDataFrame th {
-            background-color: #374151 !important;
-            color: #e5e7eb !important;
-            font-weight: bold;
-        }
-        .stDataFrame td {
-            background-color: #1f2937 !important;
-            color: #e5e7eb !important;
-        }
-        /* Buttons */
-        .stButton > button {
-            background-color: #374151 !important;
-            color: #e5e7eb !important;
-            border: 1px solid #4b5563 !important;
-            border-radius: 8px;
-        }
-        .stButton > button:hover {
-            background-color: #4b5563 !important;
-            border-color: #6b7280 !important;
-        }
-        /* Metrics */
-        .metric-card {
-            background-color: #1f2937 !important;
-            border-radius: 12px;
-            padding: 12px;
-            text-align: center;
-            border: 1px solid;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("")
-
-apply_theme()  # Apply on every load
-
 # === PROPERTY MAPPING & INVENTORY ===
 property_mapping = {
     "La Millionaire Luxury Resort": "La Millionaire Resort",
@@ -207,32 +137,27 @@ def get_dashboard_data():
         data.append(row)
     return data, dates, all_bookings
 
-# === COLOR-CODED METRIC ===
-def colored_metric(col, label, sold, total):
+# === COLOR-CODED % ONLY ===
+def colored_percent(occ):
+    if occ > 70:
+        return f"<span style='color:#10b981; font-weight:bold;'>{occ}%</span>"
+    elif occ > 50:
+        return f"<span style='color:#f59e0b; font-weight:bold;'>{occ}%</span>"
+    else:
+        return f"<span style='color:#ef4444; font-weight:bold;'>{occ}%</span>"
+
+# === METRIC WITH COLORED % ===
+def metric_with_colored_percent(col, label, sold, total):
     if total == 0:
         occ = 0
-        color = "#6b7280"  # gray-500
-        border = "#4b5563"
     else:
         occ = round((sold / total) * 100, 1)
-        if occ > 70:
-            color = "#10b981"  # emerald-500
-            border = "#059669"
-        elif occ > 50:
-            color = "#f59e0b"  # amber-500
-            border = "#d97706"
-        else:
-            color = "#ef4444"  # red-500
-            border = "#dc2626"
-
     with col:
-        st.markdown(f"""
-        <div class="metric-card" style="border-color: {border};">
-            <h4 style="margin:0; color:{color};">{label}</h4>
-            <p style="margin:4px 0 0; font-size:18px; font-weight:bold; color:{color};">{sold}/{total}</p>
-            <p style="margin:2px 0 0; font-size:16px; color:{color};">{occ}%</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.metric(
+            label=label,
+            value=f"{sold}/{total}",
+            delta=colored_percent(occ)
+        )
 
 # === STYLING ===
 def highlight_overall_totals(row):
@@ -244,15 +169,10 @@ def highlight_group_totals(row):
 def show_dashboard():
     st.title("Overall Summary")
 
-    # === DARK MODE + REFRESH BUTTONS ===
-    col1, col2, col3 = st.columns([4, 1, 1])
-    with col2:
-        if st.button("Dark" if not st.session_state.dark_mode else "Light", key="theme_btn"):
-            toggle_dark_mode()
-    with col3:
-        if st.button("Refresh"):
-            st.cache_data.clear()
-            st.rerun()
+    # === REFRESH BUTTON ONLY ===
+    if st.button("Refresh Dashboard Data"):
+        st.cache_data.clear()
+        st.rerun()
 
     try:
         dashboard_data, dates, all_bookings = get_dashboard_data()
@@ -287,7 +207,7 @@ def show_dashboard():
         styled_df = display_df.style.apply(highlight_overall_totals, axis=1)
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
-        # === COLOR METRICS ===
+        # === METRICS WITH COLORED % ===
         st.markdown("---")
         st.subheader("Summary Metrics")
         col1, col2, col3, col4 = st.columns(4)
@@ -295,7 +215,7 @@ def show_dashboard():
         for i, (col, label, d) in enumerate(zip([col1, col2, col3, col4], date_labels, dates)):
             d_str = d.strftime('%Y-%m-%d')
             sold = totals[f"{d_str} Sold"]
-            colored_metric(col, f"{label} Occupancy", sold, total_inv)
+            metric_with_colored_percent(col, f"{label} Occupancy", sold, total_inv)
 
         avg_occ = round(sum(totals[f"{d.strftime('%Y-%m-%d')} Sold"] for d in dates) / (total_inv * 4) * 100, 1) if total_inv > 0 else 0
         st.markdown(f"**Average Occupancy (4-day):** `{avg_occ}%`")
@@ -341,7 +261,7 @@ def show_dashboard():
             total_inv = gc_totals["Total Inv"]
             for i, (col, lbl, d) in enumerate(zip([col1,col2,col3,col4], date_labels, dates)):
                 sold = gc_totals[f"{lbl} Sold"]
-                colored_metric(col, f"{lbl} Occupancy", sold, total_inv)
+                metric_with_colored_percent(col, f"{lbl} Occupancy", sold, total_inv)
         else:
             st.info("No data for Game Changers")
 
@@ -355,7 +275,7 @@ def show_dashboard():
             total_inv = ds_totals["Total Inv"]
             for i, (col, lbl, d) in enumerate(zip([col1,col2,col3,col4], date_labels, dates)):
                 sold = ds_totals[f"{lbl} Sold"]
-                colored_metric(col, f"{lbl} Occupancy", sold, total_inv)
+                metric_with_colored_percent(col, f"{lbl} Occupancy", sold, total_inv)
         else:
             st.info("No data for Dream Squad")
 
@@ -369,7 +289,7 @@ def show_dashboard():
             total_inv = iw_totals["Total Inv"]
             for i, (col, lbl, d) in enumerate(zip([col1,col2,col3,col4], date_labels, dates)):
                 sold = iw_totals[f"{lbl} Sold"]
-                colored_metric(col, f"{lbl} Occupancy", sold, total_inv)
+                metric_with_colored_percent(col, f"{lbl} Occupancy", sold, total_inv)
         else:
             st.info("No data for Individual Warriors")
 
