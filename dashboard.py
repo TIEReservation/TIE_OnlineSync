@@ -60,10 +60,6 @@ PROPERTY_INVENTORY = {
         "all": ["101", "102", "103", "201", "202", "203", "301", "Day Use 1", "Day Use 2", "No Show"],
         "three_bedroom": ["203"]
     },
-    "Le Pondy Beach Side": {
-        "all": ["101", "102", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
-        "three_bedroom": []
-    },
     "Le Royce Villa": {
         "all": ["101", "102", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
         "three_bedroom": []
@@ -276,12 +272,9 @@ def show_dashboard():
         avg_occ = round(sum(totals[f"{d.strftime('%Y-%m-%d')} Sold"] for d in dates) / (total_inv * 4) * 100, 1) if total_inv > 0 else 0
         st.markdown(f"**Average Occupancy (4-day):** `{avg_occ}%`")
         
-        # === GROUP TABLES ===
+        # === SQUAD TABLES - ONE BELOW THE OTHER ===
         st.markdown("---")
         st.subheader("Performance by Squad")
-
-        # Row 1: Game Changers + Individual Warriors
-        col_gc, col_iw = st.columns(2)
 
         def make_group_df(prop_list):
             group_df = df[df["Property Name"].isin(prop_list)].copy()
@@ -293,49 +286,30 @@ def show_dashboard():
             group_df.columns = ["Property", "Total Inv"] + \
                                [f"{lbl} Sold" for lbl in date_labels] + \
                                [f"{lbl} Unsold" for lbl in date_labels]
-            # Calculate group totals
-            group_totals = {
-                "Total Inv": group_df["Total Inv"].sum()
-            }
+            # Group totals
+            group_totals = {"Total Inv": group_df["Total Inv"].sum()}
             for d, lbl in zip(dates, date_labels):
                 sold = group_df[f"{lbl} Sold"].sum()
                 group_totals[f"{lbl} Sold"] = sold
                 group_totals[f"{lbl} Occ %"] = round((sold / group_totals["Total Inv"]) * 100, 1) if group_totals["Total Inv"] > 0 else 0
             return group_df, group_totals
 
-        # Game Changers
-        with col_gc:
-            st.markdown("**Game Changers**")
-            gc_df, gc_totals = make_group_df(GAME_CHANGERS)
-            if not gc_df.empty:
-                st.dataframe(gc_df, use_container_width=True, hide_index=True)
-                # Show totals
-                st.markdown("**Total:**")
-                for lbl in date_labels:
-                    sold = gc_totals[f"{lbl} Sold"]
-                    total = gc_totals["Total Inv"]
-                    occ = gc_totals[f"{lbl} Occ %"]
-                    st.markdown(f"**{lbl}:** `{sold}/{total}` → `{occ}%`")
-            else:
-                st.info("No data")
+        # === 1. Game Changers ===
+        st.markdown("### Game Changers")
+        gc_df, gc_totals = make_group_df(GAME_CHANGERS)
+        if not gc_df.empty:
+            st.dataframe(gc_df, use_container_width=True, hide_index=True)
+            st.markdown("**Total:**")
+            for lbl in date_labels:
+                sold = gc_totals[f"{lbl} Sold"]
+                total = gc_totals["Total Inv"]
+                occ = gc_totals[f"{lbl} Occ %"]
+                st.markdown(f"**{lbl}:** `{sold}/{total}` → `{occ}%`")
+        else:
+            st.info("No data for Game Changers")
 
-        # Individual Warriors
-        with col_iw:
-            st.markdown("**Individual Warriors**")
-            iw_df, iw_totals = make_group_df(INDIVIDUAL_WARRIORS)
-            if not iw_df.empty:
-                st.dataframe(iw_df, use_container_width=True, hide_index=True)
-                st.markdown("**Total:**")
-                for lbl in date_labels:
-                    sold = iw_totals[f"{lbl} Sold"]
-                    total = iw_totals["Total Inv"]
-                    occ = iw_totals[f"{lbl} Occ %"]
-                    st.markdown(f"**{lbl}:** `{sold}/{total}` → `{occ}%`")
-            else:
-                st.info("No data")
-
-        # Row 2: Dream Squad (full width)
-        st.markdown("**Dream Squad**")
+        # === 2. Dream Squad ===
+        st.markdown("### Dream Squad")
         ds_df, ds_totals = make_group_df(DREAM_SQUAD)
         if not ds_df.empty:
             st.dataframe(ds_df, use_container_width=True, hide_index=True)
@@ -346,7 +320,21 @@ def show_dashboard():
                 occ = ds_totals[f"{lbl} Occ %"]
                 st.markdown(f"**{lbl}:** `{sold}/{total}` → `{occ}%`")
         else:
-            st.info("No data")
+            st.info("No data for Dream Squad")
+
+        # === 3. Individual Warriors ===
+        st.markdown("### Individual Warriors")
+        iw_df, iw_totals = make_group_df(INDIVIDUAL_WARRIORS)
+        if not iw_df.empty:
+            st.dataframe(iw_df, use_container_width=True, hide_index=True)
+            st.markdown("**Total:**")
+            for lbl in date_labels:
+                sold = iw_totals[f"{lbl} Sold"]
+                total = iw_totals["Total Inv"]
+                occ = iw_totals[f"{lbl} Occ %"]
+                st.markdown(f"**{lbl}:** `{sold}/{total}` → `{occ}%`")
+        else:
+            st.info("No data for Individual Warriors")
                 
     except Exception as e:
         st.error(f"Error generating dashboard: {e}")
