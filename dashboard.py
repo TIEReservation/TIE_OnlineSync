@@ -14,7 +14,7 @@ except KeyError as e:
     st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets configuration.")
     st.stop()
 
-# Property synonym mapping (from inventory.py)
+# Property synonym mapping
 property_mapping = {
     "La Millionaire Luxury Resort": "La Millionaire Resort",
     "Le Poshe Beach View": "Le Poshe Beach view",
@@ -26,7 +26,7 @@ reverse_mapping = {}
 for variant, canonical in property_mapping.items():
     reverse_mapping.setdefault(canonical, []).append(variant)
 
-# Property inventory mapping (from inventory.py)
+# Property inventory mapping
 PROPERTY_INVENTORY = {
     "Le Poshe Beach view": {
         "all": ["101", "102", "201", "202", "203", "204", "301", "302", "303", "304", "Day Use 1", "Day Use 2", "No Show"],
@@ -96,18 +96,15 @@ def get_total_inventory(property_name):
     return len([inv for inv in inventory if not inv.startswith(("Day Use", "No Show"))])
 
 def sanitize_string(value, default="Unknown"):
-    """Convert value to string, handling None and non-string types."""
     return str(value).strip() if value is not None else default
 
 def safe_int(value, default=0):
-    """Safely convert value to int."""
     try:
         return int(value) if value is not None else default
     except (ValueError, TypeError):
         return default
 
 def normalize_booking(booking, is_online):
-    """Normalize booking dict to common schema."""
     booking_id = sanitize_string(booking.get('booking_id'))
     payment_status = sanitize_string(booking.get('payment_status')).title()
     
@@ -146,7 +143,6 @@ def normalize_booking(booking, is_online):
         return None
 
 def load_bookings_for_date_range(start_date, end_date):
-    """Load all bookings for the date range."""
     all_bookings = []
     
     try:
@@ -172,23 +168,18 @@ def load_bookings_for_date_range(start_date, end_date):
         return []
 
 def filter_bookings_for_day(bookings, target_date):
-    """Filter bookings that are active on the target date."""
     filtered = []
     for b in bookings:
         try:
             check_in = date.fromisoformat(b["check_in"])
             check_out = date.fromisoformat(b["check_out"])
-            
-            # Booking is active if target_date >= check_in and target_date < check_out
             if target_date >= check_in and target_date < check_out:
                 filtered.append(b)
         except Exception as e:
             logging.warning(f"Error filtering booking {b.get('booking_id', 'Unknown')}: {e}")
-    
     return filtered
 
 def count_rooms_sold(bookings, property_name):
-    """Count total rooms sold for a property on a specific date."""
     rooms_sold = 0
     inventory = PROPERTY_INVENTORY.get(property_name, {"all": []})["all"]
     inventory_lower = [i.lower() for i in inventory]
@@ -203,7 +194,6 @@ def count_rooms_sold(bookings, property_name):
         if not inventory_no:
             continue
         
-        # Validate rooms
         valid = all(r.lower() in inventory_lower for r in inventory_no)
         if valid:
             rooms_sold += len(inventory_no)
@@ -211,23 +201,17 @@ def count_rooms_sold(bookings, property_name):
     return rooms_sold
 
 def get_dashboard_data():
-    """Fetch dashboard data for yesterday, today, tomorrow, and day after tomorrow."""
     today = date.today()
     yesterday = today - timedelta(days=1)
     tomorrow = today + timedelta(days=1)
     day_after_tomorrow = today + timedelta(days=2)
     
     dates = [yesterday, today, tomorrow, day_after_tomorrow]
-    
-    # Load bookings for the entire range
     start_date = yesterday
     end_date = day_after_tomorrow
     all_bookings = load_bookings_for_date_range(start_date, end_date)
-    
-    # Get all properties
     properties = sorted(PROPERTY_INVENTORY.keys())
     
-    # Build dashboard data
     dashboard_data = []
     
     for prop in properties:
@@ -251,11 +235,10 @@ def get_dashboard_data():
     return dashboard_data, dates
 
 def show_dashboard():
-    """Display the dashboard with real inventory data."""
-    st.title("🎯 Game Changers Dashboard")
+    st.title("Game Changers Dashboard")
     
-    # Add refresh button
-    if st.button("🔄 Refresh Dashboard Data"):
+    # Refresh button
+    if st.button("Refresh Dashboard Data"):
         st.cache_data.clear()
         st.rerun()
     
@@ -266,84 +249,76 @@ def show_dashboard():
             st.info("No data available.")
             return
         
-        # Create DataFrame
         df = pd.DataFrame(dashboard_data)
         
-        # Calculate totals row
+        # Calculate totals
         totals = {"Property Name": "TOTAL", "Total Inventory": df["Total Inventory"].sum()}
         for target_date in dates:
             date_str = target_date.strftime('%Y-%m-%d')
-            totals[f"{date_str} Sold"] = df[f"{date_str} Sold"].sum()
-            totals[f"{date_str} Unsold"] = df[f"{date_str} Unsold"].sum()
+            sold = df[f"{date_str} Sold"].sum()
+            unsold = df[f"{date_str} Unsold"].sum()
+            totals[f"{date_str} Sold"] = sold
+            totals[f"{date_str} Unsold"] = unsold
+            # Calculate occupancy percentage
+            total_inv = totals["Total Inventory"]
+            totals[f"{date_str} Occupancy %"] = round((sold / total_inv) * 100, 1) if total_inv > 0 else 0
         
-        # Add totals row
         df = pd.concat([df, pd.DataFrame([totals])], ignore_index=True)
         
-        # Format date columns for display
+        # Format display dates
         yesterday_str = dates[0].strftime('%b %d')
         today_str = dates[1].strftime('%b %d')
         tomorrow_str = dates[2].strftime('%b %d')
         day_after_str = dates[3].strftime('%b %d')
         
-        # Rename columns for better display
+        # Display table
         display_df = df.copy()
         display_df.columns = [
-            "Property Name",
-            "Total Inv",
-            f"{yesterday_str} Sold",
-            f"{yesterday_str} Unsold",
-            f"{today_str} Sold",
-            f"{today_str} Unsold",
-            f"{tomorrow_str} Sold",
-            f"{tomorrow_str} Unsold",
-            f"{day_after_str} Sold",
-            f"{day_after_str} Unsold"
+            "Property Name", "Total Inv",
+            f"{yesterday_str} Sold", f"{yesterday_str} Unsold",
+            f"{today_str} Sold", f"{today_str} Unsold",
+            f"{tomorrow_str} Sold", f"{tomorrow_str} Unsold",
+            f"{day_after_str} Sold", f"{day_after_str} Unsold"
         ]
         
-        # Display header info
-        st.markdown(f"### 📊 Dashboard for {yesterday_str} to {day_after_str}")
+        st.markdown(f"### Dashboard for {yesterday_str} to {day_after_str}")
         st.markdown("---")
         
-        # Style the dataframe
         def highlight_totals(row):
             if row["Property Name"] == "TOTAL":
                 return ['background-color: #e6f3ff; font-weight: bold'] * len(row)
             return [''] * len(row)
         
         styled_df = display_df.style.apply(highlight_totals, axis=1)
-        
-        # Display table
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
         
-        # Display summary metrics
+        # === Summary Metrics with Occupancy % ===
         st.markdown("---")
-        st.subheader("📈 Summary Metrics")
+        st.subheader("Summary Metrics")
         
         col1, col2, col3, col4 = st.columns(4)
         
-        with col1:
-            st.metric(
-                label=f"{yesterday_str} Occupancy",
-                value=f"{totals[dates[0].strftime('%Y-%m-%d') + ' Sold']} / {totals['Total Inventory']}"
-            )
+        def metric_with_occupancy(col, date_label, date_obj):
+            date_key = date_obj.strftime('%Y-%m-%d')
+            sold = totals[f"{date_key} Sold"]
+            total = totals["Total Inventory"]
+            occupancy = totals[f"{date_key} Occupancy %"]
+            
+            with col:
+                st.metric(
+                    label=f"{date_label} Occupancy",
+                    value=f"{sold}/{total}",
+                    delta=f"{occupancy}%"
+                )
         
-        with col2:
-            st.metric(
-                label=f"{today_str} Occupancy",
-                value=f"{totals[dates[1].strftime('%Y-%m-%d') + ' Sold']} / {totals['Total Inventory']}"
-            )
+        metric_with_occupancy(col1, yesterday_str, dates[0])
+        metric_with_occupancy(col2, today_str, dates[1])
+        metric_with_occupancy(col3, tomorrow_str, dates[2])
+        metric_with_occupancy(col4, day_after_str, dates[3])
         
-        with col3:
-            st.metric(
-                label=f"{tomorrow_str} Occupancy",
-                value=f"{totals[dates[2].strftime('%Y-%m-%d') + ' Sold']} / {totals['Total Inventory']}"
-            )
-        
-        with col4:
-            st.metric(
-                label=f"{day_after_str} Occupancy",
-                value=f"{totals[dates[3].strftime('%Y-%m-%d') + ' Sold']} / {totals['Total Inventory']}"
-            )
+        # Optional: Add average occupancy
+        avg_occupancy = round(sum(totals[f"{d.strftime('%Y-%m-%d')} Occupancy %"] for d in dates) / len(dates), 1)
+        st.markdown(f"**Average Occupancy (4-day):** `{avg_occupancy}%`")
         
     except Exception as e:
         st.error(f"Error generating dashboard: {e}")
