@@ -272,67 +272,82 @@ def show_dashboard():
         avg_occ = round(sum(totals[f"{d.strftime('%Y-%m-%d')} Sold"] for d in dates) / (total_inv * 4) * 100, 1) if total_inv > 0 else 0
         st.markdown(f"**Average Occupancy (4-day):** `{avg_occ}%`")
         
-        # === SQUAD TABLES - ONE BELOW THE OTHER ===
+        # === SQUAD TABLES WITH TOTAL ROW + HORIZONTAL SUMMARY ===
         st.markdown("---")
         st.subheader("Performance by Squad")
 
-        def make_group_df(prop_list):
+        def make_group_df_with_total(prop_list):
             group_df = df[df["Property Name"].isin(prop_list)].copy()
             if group_df.empty:
-                return pd.DataFrame(), {}
+                return pd.DataFrame(), None
+            
+            # Select columns
             group_df = group_df[["Property Name", "Total Inventory"] + 
                                [f"{d.strftime('%Y-%m-%d')} Sold" for d in dates] + 
                                [f"{d.strftime('%Y-%m-%d')} Unsold" for d in dates]]
+            
+            # Add TOTAL row
+            group_totals = {"Property Name": "TOTAL", "Total Inventory": group_df["Total Inventory"].sum()}
+            for d in dates:
+                d_str = d.strftime('%Y-%m-%d')
+                group_totals[f"{d_str} Sold"] = group_df[f"{d_str} Sold"].sum()
+                group_totals[f"{d_str} Unsold"] = group_df[f"{d_str} Unsold"].sum()
+            
+            group_df = pd.concat([group_df, pd.DataFrame([group_totals])], ignore_index=True)
+            
+            # Rename columns
             group_df.columns = ["Property", "Total Inv"] + \
                                [f"{lbl} Sold" for lbl in date_labels] + \
                                [f"{lbl} Unsold" for lbl in date_labels]
-            # Group totals
-            group_totals = {"Total Inv": group_df["Total Inv"].sum()}
-            for d, lbl in zip(dates, date_labels):
-                sold = group_df[f"{lbl} Sold"].sum()
-                group_totals[f"{lbl} Sold"] = sold
-                group_totals[f"{lbl} Occ %"] = round((sold / group_totals["Total Inv"]) * 100, 1) if group_totals["Total Inv"] > 0 else 0
+            
             return group_df, group_totals
 
         # === 1. Game Changers ===
         st.markdown("### Game Changers")
-        gc_df, gc_totals = make_group_df(GAME_CHANGERS)
+        gc_df, gc_totals = make_group_df_with_total(GAME_CHANGERS)
         if not gc_df.empty:
-            st.dataframe(gc_df, use_container_width=True, hide_index=True)
-            st.markdown("**Total:**")
-            for lbl in date_labels:
-                sold = gc_totals[f"{lbl} Sold"]
-                total = gc_totals["Total Inv"]
-                occ = gc_totals[f"{lbl} Occ %"]
-                st.markdown(f"**{lbl}:** `{sold}/{total}` → `{occ}%`")
+            st.dataframe(gc_df.style.apply(highlight_totals, axis=1), use_container_width=True, hide_index=True)
+            # Horizontal summary
+            col1, col2, col3, col4 = st.columns(4)
+            total_inv = gc_totals["Total Inventory"]
+            for i, (col, lbl, d) in enumerate(zip([col1,col2,col3,col4], date_labels, dates)):
+                d_str = d.strftime('%Y-%m-%d')
+                sold = gc_totals[f"{d_str} Sold"]
+                occ = round((sold / total_inv) * 100, 1) if total_inv > 0 else 0
+                with col:
+                    st.metric(f"{lbl} Occupancy", f"{sold}/{total_inv}", f"{occ}%")
         else:
             st.info("No data for Game Changers")
 
         # === 2. Dream Squad ===
         st.markdown("### Dream Squad")
-        ds_df, ds_totals = make_group_df(DREAM_SQUAD)
+        ds_df, ds_totals = make_group_df_with_total(DREAM_SQUAD)
         if not ds_df.empty:
-            st.dataframe(ds_df, use_container_width=True, hide_index=True)
-            st.markdown("**Total:**")
-            for lbl in date_labels:
-                sold = ds_totals[f"{lbl} Sold"]
-                total = ds_totals["Total Inv"]
-                occ = ds_totals[f"{lbl} Occ %"]
-                st.markdown(f"**{lbl}:** `{sold}/{total}` → `{occ}%`")
+            st.dataframe(ds_df.style.apply(highlight_totals, axis=1), use_container_width=True, hide_index=True)
+            col1, col2, col3, col4 = st.columns(4)
+            total_inv = ds_totals["Total Inventory"]
+            for i, (col, lbl, d) in enumerate(zip([col1,col2,col3,col4], date_labels, dates)):
+                d_str = d.strftime('%Y-%m-%d')
+                sold = ds_totals[f"{d_str} Sold"]
+                occ = round((sold / total_inv) * 100, 1) if total_inv > 0 else 0
+                with col:
+                    st.metric(f"{lbl} Occupancy", f"{sold}/{total_inv}", f"{occ}%")
         else:
             st.info("No data for Dream Squad")
 
         # === 3. Individual Warriors ===
         st.markdown("### Individual Warriors")
-        iw_df, iw_totals = make_group_df(INDIVIDUAL_WARRIORS)
+        iw_df, iw_totals = make_group_df_with_total(INDIVIDUAL_WARRIORS)
         if not iw_df.empty:
-            st.dataframe(iw_df, use_container_width=True, hide_index=True)
-            st.markdown("**Total:**")
-            for lbl in date_labels:
-                sold = iw_totals[f"{lbl} Sold"]
-                total = iw_totals["Total Inv"]
-                occ = iw_totals[f"{lbl} Occ %"]
-                st.markdown(f"**{lbl}:** `{sold}/{total}` → `{occ}%`")
+            st.dataframe(iw_df.style.apply(highlight_totals, axis=1), use_container_width=True, hide_index=True)
+            col1, col2, col3, col4 = st.columns(4)
+            total_inv = iw_totals["Total Inventory"]
+            for i, (col, lbl, d) in enumerate(zip([col1,col2,col3,col4], date_labels, dates)):
+                d_str = d.strftime('%Y-%m-%d')
+                sold = iw_totals[f"{d_str} Sold"]
+                occ = round((sold / total_inv) * 100, 1) if total_inv > 0 else 0
+                with col:
+                    st.metric(f"{lbl} Occupancy", f"{sold}/{total_inv}", f"{occ}%")
         else:
             st.info("No data for Individual Warriors")
                 
