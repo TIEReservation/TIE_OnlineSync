@@ -211,6 +211,13 @@ def get_dashboard_data():
         data.append(row)
     return data, dates
 
+# === STYLING FUNCTIONS ===
+def highlight_overall_totals(row):
+    return ['background-color: #e6f3ff; font-weight: bold'] * len(row) if row["Property Name"] == "TOTAL" else [''] * len(row)
+
+def highlight_group_totals(row):
+    return ['background-color: #e6f3ff; font-weight: bold'] * len(row) if row["Property"] == "TOTAL" else [''] * len(row)
+
 def show_dashboard():
     st.title("Game Changers Dashboard")
     
@@ -222,7 +229,7 @@ def show_dashboard():
         dashboard_data, dates = get_dashboard_data()
         df = pd.DataFrame(dashboard_data)
         
-        # === TOTALS ===
+        # === OVERALL TOTALS ===
         totals = {"Property Name": "TOTAL", "Total Inventory": df["Total Inventory"].sum()}
         for d in dates:
             d_str = d.strftime('%Y-%m-%d')
@@ -247,10 +254,7 @@ def show_dashboard():
         st.markdown(f"### Overall Dashboard: {date_labels[0]} to {date_labels[3]}")
         st.markdown("---")
         
-        def highlight_totals(row):
-            return ['background-color: #e6f3ff; font-weight: bold'] * len(row) if row["Property Name"] == "TOTAL" else [''] * len(row)
-        
-        styled_df = display_df.style.apply(highlight_totals, axis=1)
+        styled_df = display_df.style.apply(highlight_overall_totals, axis=1)
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
         
         # === SUMMARY METRICS ===
@@ -272,7 +276,7 @@ def show_dashboard():
         avg_occ = round(sum(totals[f"{d.strftime('%Y-%m-%d')} Sold"] for d in dates) / (total_inv * 4) * 100, 1) if total_inv > 0 else 0
         st.markdown(f"**Average Occupancy (4-day):** `{avg_occ}%`")
         
-        # === SQUAD TABLES WITH TOTAL ROW + HORIZONTAL SUMMARY ===
+        # === SQUAD TABLES ===
         st.markdown("---")
         st.subheader("Performance by Squad")
 
@@ -281,12 +285,10 @@ def show_dashboard():
             if group_df.empty:
                 return pd.DataFrame(), None
             
-            # Select columns
             group_df = group_df[["Property Name", "Total Inventory"] + 
                                [f"{d.strftime('%Y-%m-%d')} Sold" for d in dates] + 
                                [f"{d.strftime('%Y-%m-%d')} Unsold" for d in dates]]
             
-            # Add TOTAL row
             group_totals = {"Property Name": "TOTAL", "Total Inventory": group_df["Total Inventory"].sum()}
             for d in dates:
                 d_str = d.strftime('%Y-%m-%d')
@@ -295,7 +297,6 @@ def show_dashboard():
             
             group_df = pd.concat([group_df, pd.DataFrame([group_totals])], ignore_index=True)
             
-            # Rename columns
             group_df.columns = ["Property", "Total Inv"] + \
                                [f"{lbl} Sold" for lbl in date_labels] + \
                                [f"{lbl} Unsold" for lbl in date_labels]
@@ -306,7 +307,8 @@ def show_dashboard():
         st.markdown("### Game Changers")
         gc_df, gc_totals = make_group_df_with_total(GAME_CHANGERS)
         if not gc_df.empty:
-            st.dataframe(gc_df.style.apply(highlight_totals, axis=1), use_container_width=True, hide_index=True)
+            styled_gc = gc_df.style.apply(highlight_group_totals, axis=1)
+            st.dataframe(styled_gc, use_container_width=True, hide_index=True)
             # Horizontal summary
             col1, col2, col3, col4 = st.columns(4)
             total_inv = gc_totals["Total Inventory"]
@@ -323,7 +325,8 @@ def show_dashboard():
         st.markdown("### Dream Squad")
         ds_df, ds_totals = make_group_df_with_total(DREAM_SQUAD)
         if not ds_df.empty:
-            st.dataframe(ds_df.style.apply(highlight_totals, axis=1), use_container_width=True, hide_index=True)
+            styled_ds = ds_df.style.apply(highlight_group_totals, axis=1)
+            st.dataframe(styled_ds, use_container_width=True, hide_index=True)
             col1, col2, col3, col4 = st.columns(4)
             total_inv = ds_totals["Total Inventory"]
             for i, (col, lbl, d) in enumerate(zip([col1,col2,col3,col4], date_labels, dates)):
@@ -339,7 +342,8 @@ def show_dashboard():
         st.markdown("### Individual Warriors")
         iw_df, iw_totals = make_group_df_with_total(INDIVIDUAL_WARRIORS)
         if not iw_df.empty:
-            st.dataframe(iw_df.style.apply(highlight_totals, axis=1), use_container_width=True, hide_index=True)
+            styled_iw = iw_df.style.apply(highlight_group_totals, axis=1)
+            st.dataframe(styled_iw, use_container_width=True, hide_index=True)
             col1, col2, col3, col4 = st.columns(4)
             total_inv = iw_totals["Total Inventory"]
             for i, (col, lbl, d) in enumerate(zip([col1,col2,col3,col4], date_labels, dates)):
