@@ -90,7 +90,7 @@ PROPERTY_INVENTORY = {
     }
 }
 
-# === GROUP DEFINITIONS ===
+# === TIE TEAMS ===
 GAME_CHANGERS = [
     "La Millionaire Resort", "Le Park Resort", "Le Poshe Luxury",
     "Villa Shakti", "Le Royce Villa"
@@ -211,7 +211,7 @@ def get_dashboard_data():
         data.append(row)
     return data, dates
 
-# === STYLING FUNCTIONS ===
+# === STYLING ===
 def highlight_overall_totals(row):
     return ['background-color: #e6f3ff; font-weight: bold'] * len(row) if row["Property Name"] == "TOTAL" else [''] * len(row)
 
@@ -219,8 +219,8 @@ def highlight_group_totals(row):
     return ['background-color: #e6f3ff; font-weight: bold'] * len(row) if row["Property"] == "TOTAL" else [''] * len(row)
 
 def show_dashboard():
-    st.title("Game Changers Dashboard")
-    
+    st.title("Overall Summary")  # ← Changed
+
     if st.button("Refresh Dashboard Data"):
         st.cache_data.clear()
         st.rerun()
@@ -240,7 +240,7 @@ def show_dashboard():
         # === DISPLAY DATES ===
         date_labels = [d.strftime('%b %d') for d in dates]
         
-        # === DISPLAY COLUMNS ===
+        # === DISPLAY COLUMNS (Same for all tables) ===
         display_df = df.copy()
         display_df.columns = [
             "Property Name", "Total Inv",
@@ -250,10 +250,9 @@ def show_dashboard():
             f"{date_labels[3]} Sold", f"{date_labels[3]} Unsold"
         ]
         
-        # === MAIN DASHBOARD TABLE ===
+        # === MAIN TABLE ===
         st.markdown(f"### Overall Dashboard: {date_labels[0]} to {date_labels[3]}")
         st.markdown("---")
-        
         styled_df = display_df.style.apply(highlight_overall_totals, axis=1)
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
         
@@ -276,40 +275,42 @@ def show_dashboard():
         avg_occ = round(sum(totals[f"{d.strftime('%Y-%m-%d')} Sold"] for d in dates) / (total_inv * 4) * 100, 1) if total_inv > 0 else 0
         st.markdown(f"**Average Occupancy (4-day):** `{avg_occ}%`")
         
-        # === SQUAD TABLES ===
+        # === TIE TEAMS ===
         st.markdown("---")
-        st.subheader("Performance by Squad")
+        st.subheader("TIE Teams")  # ← Changed
 
-        def make_group_df_with_total(prop_list):
-            group_df = df[df["Property Name"].isin(prop_list)].copy()
-            if group_df.empty:
+        def make_team_df(prop_list):
+            team_df = df[df["Property Name"].isin(prop_list)].copy()
+            if team_df.empty:
                 return pd.DataFrame(), None
             
-            group_df = group_df[["Property Name", "Total Inventory"] + 
-                               [f"{d.strftime('%Y-%m-%d')} Sold" for d in dates] + 
-                               [f"{d.strftime('%Y-%m-%d')} Unsold" for d in dates]]
+            team_df = team_df[["Property Name", "Total Inventory"] + 
+                             [f"{d.strftime('%Y-%m-%d')} Sold" for d in dates] + 
+                             [f"{d.strftime('%Y-%m-%d')} Unsold" for d in dates]]
             
-            group_totals = {"Property Name": "TOTAL", "Total Inventory": group_df["Total Inventory"].sum()}
+            team_totals = {"Property Name": "TOTAL", "Total Inventory": team_df["Total Inventory"].sum()}
             for d in dates:
                 d_str = d.strftime('%Y-%m-%d')
-                group_totals[f"{d_str} Sold"] = group_df[f"{d_str} Sold"].sum()
-                group_totals[f"{d_str} Unsold"] = group_df[f"{d_str} Unsold"].sum()
+                team_totals[f"{d_str} Sold"] = team_df[f"{d_str} Sold"].sum()
+                team_totals[f"{d_str} Unsold"] = team_df[f"{d_str} Unsold"].sum()
             
-            group_df = pd.concat([group_df, pd.DataFrame([group_totals])], ignore_index=True)
+            team_df = pd.concat([team_df, pd.DataFrame([team_totals])], ignore_index=True)
             
-            group_df.columns = ["Property", "Total Inv"] + \
-                               [f"{lbl} Sold" for lbl in date_labels] + \
-                               [f"{lbl} Unsold" for lbl in date_labels]
-            
-            return group_df, group_totals
+            team_df.columns = [
+                "Property", "Total Inv",
+                f"{date_labels[0]} Sold", f"{date_labels[0]} Unsold",
+                f"{date_labels[1]} Sold", f"{date_labels[1]} Unsold",
+                f"{date_labels[2]} Sold", f"{date_labels[2]} Unsold",
+                f"{date_labels[3]} Sold", f"{date_labels[3]} Unsold"
+            ]
+            return team_df, team_totals
 
         # === 1. Game Changers ===
         st.markdown("### Game Changers")
-        gc_df, gc_totals = make_group_df_with_total(GAME_CHANGERS)
+        gc_df, gc_totals = make_team_df(GAME_CHANGERS)
         if not gc_df.empty:
             styled_gc = gc_df.style.apply(highlight_group_totals, axis=1)
             st.dataframe(styled_gc, use_container_width=True, hide_index=True)
-            # Horizontal summary
             col1, col2, col3, col4 = st.columns(4)
             total_inv = gc_totals["Total Inventory"]
             for i, (col, lbl, d) in enumerate(zip([col1,col2,col3,col4], date_labels, dates)):
@@ -323,7 +324,7 @@ def show_dashboard():
 
         # === 2. Dream Squad ===
         st.markdown("### Dream Squad")
-        ds_df, ds_totals = make_group_df_with_total(DREAM_SQUAD)
+        ds_df, ds_totals = make_team_df(DREAM_SQUAD)
         if not ds_df.empty:
             styled_ds = ds_df.style.apply(highlight_group_totals, axis=1)
             st.dataframe(styled_ds, use_container_width=True, hide_index=True)
@@ -340,7 +341,7 @@ def show_dashboard():
 
         # === 3. Individual Warriors ===
         st.markdown("### Individual Warriors")
-        iw_df, iw_totals = make_group_df_with_total(INDIVIDUAL_WARRIORS)
+        iw_df, iw_totals = make_team_df(INDIVIDUAL_WARRIORS)
         if not iw_df.empty:
             styled_iw = iw_df.style.apply(highlight_group_totals, axis=1)
             st.dataframe(styled_iw, use_container_width=True, hide_index=True)
