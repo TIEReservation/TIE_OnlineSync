@@ -67,7 +67,7 @@ def check_authentication():
                 st.session_state.authenticated = True
                 st.session_state.username = "Management"
                 st.session_state.role = "Management"
-                st.session_state.current_page = "Dashboard"
+                st.session_state.current_page = "Inventory Dashboard"  # ← CHANGED
                 st.session_state.permissions = {"add": True, "edit": True, "delete": False}
             elif username == "ReservationTeam" and password == "TIE123":
                 st.session_state.authenticated = True
@@ -85,7 +85,7 @@ def check_authentication():
                         st.session_state.role = user_data["role"]
                         st.session_state.user_data = user_data
                         st.session_state.permissions = user_data.get("permissions", {"add": False, "edit": False, "delete": False})
-                        valid_screens = ["Dashboard", "Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
+                        valid_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
                         if st.session_state.role == "Admin":
                             valid_screens.append("User Management")
                         elif st.session_state.role == "Management":
@@ -105,7 +105,7 @@ def check_authentication():
                         st.session_state.authenticated = True
                         st.session_state.username = "Management"
                         st.session_state.role = "Management"
-                        st.session_state.current_page = "Dashboard"
+                        st.session_state.current_page = "Inventory Dashboard"  # ← CHANGED
                         st.session_state.permissions = {"add": True, "edit": True, "delete": False}
                     elif username == "ReservationTeam" and password == "TIE123":
                         st.session_state.authenticated = True
@@ -133,7 +133,7 @@ def check_authentication():
     else:
         query_params = st.query_params
         query_page = query_params.get("page", [st.session_state.current_page])[0]
-        valid_screens = ["Dashboard", "Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
+        valid_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
         if st.session_state.role == "Admin":
             valid_screens.append("User Management")
         elif st.session_state.role == "Management":
@@ -174,8 +174,8 @@ def show_user_management():
             "Le Poshe Deluxe", "La Paradise"
         ]
         new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties)
-        all_screens = ["Dashboard", "Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
-        default_screens = all_screens if new_role == "Management" else [s for s in all_screens if s not in ["Daily Management Status", "Analytics", "Dashboard"]]
+        all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
+        default_screens = all_screens if new_role == "Management" else [s for s in all_screens if s not in ["Daily Management Status", "Analytics", "Inventory Dashboard"]]
         new_screens = st.multiselect("Visible Screens", all_screens, default=default_screens)
         add_perm = st.checkbox("Add Permission", value=True)
         edit_perm = st.checkbox("Edit Permission", value=True)
@@ -216,7 +216,7 @@ def show_user_management():
             ]
             default_properties = [prop for prop in user_to_modify.get("properties", []) if prop in all_properties]
             mod_properties = st.multiselect("Visible Properties", all_properties, default=default_properties if default_properties else all_properties)
-            all_screens = ["Dashboard", "Direct Reservations", "View Reservations", "Edit Reservations", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
+            all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
             mod_screens = st.multiselect("Visible Screens", all_screens, default=user_to_modify["screens"])
             perms = user_to_modify["permissions"]
             mod_add = st.checkbox("Add Permission", value=perms["add"])
@@ -367,7 +367,7 @@ def main():
 
     # === Build base page options ===
     base_pages = [
-        "Direct Reservations", "View Reservations", "Edit Reservations",
+        "Direct Reservations", "View Reservations", "Edit Direct Reservation",  # ← CHANGED
         "Online Reservations", "Daily Status", "Daily Management Status",
         "Monthly Consolidation"
     ]
@@ -375,10 +375,10 @@ def main():
     page_options = base_pages.copy()
 
     # === Role-based page access ===
-    # Dashboard: Only Management & Admin
+    # Inventory Dashboard: Only Management & Admin
     if st.session_state.role in ["Management", "Admin"]:
-        if "Dashboard" not in page_options:
-            page_options.insert(0, "Dashboard")
+        if "Inventory Dashboard" not in page_options:
+            page_options.insert(0, "Inventory Dashboard")  # ← CHANGED
 
     # Analytics: Only Management & Admin
     if st.session_state.role in ["Management", "Admin"]:
@@ -407,11 +407,29 @@ def main():
     # === Apply user-specific screen permissions ===
     if st.session_state.user_data:
         allowed_screens = st.session_state.user_data.get("screens", [])
+        # Map old names to new names
+        screen_mapping = {
+            "Dashboard": "Inventory Dashboard",
+            "Edit Reservations": "Edit Direct Reservation"
+        }
+        allowed_screens = [screen_mapping.get(s, s) for s in allowed_screens]
         page_options = [p for p in page_options if p in allowed_screens]
     else:
-        # Safety: Remove Dashboard if not Management/Admin
-        if st.session_state.role not in ["Management", "Admin"] and "Dashboard" in page_options:
-            page_options.remove("Dashboard")
+        # Safety: Remove old names
+        if st.session_state.role not in ["Management", "Admin"]:
+            if "Dashboard" in page_options:
+                page_options.remove("Dashboard")
+
+    # === Backward compatibility for old URLs ===
+    query_params = st.query_params
+    query_page = query_params.get("page", [st.session_state.current_page])[0]
+    url_mapping = {
+        "Dashboard": "Inventory Dashboard",
+        "Edit Reservations": "Edit Direct Reservation"
+    }
+    if query_page in url_mapping:
+        st.session_state.current_page = url_mapping[query_page]
+        st.query_params["page"] = st.session_state.current_page
 
     # === Sidebar Navigation ===
     default_index = page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0
@@ -431,13 +449,13 @@ def main():
         st.rerun()
 
     # === Page Routing ===
-    if page == "Dashboard":
+    if page == "Inventory Dashboard":  # ← CHANGED
         if st.session_state.role not in ["Management", "Admin"]:
-            st.error("Access Denied: Dashboard is only available to Management and Admin.")
-            log_activity(supabase, st.session_state.username, "Unauthorized Dashboard access attempt")
+            st.error("Access Denied: Inventory Dashboard is only available to Management and Admin.")
+            log_activity(supabase, st.session_state.username, "Unauthorized Inventory Dashboard access attempt")
         else:
             show_dashboard()
-            log_activity(supabase, st.session_state.username, "Accessed Dashboard")
+            log_activity(supabase, st.session_state.username, "Accessed Inventory Dashboard")
 
     elif page == "Direct Reservations":
         show_new_reservation_form()
@@ -447,9 +465,9 @@ def main():
         show_reservations()
         log_activity(supabase, st.session_state.username, "Accessed View Reservations")
 
-    elif page == "Edit Reservations":
+    elif page == "Edit Direct Reservation":  # ← CHANGED
         show_edit_reservations()
-        log_activity(supabase, st.session_state.username, "Accessed Edit Reservations")
+        log_activity(supabase, st.session_state.username, "Accessed Edit Direct Reservation")
 
     elif page == "Online Reservations":
         show_online_reservations()
