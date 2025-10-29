@@ -26,7 +26,7 @@ def load_property_room_map():
             "No Show": ["No Show"],
             "Others": []
         },
-        "La Millionare Resort": {
+        "La Millionaire Resort": {
             "Double Room": ["101", "102", "103", "105"],
             "Deluex Double Room with Balcony": ["205", "304", "305"],
             "Deluex Triple Room with Balcony": ["201", "202", "203", "204", "301", "302", "303"],
