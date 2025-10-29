@@ -5,11 +5,18 @@ from supabase import create_client, Client
 import logging
 
 # Configure logging
-logging.basicConfig(filename='dashboard.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    filename='dashboard.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 # Initialize Supabase client
 try:
-    supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
+    supabase: Client = create_client(
+        st.secrets["supabase"]["url"],
+        st.secrets["supabase"]["key"]
+    )
 except KeyError as e:
     st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets configuration.")
     st.stop()
@@ -22,9 +29,6 @@ property_mapping = {
     "Le Poshe Beach VIEW": "Le Poshe Beach view",
     "Millionaire": "La Millionaire Resort",
 }
-reverse_mapping = {}
-for variant, canonical in property_mapping.items():
-    reverse_mapping.setdefault(canonical, []).append(variant)
 
 # Property inventory mapping
 PROPERTY_INVENTORY = {
@@ -147,20 +151,22 @@ def load_bookings_for_date_range(start_date, end_date):
     
     try:
         # Load online reservations
-        online_response = supabase.table("online_reservations").select("*").gte("check_in", str(start_date)).lte("check_out", str(end_date)).execute()
+        online_response = supabase.table("online_reservations").select("*") \
+            .gte("check_in", str(start_date)).lte("check_out", str(end_date)).execute()
         for b in (online_response.data or []):
             normalized = normalize_booking(b, True)
             if normalized:
                 all_bookings.append(normalized)
         
         # Load direct reservations
-        direct_response = supabase.table("reservations").select("*").gte("check_in", str(start_date)).lte("check_out", str(end_date)).execute()
+        direct_response = supabase.table("reservations").select("*") \
+            .gte("check_in", str(start_date)).lte("check_out", str(end_date)).execute()
         for b in (direct_response.data or []):
             normalized = normalize_booking(b, False)
             if normalized:
                 all_bookings.append(normalized)
         
-        logging.info(f"Loaded {len(all_bookings)} bookings for date range {start_date} to {end_date}")
+        logging.info(f"Loaded {len(all_bookings)} bookings for {start_date} to {end_date}")
         return all_bookings
     except Exception as e:
         st.error(f"Error loading bookings: {e}")
@@ -251,27 +257,27 @@ def show_dashboard():
         
         df = pd.DataFrame(dashboard_data)
         
-        # Calculate totals
-        totals = {"Property Name": "TOTAL", "Total Inventory": df["Total Inventory"].sum()}
+        # === Calculate Totals (No % in DataFrame) ===
+        totals = {
+            "Property Name": "TOTAL",
+            "Total Inventory": df["Total Inventory"].sum()
+        }
         for target_date in dates:
             date_str = target_date.strftime('%Y-%m-%d')
             sold = df[f"{date_str} Sold"].sum()
             unsold = df[f"{date_str} Unsold"].sum()
             totals[f"{date_str} Sold"] = sold
             totals[f"{date_str} Unsold"] = unsold
-            # Calculate occupancy percentage
-            total_inv = totals["Total Inventory"]
-            totals[f"{date_str} Occupancy %"] = round((sold / total_inv) * 100, 1) if total_inv > 0 else 0
         
         df = pd.concat([df, pd.DataFrame([totals])], ignore_index=True)
         
-        # Format display dates
+        # === Format Display Dates ===
         yesterday_str = dates[0].strftime('%b %d')
         today_str = dates[1].strftime('%b %d')
         tomorrow_str = dates[2].strftime('%b %d')
         day_after_str = dates[3].strftime('%b %d')
         
-        # Display table
+        # === Rename Columns for Display (10 columns only) ===
         display_df = df.copy()
         display_df.columns = [
             "Property Name", "Total Inv",
@@ -281,6 +287,7 @@ def show_dashboard():
             f"{day_after_str} Sold", f"{day_after_str} Unsold"
         ]
         
+        # === Display Table ===
         st.markdown(f"### Dashboard for {yesterday_str} to {day_after_str}")
         st.markdown("---")
         
@@ -297,28 +304,30 @@ def show_dashboard():
         st.subheader("Summary Metrics")
         
         col1, col2, col3, col4 = st.columns(4)
+        total_inv = totals["Total Inventory"]
         
-        def metric_with_occupancy(col, date_label, date_obj):
-            date_key = date_obj.strftime('%Y-%m-%d')
-            sold = totals[f"{date_key} Sold"]
-            total = totals["Total Inventory"]
-            occupancy = totals[f"{date_key} Occupancy %"]
-            
+        def metric_with_occupancy(col, label, date_obj):
+            dkey = date_obj.strftime('%Y-%m-%d')
+            sold = totals[f"{dkey} Sold"]
+            occ_pct = round((sold / total_inv) * 100, 1) if total_inv > 0 else 0
             with col:
                 st.metric(
-                    label=f"{date_label} Occupancy",
-                    value=f"{sold}/{total}",
-                    delta=f"{occupancy}%"
+                    label=label,
+                    value=f"{sold}/{total_inv}",
+                    delta=f"{occ_pct}%"
                 )
         
-        metric_with_occupancy(col1, yesterday_str, dates[0])
-        metric_with_occupancy(col2, today_str, dates[1])
-        metric_with_occupancy(col3, tomorrow_str, dates[2])
-        metric_with_occupancy(col4, day_after_str, dates[3])
+        metric_with_occupancy(col1, f"{yesterday_str} Occupancy", dates[0])
+        metric_with_occupancy(col2, f"{today_str} Occupancy", dates[1])
+        metric_with_occupancy(col3, f"{tomorrow_str} Occupancy", dates[2])
+        metric_with_occupancy(col4, f"{day_after_str} Occupancy", dates[3])
         
-        # Optional: Add average occupancy
-        avg_occupancy = round(sum(totals[f"{d.strftime('%Y-%m-%d')} Occupancy %"] for d in dates) / len(dates), 1)
-        st.markdown(f"**Average Occupancy (4-day):** `{avg_occupancy}%`")
+        # === Average Occupancy ===
+        avg_occ = round(
+            sum((totals[f"{d.strftime('%Y-%m-%d')} Sold"] / total_inv) * 100 for d in dates if total_inv > 0) / len(dates),
+            1
+        )
+        st.markdown(f"**Average Occupancy (4-day):** `{avg_occ}%`")
         
     except Exception as e:
         st.error(f"Error generating dashboard: {e}")
