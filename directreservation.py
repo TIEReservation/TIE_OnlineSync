@@ -94,7 +94,7 @@ def load_property_room_map():
             "No Show": ["No Show"],
             "Others": []
         },
-        "La Antilia": {
+        "La Antilia Luxury": {
             "Deluex Suite Room": ["101"],
             "Deluex Double Room": ["203", "204", "303", "304"],
             "Family Room": ["201", "202", "301", "302"],
