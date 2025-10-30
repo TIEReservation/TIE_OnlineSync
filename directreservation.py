@@ -3,19 +3,17 @@ import pandas as pd
 from datetime import datetime, date, timedelta
 from supabase import create_client, Client
 
-# ----------------------------------------------------------------------
-# Supabase Client
-# ----------------------------------------------------------------------
 try:
     supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
 except KeyError as e:
-    st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets configuration.")
+    st.error(f"Missing Supabase secret: {e}. Check Streamlit secrets.")
     st.stop()
 
+if "reservations" not in st.session_state:
+    st.session_state.reservations = []
+if "username" not in st.session_state:
+    st.session_state.username = "Admin"
 
-# ----------------------------------------------------------------------
-# Property → Room Type → Room Numbers Map
-# ----------------------------------------------------------------------
 def load_property_room_map():
     return {
         "Le Poshe Beachview": {
@@ -143,10 +141,6 @@ def load_property_room_map():
         }
     }
 
-
-# ----------------------------------------------------------------------
-# Helper Functions
-# ----------------------------------------------------------------------
 def generate_booking_id():
     try:
         today = datetime.now().strftime("%Y%m%d")
@@ -159,7 +153,6 @@ def generate_booking_id():
     except Exception as e:
         st.error(f"Error generating booking ID: {e}")
         return None
-
 
 def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=None, mob=None):
     try:
@@ -178,12 +171,10 @@ def check_duplicate_guest(guest_name, mobile_no, room_no, exclude_booking_id=Non
         st.error(f"Error checking duplicate guest: {e}")
         return False, None
 
-
 def calculate_days(check_in, check_out):
     if check_in and check_out and check_out >= check_in:
         return max(1, (check_out - check_in).days)
     return 0
-
 
 def safe_int(v, default=0):
     try:
@@ -191,36 +182,25 @@ def safe_int(v, default=0):
     except (ValueError, TypeError):
         return default
 
-
 def safe_float(v, default=0.0):
     try:
         return float(v) if v is not None else default
     except (ValueError, TypeError):
         return default
 
-
-# ----------------------------------------------------------------------
-# LIVE CALCULATION
-# ----------------------------------------------------------------------
 def _update_derived(form_key: str):
     ci = st.session_state.get(f"{form_key}_checkin")
     co = st.session_state.get(f"{form_key}_checkout")
     days = calculate_days(ci, co) if ci and co else 0
     st.session_state[f"{form_key}_no_of_days"] = days
-
     a = safe_int(st.session_state.get(f"{form_key}_adults"))
     c = safe_int(st.session_state.get(f"{form_key}_children"))
     i = safe_int(st.session_state.get(f"{form_key}_infants"))
     st.session_state[f"{form_key}_total_pax"] = a + c + i
-
     total = safe_float(st.session_state.get(f"{form_key}_total_tariff"))
     adv = safe_float(st.session_state.get(f"{form_key}_advance"))
     st.session_state[f"{form_key}_balance_amount"] = max(0.0, total - adv)
 
-
-# ----------------------------------------------------------------------
-# Load / Save / Update / Delete
-# ----------------------------------------------------------------------
 def load_reservations_from_supabase():
     try:
         resp = supabase.table("reservations").select("*").execute()
@@ -263,7 +243,6 @@ def load_reservations_from_supabase():
     except Exception as e:
         st.error(f"Error loading reservations: {e}")
         return []
-
 
 def save_reservation_to_supabase(res):
     try:
@@ -309,7 +288,6 @@ def save_reservation_to_supabase(res):
         st.error(f"Error saving reservation: {e}")
         return False
 
-
 def update_reservation_in_supabase(booking_id, upd):
     try:
         payload = {
@@ -354,7 +332,6 @@ def update_reservation_in_supabase(booking_id, upd):
         st.error(f"Error updating reservation: {e}")
         return False
 
-
 def delete_reservation_in_supabase(booking_id):
     try:
         resp = supabase.table("reservations").delete().eq("booking_id", booking_id).execute()
@@ -366,10 +343,6 @@ def delete_reservation_in_supabase(booking_id):
         st.error(f"Error deleting reservation: {e}")
         return False
 
-
-# ----------------------------------------------------------------------
-# Confirmation Dialog
-# ----------------------------------------------------------------------
 @st.dialog("Reservation Confirmation")
 def show_confirmation_dialog(booking_id, is_update=False):
     msg = "Reservation Updated!" if is_update else "Reservation Confirmed!"
@@ -377,15 +350,10 @@ def show_confirmation_dialog(booking_id, is_update=False):
     if st.button("Confirm", use_container_width=True):
         st.rerun()
 
-
-# ----------------------------------------------------------------------
-# NEW RESERVATION FORM
-# ----------------------------------------------------------------------
 def show_new_reservation_form():
     st.header("Direct Reservations")
     form_key = "new_reservation"
     prop_map = load_property_room_map()
-
     for suf in ("_no_of_days", "_total_pax", "_balance_amount"):
         if f"{form_key}{suf}" not in st.session_state:
             st.session_state[f"{form_key}{suf}"] = 0
@@ -534,10 +502,6 @@ def show_new_reservation_form():
                 if save_reservation_to_supabase(res):
                     show_confirmation_dialog(booking_id)
 
-
-# ----------------------------------------------------------------------
-# EDIT RESERVATION FORM
-# ----------------------------------------------------------------------
 def show_edit_reservations():
     if not st.session_state.reservations:
         st.info("No reservations to edit.")
@@ -722,8 +686,27 @@ def show_edit_reservations():
                     st.success(f"Deleted {res['Booking ID']}")
                     st.rerun()
 
+def show_online_reservations():
+    st.header("Online Reservations")
+    st.info("Online reservation module not implemented yet.")
 
-# ----------------------------------------------------------------------
-# Export Functions
-# ----------------------------------------------------------------------
-__all__ = ["show_new_reservation_form", "show_edit_reservations"]
+def show_edit_online_reservations():
+    st.header("Edit Online Reservations")
+    st.info("Edit online reservation module not implemented yet.")
+
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", [
+    "New Direct Reservation",
+    "Edit Direct Reservations",
+    "Online Reservations",
+    "Edit Online Reservations"
+])
+
+if page == "New Direct Reservation":
+    show_new_reservation_form()
+elif page == "Edit Direct Reservations":
+    show_edit_reservations()
+elif page == "Online Reservations":
+    show_online_reservations()
+elif page == "Edit Online Reservations":
+    show_edit_online_reservations()
