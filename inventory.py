@@ -276,7 +276,7 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
         online_bookings = []
         direct_bookings = []
         for query_property in query_properties:
-            online_response = supabase.table("online_reservations").select("*").eq("property", query_property).gte("check_in", str(start_date)).lte("check_out", str(end_date)).execute()
+            online_response = supabase.table("online_reservations").select("*").in_("property", query_properties).lte("check_in", str(end_date)).gte("check_out", str(start_date)).execute()
             online_bookings.extend([normalize_booking(b, True) for b in (online_response.data or []) if normalize_booking(b, True)])
             direct_response = supabase.table("reservations").select("*").eq("property_name", query_property).lte("check_in", str(end_date)).gte("check_out", str(start_date)).execute()
             direct_bookings.extend([normalize_booking(b, False) for b in (direct_response.data or []) if normalize_booking(b, False)])
