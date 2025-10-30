@@ -464,8 +464,11 @@ def show_new_reservation_form():
         # Row 4: Total Pax, MOB, Room Type, Room No (WITH EDITABLE ROOM NUMBER LOGIC)
         row4_col1, row4_col2, row4_col3, row4_col4 = st.columns(4)
         with row4_col1:
-            total_pax = safe_int(adults) + safe_int(children) + safe_int(infants)
-            st.text_input("Total Pax", value=str(total_pax), disabled=True, key=f"{form_key}_total_pax", help="Adults + Children + Infants")
+            current_adults = st.session_state.get(f"{form_key}_adults", 0)
+            current_children = st.session_state.get(f"{form_key}_children", 0)
+            current_infants = st.session_state.get(f"{form_key}_infants", 0)
+            total_pax_live = safe_int(current_adults) + safe_int(current_children) + safe_int(current_infants)
+            st.text_input("Total Pax", value=str(total_pax_live), disabled=True, key=f"{form_key}_total_pax", help="Adults + Children + Infants")
         with row4_col2:
             mob = st.selectbox("MOB (Mode of Booking)",
                                ["Direct", "Online", "Agent", "Walk-in", "Phone", "Website", "Booking-Drt", "Social Media", "Stay-back", "TIE-Group", "Others"],
@@ -798,8 +801,11 @@ def show_edit_form(edit_index):
         
         row4_col1, row4_col2, row4_col3, row4_col4 = st.columns(4)
         with row4_col1:
-            total_pax = safe_int(adults) + safe_int(children) + safe_int(infants)
-            st.text_input("Total Pax", value=str(total_pax), disabled=True, key=f"{form_key}_total_pax", help="Adults + Children + Infants")
+            current_adults = st.session_state.get(f"{form_key}_adults", 0)
+            current_children = st.session_state.get(f"{form_key}_children", 0)
+            current_infants = st.session_state.get(f"{form_key}_infants", 0)
+            total_pax_live = safe_int(current_adults) + safe_int(current_children) + safe_int(current_infants)
+            st.text_input("Total Pax", value=str(total_pax_live), disabled=True, key=f"{form_key}_total_pax", help="Adults + Children + Infants")
         with row4_col2:
             mob_options = ["Direct", "Online", "Agent", "Walk-in", "Phone", "Website", "Booking-Drt", "Social Media", "Stay-back", "TIE-Group", "Others"]
             mob_index = mob_options.index(reservation["MOB"]) if reservation["MOB"] in mob_options else len(mob_options) - 1
