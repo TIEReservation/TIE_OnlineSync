@@ -210,7 +210,7 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
         days = None
         if check_in and check_out:
             days = (check_out - check_in).days
-            if days <= 0:
+            if days <= 0:                     # <-- FIXED: skip same-day / backward dates
                 logging.warning(f"Skipping booking {booking_id} due to invalid duration: {days} days")
                 return None
         property_name = sanitize_string(booking.get('property', booking.get('property_name', '')))
@@ -294,7 +294,7 @@ def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dic
             check_in = date.fromisoformat(b["check_in"]) if b.get("check_in") else None
             check_out = date.fromisoformat(b["check_out"]) if b.get("check_out") else None
 
-            # ---- NEW: Only show if Confirmed AND (Fully Paid OR Partially Paid) ----
+            # ---- Only show if Confirmed AND (Fully Paid OR Partially Paid) ----
             booking_status = sanitize_string(b.get("booking_status", "")).strip()
             payment_status = sanitize_string(b.get("payment_status", "")).strip()
 
@@ -338,7 +338,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple
         else:
             valid_rooms.sort()
             days = b.get('days', 1) or 1
-            per_night_per_room = b.get('receivable', 0.0) / len(valid_rooms) / days  # KEY LINE
+            per_night_per_room = b.get('receivable', 0.0) / len(valid_rooms) / days
 
             base_pax = b['total_pax'] // len(valid_rooms)
             remainder_pax = b['total_pax'] % len(valid_rooms)
