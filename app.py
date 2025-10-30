@@ -67,7 +67,7 @@ def check_authentication():
                 st.session_state.authenticated = True
                 st.session_state.username = "Management"
                 st.session_state.role = "Management"
-                st.session_state.current_page = "Inventory Dashboard"  # ← CHANGED
+                st.session_state.current_page = "Inventory Dashboard"
                 st.session_state.permissions = {"add": True, "edit": True, "delete": False}
             elif username == "ReservationTeam" and password == "TIE123":
                 st.session_state.authenticated = True
@@ -105,7 +105,7 @@ def check_authentication():
                         st.session_state.authenticated = True
                         st.session_state.username = "Management"
                         st.session_state.role = "Management"
-                        st.session_state.current_page = "Inventory Dashboard"  # ← CHANGED
+                        st.session_state.current_page = "Inventory Dashboard"
                         st.session_state.permissions = {"add": True, "edit": True, "delete": False}
                     elif username == "ReservationTeam" and password == "TIE123":
                         st.session_state.authenticated = True
@@ -161,7 +161,7 @@ def show_user_management():
     st.subheader("Existing Users")
     st.dataframe(df[["username", "role", "properties", "screens", "permissions"]])
 
-    # Create new user
+    # === Create New User ===
     st.subheader("Create New User")
     with st.form("create_user_form"):
         new_username = st.text_input("Username")
@@ -197,31 +197,42 @@ def show_user_management():
                     supabase.table("users").insert(new_user).execute()
                     log_activity(supabase, st.session_state.username, f"Created user {new_username}")
                     st.success(f"User {new_username} created successfully!")
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Failed to create user: {e}")
-                st.rerun()
 
-    # Modify user
+    # === Modify User ===
     st.subheader("Modify User")
     modify_username = st.selectbox("Select User to Modify", [u["username"] for u in users if u["username"] != "Admin"])
     if modify_username:
         user_to_modify = next(u for u in users if u["username"] == modify_username)
         with st.form("modify_user_form"):
             mod_role = st.selectbox("Role", ["Management", "ReservationTeam"], index=0 if user_to_modify["role"] == "Management" else 1)
+            
             all_properties = [
                 "Le Poshe Beach view", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite",
                 "La Paradise Residency", "La Paradise Luxury", "La Villa Heritage", "Le Pondy Beach Side",
                 "Le Royce Villa", "La Tamara Luxury", "Eden Beach Resort", "Le Poshe Beach", "La Millionaire",
                 "Le Poshe Deluxe", "La Paradise"
             ]
-            default_properties = [prop for prop in user_to_modify.get("properties", []) if prop in all_properties]
-            mod_properties = st.multiselect("Visible Properties", all_properties, default=default_properties if default_properties else all_properties)
-            all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
-            mod_screens = st.multiselect("Visible Screens", all_screens, default=user_to_modify["screens"])
-            perms = user_to_modify["permissions"]
-            mod_add = st.checkbox("Add Permission", value=perms["add"])
-            mod_edit = st.checkbox("Edit Permission", value=perms["edit"])
-            mod_delete = st.checkbox("Delete Permission", value=perms["delete"])
+            saved_properties = user_to_modify.get("properties", [])
+            valid_default_properties = [p for p in saved_properties if p in all_properties]
+            mod_properties = st.multiselect("Visible Properties", all_properties, default=valid_default_properties)
+
+            all_screens = [
+                "Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation",
+                "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status",
+                "Analytics", "Monthly Consolidation"
+            ]
+            saved_screens = user_to_modify.get("screens", [])
+            valid_default_screens = [s for s in saved_screens if s in all_screens]
+            mod_screens = st.multiselect("Visible Screens", all_screens, default=valid_default_screens)
+
+            perms = user_to_modify.get("permissions", {"add": False, "edit": False, "delete": False})
+            mod_add = st.checkbox("Add Permission", value=perms.get("add", False))
+            mod_edit = st.checkbox("Edit Permission", value=perms.get("edit", False))
+            mod_delete = st.checkbox("Delete Permission", value=perms.get("delete", False))
+
             if st.form_submit_button("Update User"):
                 updated_user = {
                     "role": mod_role,
@@ -233,11 +244,11 @@ def show_user_management():
                     supabase.table("users").update(updated_user).eq("username", modify_username).execute()
                     log_activity(supabase, st.session_state.username, f"Modified user {modify_username}")
                     st.success(f"User {modify_username} updated successfully!")
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Failed to update user: {e}")
-                st.rerun()
 
-    # Delete user
+    # === Delete User ===
     st.subheader("Delete User")
     delete_username = st.selectbox("Select User to Delete", [u["username"] for u in users if u["username"] not in ["Admin", "Management", "ReservationTeam"]])
     if delete_username and st.button("Delete User"):
@@ -245,9 +256,9 @@ def show_user_management():
             supabase.table("users").delete().eq("username", delete_username).execute()
             log_activity(supabase, st.session_state.username, f"Deleted user {delete_username}")
             st.success(f"User {delete_username} deleted successfully!")
+            st.rerun()
         except Exception as e:
             st.error(f"Failed to delete user: {e}")
-        st.rerun()
 
 def load_property_room_map():
     return {
@@ -367,7 +378,7 @@ def main():
 
     # === Build base page options ===
     base_pages = [
-        "Direct Reservations", "View Reservations", "Edit Direct Reservation",  # ← CHANGED
+        "Direct Reservations", "View Reservations", "Edit Direct Reservation",
         "Online Reservations", "Daily Status", "Daily Management Status",
         "Monthly Consolidation"
     ]
@@ -375,12 +386,10 @@ def main():
     page_options = base_pages.copy()
 
     # === Role-based page access ===
-    # Inventory Dashboard: Only Management & Admin
     if st.session_state.role in ["Management", "Admin"]:
         if "Inventory Dashboard" not in page_options:
-            page_options.insert(0, "Inventory Dashboard")  # ← CHANGED
+            page_options.insert(0, "Inventory Dashboard")
 
-    # Analytics: Only Management & Admin
     if st.session_state.role in ["Management", "Admin"]:
         if "Analytics" not in page_options:
             try:
@@ -389,7 +398,6 @@ def main():
             except ValueError:
                 page_options.append("Analytics")
 
-    # Edit Online Reservations
     if edit_online_available and "Edit Online Reservations" not in page_options:
         try:
             insert_idx = page_options.index("Online Reservations") + 1
@@ -397,7 +405,6 @@ def main():
         except ValueError:
             page_options.append("Edit Online Reservations")
 
-    # Admin-only pages
     if st.session_state.role == "Admin":
         if "User Management" not in page_options:
             page_options.append("User Management")
@@ -407,7 +414,6 @@ def main():
     # === Apply user-specific screen permissions ===
     if st.session_state.user_data:
         allowed_screens = st.session_state.user_data.get("screens", [])
-        # Map old names to new names
         screen_mapping = {
             "Dashboard": "Inventory Dashboard",
             "Edit Reservations": "Edit Direct Reservation"
@@ -415,7 +421,6 @@ def main():
         allowed_screens = [screen_mapping.get(s, s) for s in allowed_screens]
         page_options = [p for p in page_options if p in allowed_screens]
     else:
-        # Safety: Remove old names
         if st.session_state.role not in ["Management", "Admin"]:
             if "Dashboard" in page_options:
                 page_options.remove("Dashboard")
@@ -449,7 +454,7 @@ def main():
         st.rerun()
 
     # === Page Routing ===
-    if page == "Inventory Dashboard":  # ← CHANGED
+    if page == "Inventory Dashboard":
         if st.session_state.role not in ["Management", "Admin"]:
             st.error("Access Denied: Inventory Dashboard is only available to Management and Admin.")
             log_activity(supabase, st.session_state.username, "Unauthorized Inventory Dashboard access attempt")
@@ -465,7 +470,7 @@ def main():
         show_reservations()
         log_activity(supabase, st.session_state.username, "Accessed View Reservations")
 
-    elif page == "Edit Direct Reservation":  # ← CHANGED
+    elif page == "Edit Direct Reservation":
         show_edit_reservations()
         log_activity(supabase, st.session_state.username, "Accessed Edit Direct Reservation")
 
