@@ -463,7 +463,7 @@ def show_new_reservation_form():
 
         # Row 4: Total Pax, MOB, Room Type, Room No (WITH EDITABLE ROOM NUMBER LOGIC)
         row4_col1, row4_col2, row4_col3, row4_col4 = st.columns(4)
-        with row4_col11:
+        with row4_col1:
             cur_adults   = st.session_state.get(f"{form_key}_adults",   0)
             cur_children = st.session_state.get(f"{form_key}_children", 0)
             cur_infants  = st.session_state.get(f"{form_key}_infants",  0)
