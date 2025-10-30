@@ -82,14 +82,14 @@ def load_property_room_map():
             "Others": []
         },
         "Le Royce Villa": {
-            "Villa": ["101to102&201to202", "101", "102", "202", "202"],
+            "Villa": ["101to102&201to202", "101", "102", "202", "202"],  # Note: duplicate "202" as per data
             "Day Use": ["Day Use 1", "Day Use 2"],
             "No Show": ["No Show"],
             "Others": []
         },
         "La Tamara Luxury": {
             "3BHA": ["101to103", "101", "102", "103", "104to106", "104", "105", "106", "201to203", "201", "202", "203", "204to206", "204", "205", "206", "301to303", "301", "302", "303", "304to306", "304", "305", "306"],
-            "4BHA": ["401to404", "401", "402", "403", "404"],
+            "4BHA": ["401to404", "401", "402", "403", "404"],  # Note: duplicate "404" as per data
             "Day Use": ["Day Use 1", "Day Use 2"],
             "No Show": ["No Show"],
             "Others": []
@@ -350,8 +350,16 @@ def show_confirmation_dialog(booking_id, is_update=False):
 def display_filtered_analysis(df, start_date=None, end_date=None, view_mode=False):
     """
     Filter reservations by date range and display results.
+    Args:
+        df (pd.DataFrame): Reservations DataFrame.
+        start_date (date, optional): Start of the date range.
+        end_date (date, optional): End of the date range.
+        view_mode (bool): If True, return filtered DataFrame for table display; else, display metrics and property-wise details.
+    Returns:
+        pd.DataFrame: Filtered DataFrame.
     """
     filtered_df = df.copy()
+    # Filter out invalid Check In dates
     filtered_df = filtered_df[filtered_df["Check In"].notnull()]
     
     if start_date and end_date:
@@ -406,7 +414,7 @@ def display_filtered_analysis(df, start_date=None, end_date=None, view_mode=Fals
     return filtered_df
 
 def show_new_reservation_form():
-    """Display form for creating a new reservation with instant days calculation."""
+    """Display form for creating a new reservation with dynamic room assignments."""
     try:
         st.header("📝 Direct Reservations")
         form_key = "new_reservation"
@@ -417,12 +425,6 @@ def show_new_reservation_form():
             st.session_state[f"{form_key}_property"] = sorted(property_room_map.keys())[0]
         if f"{form_key}_roomtype" not in st.session_state:
             st.session_state[f"{form_key}_roomtype"] = ""
-        
-        # Initialize date session states if not present
-        if f"{form_key}_checkin_date" not in st.session_state:
-            st.session_state[f"{form_key}_checkin_date"] = date.today()
-        if f"{form_key}_checkout_date" not in st.session_state:
-            st.session_state[f"{form_key}_checkout_date"] = date.today() + timedelta(days=1)
 
         # Row 1: Property Name, Guest Name, Mobile No
         row1_col1, row1_col2, row1_col3 = st.columns(3)
@@ -441,29 +443,12 @@ def show_new_reservation_form():
         with row2_col1:
             enquiry_date = st.date_input("Enquiry Date", value=date.today(), key=f"{form_key}_enquiry")
         with row2_col2:
-            check_in = st.date_input("Check In", 
-                                    value=st.session_state[f"{form_key}_checkin_date"], 
-                                    key=f"{form_key}_checkin")
-            # Update session state when check_in changes
-            if check_in != st.session_state[f"{form_key}_checkin_date"]:
-                st.session_state[f"{form_key}_checkin_date"] = check_in
-                st.rerun()
+            check_in = st.date_input("Check In", value=date.today(), key=f"{form_key}_checkin")
         with row2_col3:
-            check_out = st.date_input("Check Out", 
-                                     value=st.session_state[f"{form_key}_checkout_date"], 
-                                     key=f"{form_key}_checkout")
-            # Update session state when check_out changes
-            if check_out != st.session_state[f"{form_key}_checkout_date"]:
-                st.session_state[f"{form_key}_checkout_date"] = check_out
-                st.rerun()
+            check_out = st.date_input("Check Out", value=date.today() + timedelta(days=1), key=f"{form_key}_checkout")
         with row2_col4:
-            # Calculate days from session state values
-            no_of_days = calculate_days(
-                st.session_state[f"{form_key}_checkin_date"], 
-                st.session_state[f"{form_key}_checkout_date"]
-            )
-            st.text_input("No of Days", value=str(no_of_days), disabled=True, 
-                         key=f"{form_key}_no_of_days_row2", help="Check-out - Check-in")
+            no_of_days = calculate_days(check_in, check_out)
+            st.text_input("No of Days", value=str(no_of_days), disabled=True, key=f"{form_key}_no_of_days_row2", help="Check-out - Check-in")
 
         # Row 3: No of Adults, No of Children, No of Infants, Breakfast
         row3_col1, row3_col2, row3_col3, row3_col4 = st.columns(4)
@@ -476,11 +461,20 @@ def show_new_reservation_form():
         with row3_col4:
             breakfast = st.selectbox("Breakfast", ["CP", "EP"], key=f"{form_key}_breakfast")
 
-        # Row 4: Total Pax, MOB, Room Type, Room No
+        # Row 4: Total Pax, MOB, Room Type, Room No (WITH EDITABLE ROOM NUMBER LOGIC)
         row4_col1, row4_col2, row4_col3, row4_col4 = st.columns(4)
         with row4_col1:
-            total_pax = safe_int(adults) + safe_int(children) + safe_int(infants)
-            st.text_input("Total Pax", value=str(total_pax), disabled=True, key=f"{form_key}_total_pax", help="Adults + Children + Infants")
+            cur_adults   = st.session_state.get(f"{form_key}_adults",   0)
+            cur_children = st.session_state.get(f"{form_key}_children", 0)
+            cur_infants  = st.session_state.get(f"{form_key}_infants",  0)
+            total_pax = safe_int(cur_adults) + safe_int(cur_children) + safe_int(cur_infants)
+            st.text_input(
+                "Total Pax",
+                value=str(total_pax),
+                disabled=True,
+                key=f"{form_key}_total_pax",
+                help="Adults + Children + Infants"
+            )
         with row4_col2:
             mob = st.selectbox("MOB (Mode of Booking)",
                                ["Direct", "Online", "Agent", "Walk-in", "Phone", "Website", "Booking-Drt", "Social Media", "Stay-back", "TIE-Group", "Others"],
@@ -494,12 +488,28 @@ def show_new_reservation_form():
             room_type = st.selectbox("Room Type", room_types, key=f"{form_key}_room_type", help="Select the room type. Choose 'Others' to manually enter a custom room number.")
         with row4_col4:
             if room_type == "Others":
-                room_no = st.text_input("Room No", value="", placeholder="Enter custom room number", key=f"{form_key}_room_no", help="Enter a custom room number for 'Others' room type.")
+                # For "Others", show text input
+                room_no = st.text_input(
+                    "Room No",
+                    value="",
+                    placeholder="Enter custom room number",
+                    key=f"{form_key}_room_no",
+                    help="Enter a custom room number for 'Others' room type."
+                )
                 if not room_no.strip():
                     st.warning("⚠️ Please enter a valid Room No for 'Others' room type.")
             else:
+                # For predefined types, show editable text input with suggestions
                 room_numbers = property_room_map[property_name].get(room_type, [])
-                room_no = st.text_input("Room No", value="", placeholder="Enter or select room number", key=f"{form_key}_room_no", help="Enter or edit the room number. You can type any custom value or use suggestions below.")
+                room_no = st.text_input(
+                    "Room No",
+                    value="",
+                    placeholder="Enter or select room number",
+                    key=f"{form_key}_room_no",
+                    help="Enter or edit the room number. You can type any custom value or use suggestions below."
+                )
+                
+                # Show helpful suggestions based on property
                 suggestion_list = [r for r in room_numbers if r.strip()]
                 if suggestion_list:
                     st.caption(f"💡 **Quick suggestions:** {', '.join(suggestion_list)}")
@@ -514,7 +524,9 @@ def show_new_reservation_form():
         with row5_col3:
             advance_amount = st.number_input("Advance Amount", min_value=0.0, value=0.0, step=100.0, key=f"{form_key}_advance")
         with row5_col4:
-            advance_mop = st.selectbox("Advance MOP", [" ", "Cash", "Card", "UPI", "Bank Transfer", "ClearTrip", "TIE Management", "Booking.com", "Pending", "Other"], key=f"{form_key}_advmop")
+            advance_mop = st.selectbox("Advance MOP",
+                                       [" ", "Cash", "Card", "UPI", "Bank Transfer", "ClearTrip", "TIE Management", "Booking.com", "Pending", "Other"],
+                                       key=f"{form_key}_advmop")
             if advance_mop == "Other":
                 custom_advance_mop = st.text_input("Custom Advance MOP", key=f"{form_key}_custom_advmop")
             else:
@@ -526,7 +538,10 @@ def show_new_reservation_form():
             balance_amount = max(0, total_tariff - safe_float(advance_amount))
             st.text_input("Balance Amount", value=f"₹{balance_amount:.2f}", disabled=True, key=f"{form_key}_balance_amount", help="Total Tariff - Advance Amount")
         with row6_col2:
-            balance_mop = st.selectbox("Balance MOP", [" ", "Pending", "Cash", "Card", "UPI", "Bank Transfer", "Other"], index=0, key=f"{form_key}_balmop")
+            balance_mop = st.selectbox("Balance MOP",
+                                       [" ", "Pending", "Cash", "Card", "UPI", "Bank Transfer", "Other"],
+                                       index=0,
+                                       key=f"{form_key}_balmop")
             if balance_mop == "Other":
                 custom_balance_mop = st.text_input("Custom Balance MOP", key=f"{form_key}_custom_balmop")
             else:
@@ -557,7 +572,9 @@ def show_new_reservation_form():
         if mob == "Online":
             row10_col1, = st.columns(1)
             with row10_col1:
-                online_source = st.selectbox("Online Source", ["Booking.com", "Agoda Prepaid", "Agoda Booking.com", "Expedia", "MMT", "Cleartrip", "Others"], key=f"{form_key}_online_source")
+                online_source = st.selectbox("Online Source",
+                                             ["Booking.com", "Agoda Prepaid", "Agoda Booking.com", "Expedia", "MMT", "Cleartrip", "Others"],
+                                             key=f"{form_key}_online_source")
                 if online_source == "Others":
                     custom_online_source = st.text_input("Custom Online Source", key=f"{form_key}_custom_online_source")
                 else:
@@ -567,6 +584,7 @@ def show_new_reservation_form():
             custom_online_source = None
 
         if st.button("💾 Save Reservation", use_container_width=True):
+            # Validate room_no
             if not room_no or not room_no.strip():
                 st.error("❌ Room No cannot be empty. Please enter a room number.")
             elif len(room_no) > 50:
@@ -720,6 +738,7 @@ def show_edit_reservations():
             use_container_width=True
         )
 
+        # Select reservation to edit
         booking_id = st.selectbox("Select Booking ID to Edit", filtered_df["Booking ID"].tolist(), key="edit_booking_id")
         if booking_id:
             edit_index = filtered_df[filtered_df["Booking ID"] == booking_id].index[0]
@@ -731,23 +750,18 @@ def show_edit_reservations():
         st.error(f"Error rendering edit reservations: {e}")
 
 def show_edit_form(edit_index):
-    """Display form for editing an existing reservation with instant days calculation."""
+    """Display form for editing an existing reservation with dynamic room assignments."""
     try:
         st.subheader(f"✏️ Editing Reservation: {st.session_state.reservations[edit_index]['Booking ID']}")
         reservation = st.session_state.reservations[edit_index]
         form_key = f"edit_reservation_{edit_index}"
         property_room_map = load_property_room_map()
 
+        # Initialize session state only if not already set
         if f"{form_key}_property" not in st.session_state:
             st.session_state[f"{form_key}_property"] = reservation["Property Name"]
         if f"{form_key}_roomtype" not in st.session_state:
             st.session_state[f"{form_key}_roomtype"] = reservation["Room Type"]
-        
-        # Initialize date session states if not present
-        if f"{form_key}_checkin_date" not in st.session_state:
-            st.session_state[f"{form_key}_checkin_date"] = reservation["Check In"]
-        if f"{form_key}_checkout_date" not in st.session_state:
-            st.session_state[f"{form_key}_checkout_date"] = reservation["Check Out"]
 
         # Row 1: Property Name, Guest Name, Mobile No
         row1_col1, row1_col2, row1_col3 = st.columns(3)
@@ -769,17 +783,11 @@ def show_edit_form(edit_index):
         with row2_col1:
             enquiry_date = st.date_input("Enquiry Date", value=reservation["Enquiry Date"], key=f"{form_key}_enquiry")
         with row2_col2:
-            check_in = st.date_input("Check In", value=st.session_state[f"{form_key}_checkin_date"], key=f"{form_key}_checkin")
-            if check_in != st.session_state[f"{form_key}_checkin_date"]:
-                st.session_state[f"{form_key}_checkin_date"] = check_in
-                st.rerun()
+            check_in = st.date_input("Check In", value=reservation["Check In"], key=f"{form_key}_checkin")
         with row2_col3:
-            check_out = st.date_input("Check Out", value=st.session_state[f"{form_key}_checkout_date"], key=f"{form_key}_checkout")
-            if check_out != st.session_state[f"{form_key}_checkout_date"]:
-                st.session_state[f"{form_key}_checkout_date"] = check_out
-                st.rerun()
+            check_out = st.date_input("Check Out", value=reservation["Check Out"], key=f"{form_key}_checkout")
         with row2_col4:
-            no_of_days = calculate_days(st.session_state[f"{form_key}_checkin_date"], st.session_state[f"{form_key}_checkout_date"])
+            no_of_days = calculate_days(check_in, check_out)
             st.text_input("No of Days", value=str(no_of_days), disabled=True, key=f"{form_key}_no_of_days_row2", help="Check-out - Check-in")
 
         # Row 3: No of Adults, No of Children, No of Infants, Breakfast
@@ -793,14 +801,23 @@ def show_edit_form(edit_index):
         with row3_col4:
             breakfast = st.selectbox("Breakfast", ["CP", "EP"], index=["CP", "EP"].index(reservation["Breakfast"]), key=f"{form_key}_breakfast")
 
-        # Row 4: Total Pax, MOB, Room Type, Room No
+        # Row 4: Total Pax, MOB, Room Type, Room No (WITH EDITABLE ROOM NUMBER LOGIC)
         fetched_room_no = str(reservation.get("Room No", "") or "")
         fetched_room_type = str(reservation.get("Room Type", "") or "")
         
         row4_col1, row4_col2, row4_col3, row4_col4 = st.columns(4)
         with row4_col1:
-            total_pax = safe_int(adults) + safe_int(children) + safe_int(infants)
-            st.text_input("Total Pax", value=str(total_pax), disabled=True, key=f"{form_key}_total_pax", help="Adults + Children + Infants")
+            cur_adults   = st.session_state.get(f"{form_key}_adults",   0)
+            cur_children = st.session_state.get(f"{form_key}_children", 0)
+            cur_infants  = st.session_state.get(f"{form_key}_infants",  0)
+            total_pax = safe_int(cur_adults) + safe_int(cur_children) + safe_int(cur_infants)
+            st.text_input(
+                "Total Pax",
+                value=str(total_pax),
+                disabled=True,
+                key=f"{form_key}_total_pax",
+                help="Adults + Children + Infants"
+            )
         with row4_col2:
             mob_options = ["Direct", "Online", "Agent", "Walk-in", "Phone", "Website", "Booking-Drt", "Social Media", "Stay-back", "TIE-Group", "Others"]
             mob_index = mob_options.index(reservation["MOB"]) if reservation["MOB"] in mob_options else len(mob_options) - 1
@@ -811,16 +828,32 @@ def show_edit_form(edit_index):
                 custom_mob = None
         with row4_col3:
             room_types = list(property_room_map[property_name].keys()) if property_name in property_room_map else []
-            room_type = st.selectbox("Room Type", room_types, index=room_types.index(fetched_room_type) if fetched_room_type in room_types else 0, key=f"{form_key}_room_type")
+            room_type = st.selectbox("Room Type", room_types, index=room_types.index(fetched_room_type) if fetched_room_type in room_types else 0, key=f"{form_key}_room_type", help="Select the room type. Choose 'Others' to manually enter a custom room number.")
         with row4_col4:
             if room_type == "Others":
+                # For "Others", show text input
                 initial_value = fetched_room_no if fetched_room_type == "Others" else ""
-                room_no = st.text_input("Room No", value=initial_value, placeholder="Enter custom room number", key=f"{form_key}_room_no")
+                room_no = st.text_input(
+                    "Room No",
+                    value=initial_value,
+                    placeholder="Enter custom room number",
+                    key=f"{form_key}_room_no",
+                    help="Enter a custom room number for 'Others' room type."
+                )
                 if not room_no.strip():
                     st.warning("⚠️ Please enter a valid Room No for 'Others' room type.")
             else:
+                # For predefined types, show editable text input with suggestions
                 room_numbers = property_room_map[property_name].get(room_type, [])
-                room_no = st.text_input("Room No", value=fetched_room_no, placeholder="Enter room number", key=f"{form_key}_room_no")
+                room_no = st.text_input(
+                    "Room No",
+                    value=fetched_room_no,
+                    placeholder="Enter room number",
+                    key=f"{form_key}_room_no",
+                    help="Enter or edit the room number. You can type any custom value or use suggestions below."
+                )
+                
+                # Show helpful suggestions based on property
                 suggestion_list = [r for r in room_numbers if r.strip()]
                 if suggestion_list:
                     st.caption(f"💡 **Quick suggestions:** {', '.join(suggestion_list)}")
@@ -907,6 +940,7 @@ def show_edit_form(edit_index):
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             if st.button("💾 Save Reservation", key=f"{form_key}_update", use_container_width=True):
+                # Validate room_no
                 if not room_no or not room_no.strip():
                     st.error("❌ Room No cannot be empty. Please enter a room number.")
                 elif len(room_no) > 50:
