@@ -94,7 +94,7 @@ def load_property_room_map():
             "No Show": ["No Show"],
             "Others": []
         },
-        "La Antilia Luxury": {
+        "La Antilia": {
             "Deluex Suite Room": ["101"],
             "Deluex Double Room": ["203", "204", "303", "304"],
             "Family Room": ["201", "202", "301", "302"],
@@ -464,17 +464,8 @@ def show_new_reservation_form():
         # Row 4: Total Pax, MOB, Room Type, Room No (WITH EDITABLE ROOM NUMBER LOGIC)
         row4_col1, row4_col2, row4_col3, row4_col4 = st.columns(4)
         with row4_col1:
-            cur_adults   = st.session_state.get(f"{form_key}_adults",   0)
-            cur_children = st.session_state.get(f"{form_key}_children", 0)
-            cur_infants  = st.session_state.get(f"{form_key}_infants",  0)
-            total_pax = safe_int(cur_adults) + safe_int(cur_children) + safe_int(cur_infants)
-            st.text_input(
-                "Total Pax",
-                value=str(total_pax),
-                disabled=True,
-                key=f"{form_key}_total_pax",
-                help="Adults + Children + Infants"
-            )
+            total_pax = safe_int(adults) + safe_int(children) + safe_int(infants)
+            st.text_input("Total Pax", value=str(total_pax), disabled=True, key=f"{form_key}_total_pax", help="Adults + Children + Infants")
         with row4_col2:
             mob = st.selectbox("MOB (Mode of Booking)",
                                ["Direct", "Online", "Agent", "Walk-in", "Phone", "Website", "Booking-Drt", "Social Media", "Stay-back", "TIE-Group", "Others"],
@@ -807,17 +798,8 @@ def show_edit_form(edit_index):
         
         row4_col1, row4_col2, row4_col3, row4_col4 = st.columns(4)
         with row4_col1:
-            cur_adults   = st.session_state.get(f"{form_key}_adults",   0)
-            cur_children = st.session_state.get(f"{form_key}_children", 0)
-            cur_infants  = st.session_state.get(f"{form_key}_infants",  0)
-            total_pax = safe_int(cur_adults) + safe_int(cur_children) + safe_int(cur_infants)
-            st.text_input(
-                "Total Pax",
-                value=str(total_pax),
-                disabled=True,
-                key=f"{form_key}_total_pax",
-                help="Adults + Children + Infants"
-            )
+            total_pax = safe_int(adults) + safe_int(children) + safe_int(infants)
+            st.text_input("Total Pax", value=str(total_pax), disabled=True, key=f"{form_key}_total_pax", help="Adults + Children + Infants")
         with row4_col2:
             mob_options = ["Direct", "Online", "Agent", "Walk-in", "Phone", "Website", "Booking-Drt", "Social Media", "Stay-back", "TIE-Group", "Others"]
             mob_index = mob_options.index(reservation["MOB"]) if reservation["MOB"] in mob_options else len(mob_options) - 1
@@ -897,7 +879,7 @@ def show_edit_form(edit_index):
         with row7_col2:
             invoice_no = st.text_input("Invoice No", value=reservation["Invoice No"], key=f"{form_key}_invoice")
         with row7_col3:
-            booking_status_options = ["Confirmed", "Pending", "Cancelled", "Completed", "Follow-up", "No Show"]
+            booking_status_options = ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"]
             booking_status_index = booking_status_options.index(reservation["Booking Status"]) if reservation["Booking Status"] in booking_status_options else 1
             booking_status = st.selectbox("Booking Status", booking_status_options, index=booking_status_index, key=f"{form_key}_status")
 
