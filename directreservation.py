@@ -440,15 +440,25 @@ def show_new_reservation_form():
 
         # Row 2: Enquiry Date, Check In, Check Out, No of Days
         row2_col1, row2_col2, row2_col3, row2_col4 = st.columns(4)
-        with row2_col1:
-            enquiry_date = st.date_input("Enquiry Date", value=date.today(), key=f"{form_key}_enquiry")
-        with row2_col2:
-            check_in = st.date_input("Check In", value=date.today(), key=f"{form_key}_checkin")
-        with row2_col3:
-            check_out = st.date_input("Check Out", value=date.today() + timedelta(days=1), key=f"{form_key}_checkout")
-        with row2_col4:
-            no_of_days = calculate_days(check_in, check_out)
-            st.text_input("No of Days", value=str(no_of_days), disabled=True, key=f"{form_key}_no_of_days_row2", help="Check-out - Check-in")
+with row2_col1:
+    enquiry_date = st.date_input("Enquiry Date", value=date.today(), key=f"{form_key}_enquiry")
+
+# Trigger rerun when either date changes
+def update_days():
+    st.session_state[f"{form_key}_no_of_days"] = calculate_days(
+        st.session_state[f"{form_key}_checkin"],
+        st.session_state[f"{form_key}_checkout"]
+    )
+
+with row2_col2:
+    check_in = st.date_input("Check In", value=date.today(), key=f"{form_key}_checkin", on_change=update_days)
+with row2_col3:
+    check_out = st.date_input("Check Out", value=date.today() + timedelta(days=1), key=f"{form_key}_checkout", on_change=update_days)
+
+# Display live-updating days
+no_of_days = st.session_state.get(f"{form_key}_no_of_days", calculate_days(check_in, check_out))
+with row2_col4:
+    st.text_input("No of Days", value=str(no_of_days), disabled=True, key=f"{form_key}_no_of_days_row2", help="Check-out - Check-in")
 
         # Row 3: No of Adults, No of Children, No of Infants, Breakfast
         row3_col1, row3_col2, row3_col3, row3_col4 = st.columns(4)
