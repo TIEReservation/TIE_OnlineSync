@@ -177,8 +177,8 @@ def calculate_days(check_in, check_out):
     """Calculate the number of days between check-in and check-out dates."""
     if check_in and check_out and check_out >= check_in:
         delta = check_out - check_in
-        return max(1, delta.days)
-    return 0
+        return max(1, delta.days)  # At least 1 day
+    return 1 if check_in and check_out else 0
 
 def safe_int(value, default=0):
     """Safely convert value to int, return default if conversion fails."""
@@ -641,6 +641,16 @@ def show_new_reservation_form():
     except Exception as e:
         st.error(f"Error rendering new reservation form: {e}")
 
+def update_no_of_days(form_key):
+    """Update no_of_days in session state when check_in or check_out changes."""
+    try:
+        check_in = st.session_state[f"{form_key}_checkin"]
+        check_out = st.session_state[f"{form_key}_checkout"]
+        days = calculate_days(check_in, check_out)
+        st.session_state[f"{form_key}_no_of_days"] = days
+    except Exception:
+        st.session_state[f"{form_key}_no_of_days"] = 0
+        
 def show_reservations():
     """Display all reservations with filtering options."""
     if not st.session_state.reservations:
@@ -774,16 +784,34 @@ def show_edit_form(edit_index):
             mobile_no = st.text_input("Mobile No", value=reservation["Mobile No"], key=f"{form_key}_mobile")
 
         # Row 2: Enquiry Date, Check In, Check Out, No of Days
-        row2_col1, row2_col2, row2_col3, row2_col4 = st.columns(4)
-        with row2_col1:
-            enquiry_date = st.date_input("Enquiry Date", value=reservation["Enquiry Date"], key=f"{form_key}_enquiry")
-        with row2_col2:
-            check_in = st.date_input("Check In", value=reservation["Check In"], key=f"{form_key}_checkin")
+               with row2_col2:
+            check_in = st.date_input(
+                "Check In",
+                value=reservation["Check In"],
+                key=f"{form_key}_checkin",
+                on_change=lambda: update_no_of_days(form_key)
+            )
         with row2_col3:
-            check_out = st.date_input("Check Out", value=reservation["Check Out"], key=f"{form_key}_checkout")
+            check_out = st.date_input(
+                "Check Out",
+                value=reservation["Check Out"],
+                key=f"{form_key}_checkout",
+                on_change=lambda: update_no_of_days(form_key)
+            )
         with row2_col4:
-            no_of_days = calculate_days(check_in, check_out)
-            st.text_input("No of Days", value=str(no_of_days), disabled=True, key=f"{form_key}_no_of_days_row2", help="Check-out - Check-in")
+            if f"{form_key}_no_of_days" not in st.session_state:
+                st.session_state[f"{form_key}_no_of_days"] = calculate_days(
+                    st.session_state.get(f"{form_key}_checkin", reservation["Check In"]),
+                    st.session_state.get(f"{form_key}_checkout", reservation["Check Out"])
+                )
+            no_of_days = st.session_state[f"{form_key}_no_of_days"]
+            st.text_input(
+                "No of Days",
+                value=str(no_of_days),
+                disabled=True,
+                key=f"{form_key}_no_of_days_row2",
+                help="Check-out - Check-in"
+            )
 
         # Row 3: No of Adults, No of Children, No of Infants, Breakfast
         row3_col1, row3_col2, row3_col3, row3_col4 = st.columns(4)
