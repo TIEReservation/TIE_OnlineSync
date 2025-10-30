@@ -879,7 +879,7 @@ def show_edit_form(edit_index):
         with row7_col2:
             invoice_no = st.text_input("Invoice No", value=reservation["Invoice No"], key=f"{form_key}_invoice")
         with row7_col3:
-            booking_status_options = ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"]
+            booking_status_options = ["Confirmed", "Pending", "Cancelled", "Completed", "Follow-up", "No Show"]
             booking_status_index = booking_status_options.index(reservation["Booking Status"]) if reservation["Booking Status"] in booking_status_options else 1
             booking_status = st.selectbox("Booking Status", booking_status_options, index=booking_status_index, key=f"{form_key}_status")
 
