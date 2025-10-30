@@ -467,10 +467,10 @@ def show_new_reservation_form():
             cur_adults   = st.session_state.get(f"{form_key}_adults",   0)
             cur_children = st.session_state.get(f"{form_key}_children", 0)
             cur_infants  = st.session_state.get(f"{form_key}_infants",  0)
-            total_pax_live = safe_int(cur_adults) + safe_int(cur_children) + safe_int(cur_infants)
+            total_pax = safe_int(cur_adults) + safe_int(cur_children) + safe_int(cur_infants)
             st.text_input(
                 "Total Pax",
-                value=str(total_pax_live),
+                value=str(total_pax),
                 disabled=True,
                 key=f"{form_key}_total_pax",
                 help="Adults + Children + Infants"
@@ -810,10 +810,10 @@ def show_edit_form(edit_index):
             cur_adults   = st.session_state.get(f"{form_key}_adults",   0)
             cur_children = st.session_state.get(f"{form_key}_children", 0)
             cur_infants  = st.session_state.get(f"{form_key}_infants",  0)
-            total_pax_live = safe_int(cur_adults) + safe_int(cur_children) + safe_int(cur_infants)
+            total_pax = safe_int(cur_adults) + safe_int(cur_children) + safe_int(cur_infants)
             st.text_input(
                 "Total Pax",
-                value=str(total_pax_live),
+                value=str(total_pax),
                 disabled=True,
                 key=f"{form_key}_total_pax",
                 help="Adults + Children + Infants"
