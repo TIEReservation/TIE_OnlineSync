@@ -17,7 +17,7 @@ except KeyError as e:
     st.error(f"Missing Supabase secret: {e}")
     st.stop()
 
-# Property mappings
+# Property synonym mapping
 property_mapping = {
     "La Millionaire Luxury Resort": "La Millionaire Resort",
     "Le Poshe Beach View": "Le Poshe Beach view",
@@ -25,9 +25,9 @@ property_mapping = {
     "Le Poshe Beach VIEW": "Le Poshe Beach view",
     "Millionaire": "La Millionaire Resort",
 }
-reverse_mapping = {c: [v] for v, c in property_mapping.items()}
-for c, vs in reverse_mapping.items():
-    reverse_mapping[c] = vs + [c]
+reverse_mapping = {}
+for variant, canonical in property_mapping.items():
+    reverse_mapping.setdefault(canonical, []).append(variant)
 
 # MOP & MOB mappings
 mop_mapping = {
@@ -129,11 +129,32 @@ def load_properties() -> List[str]:
         return []
 
 def normalize_booking(booking: Dict, is_online: bool) -> Dict:
+    booking_id = sanitize_string(booking.get('booking_id'))
+
+    # FILTER: Skip Cancelled or Not Paid
+    payment_status = sanitize_string(booking.get('payment_status')).title()
+    if payment_status not in ["Fully Paid", "Partially Paid"]:
+        logging.info(f"Skipping booking {booking_id} - Payment Status: {payment_status}")
+        return None
+
+    booking_status_field = 'booking_status' if is_online else 'plan_status'
+    booking_status = sanitize_string(booking.get(booking_status_field))
+    if booking_status.upper() == "CANCELLED":
+        logging.info(f"Skipping booking {booking_id} - Booking Status: Cancelled")
+        return None
+
     try:
         check_in = date.fromisoformat(booking.get('check_in')) if booking.get('check_in') else None
         check_out = date.fromisoformat(booking.get('check_out')) if booking.get('check_out') else None
-        days = (check_out - check_in).days if check_in and check_out else 1
-        if days <= 0: days = 1
+        if not check_in or not check_out:
+            logging.warning(f"Skipping booking {booking_id} - missing check-in/out")
+            return None
+        days = (check_out - check_in).days
+        if days <= 0:
+            days = 1
+
+        property_name = sanitize_string(booking.get('property', booking.get('property_name', '')))
+        property_name = property_mapping.get(property_name, property_name)
 
         total_tariff = safe_float(booking.get('total_amount_with_services', booking.get('booking_amount', 0.0))) or safe_float(booking.get('total_tariff', 0.0))
         commission = safe_float(booking.get('ota_commission', 0.0))
@@ -142,13 +163,13 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
 
         return {
             "type": "online" if is_online else "direct",
-            "property": property_mapping.get(sanitize_string(booking.get('property', booking.get('property_name', ''))), sanitize_string(booking.get('property', booking.get('property_name', '')))),
-            "booking_id": sanitize_string(booking.get('booking_id')),
+            "property": property_name,
+            "booking_id": booking_id,
             "guest_name": sanitize_string(booking.get('guest_name', '')),
             "mobile_no": sanitize_string(booking.get('guest_phone', booking.get('mobile_no', ''))),
             "total_pax": safe_int(booking.get('total_pax', 0)),
-            "check_in": str(check_in) if check_in else "",
-            "check_out": str(check_out) if check_out else "",
+            "check_in": str(check_in),
+            "check_out": str(check_out),
             "days": days,
             "room_no": sanitize_string(booking.get('room_no', '')).title(),
             "mob": sanitize_string(booking.get('mode_of_booking', booking.get('mob', ''))),
@@ -163,14 +184,14 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
             "balance": safe_float(booking.get('balance_due', 0.0)) or safe_float(booking.get('balance_amount', 0.0)),
             "balance_mop": sanitize_string(booking.get('balance_mop', '')),
             "plan": sanitize_string(booking.get('rate_plans', booking.get('plan', ''))),
-            "booking_status": sanitize_string(booking.get('booking_status') if is_online else booking.get('plan_status')),
-            "payment_status": sanitize_string(booking.get('payment_status')).title(),
+            "booking_status": booking_status,
+            "payment_status": payment_status,
             "submitted_by": sanitize_string(booking.get('submitted_by', '')),
             "modified_by": sanitize_string(booking.get('modified_by', '')),
             "remarks": sanitize_string(booking.get('remarks', ''))
         }
     except Exception as e:
-        logging.warning(f"Skipping booking due to error: {e}")
+        logging.warning(f"Skipping booking {booking_id} due to error: {e}")
         return None
 
 def load_combined_bookings(property: str, start_date: date, end_date: date) -> List[Dict]:
@@ -297,7 +318,8 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
     total_inv = len([i for i in PROPERTY_INVENTORY.get(property, {}).get("all", []) if not i.startswith(("Day Use", "No Show"))])
 
     # D.T.D
-    dtd, total_rooms, total_value, total_pax, total_gst, total_comm = {m: {"rooms": 0, "value": 0.0, "comm": 0.0} for m in mob_types}, 0, 0.0, 0, 0.0, 0.0
+    dtd = {m: {"rooms": 0, "value": 0.0, "comm": 0.0} for m in mob_types}
+    total_rooms = total_value = total_pax = total_gst = total_comm = 0
     daily_a, _ = assign_inventory_numbers(filter_bookings_for_day(bookings, target_date), property)
     for b in daily_a:
         mob = next((m for m, vs in mob_mapping.items() if b["mob"].upper() in [v.upper() for v in vs]), "Booking")
@@ -311,7 +333,8 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
     dtd_df = pd.DataFrame([{"MOB": m, "D.T.D Rooms": d["rooms"], "D.T.D Value": f"{d['value']:.2f}", "D.T.D ARR": f"{d['arr']:.2f}", "D.T.D Comm": f"{d['comm']:.2f}"} for m, d in dtd.items()])
 
     # M.T.D
-    mtd, mtd_rooms, mtd_value, mtd_pax, mtd_gst, mtd_comm = {m: {"rooms": 0, "value": 0.0, "comm": 0.0} for m in mob_types}, 0, 0.0, 0, 0.0, 0.0
+    mtd = {m: {"rooms": 0, "value": 0.0, "comm": 0.0} for m in mob_types}
+    mtd_rooms = mtd_value = mtd_pax = mtd_gst = mtd_comm = 0
     for day in [d for d in month_dates if d <= target_date]:
         day_a, _ = assign_inventory_numbers(filter_bookings_for_day(bookings, day), property)
         for b in day_a:
@@ -343,7 +366,7 @@ def cached_load_properties():
 def cached_load_bookings(prop, start, end):
     return load_combined_bookings(prop, start, end)
 
-# EXPOSED FUNCTION — REQUIRED FOR IMPORT
+# EXPORTED FUNCTION
 def show_daily_status():
     st.title("Daily Status")
     if st.button("Refresh Property List"):
@@ -382,4 +405,4 @@ def show_daily_status():
                         st.subheader("Summary")
                         st.dataframe(pd.DataFrame([{"Metric": k.replace("_", " ").title(), "Value": f"{v:.2f}" if isinstance(v, float) else v} for k, v in summary.items()]), use_container_width=True)
                 else:
-                    st.info("No bookings.")
+                    st.info("No active bookings.")
