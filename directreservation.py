@@ -41,7 +41,7 @@ def load_property_room_map():
             "2BHA Appartment": ["101&102", "101", "102"],
             "2BHA Appartment with Balcony": ["201&202", "201", "202", "301&302", "301", "302", "401&402", "401", "402"],
             "3BHA Appartment": ["203to205", "203", "204", "205", "303to305", "303", "304", "305", "403to405", "403", "404", "405"],
-            "爲Double Room with Private Terrace": ["501"],
+            "Double Room with Private Terrace": ["501"],
             "Day Use": ["Day Use 1", "Day Use 2"],
             "No Show": ["No Show"],
             "Others": []
@@ -187,8 +187,7 @@ def calculate_days(check_in, check_out):
 
 def safe_int(v, default=0):
     try:
-        return int(v) if v is not None
-        else default
+        return int(v) if v is not None else default
     except (ValueError, TypeError):
         return default
 
@@ -518,8 +517,8 @@ def show_new_reservation_form():
                     "Advance MOP": custom_advance_mop if advance_mop == "Other" else advance_mop,
                     "Balance MOP": custom_balance_mop if balance_mop == "Other" else balance_mop,
                     "MOB": mob_val,
-                    "Online Source": custom_advance_mop if online_source == "Others" else online_source,
-                    "Invoice KB": invoice_no,
+                    "Online Source": custom_online_source if online_source == "Others" else online_source,
+                    "Invoice No": invoice_no,
                     "Enquiry Date": enquiry_date,
                     "Booking Date": booking_date,
                     "Room Type": room_type,
@@ -537,7 +536,7 @@ def show_new_reservation_form():
 
 
 # ----------------------------------------------------------------------
-# EDIT RESERVATION FORM (FULLY IMPLEMENTED)
+# EDIT RESERVATION FORM
 # ----------------------------------------------------------------------
 def show_edit_reservations():
     if not st.session_state.reservations:
@@ -553,7 +552,6 @@ def show_edit_reservations():
         res = st.session_state.reservations[idx]
         form_key = f"edit_{res['Booking ID']}"
 
-        # Initialize live fields
         for suf in ("_no_of_days", "_total_pax", "_balance_amount"):
             key = f"{form_key}{suf}"
             if key not in st.session_state:
@@ -564,7 +562,6 @@ def show_edit_reservations():
 
         prop_map = load_property_room_map()
 
-        # Row 1
         c1, c2, c3 = st.columns(3)
         with c1:
             property_name = st.selectbox("Property Name", sorted(prop_map.keys()), index=sorted(prop_map.keys()).index(res["Property Name"]), key=f"{form_key}_property")
@@ -573,7 +570,6 @@ def show_edit_reservations():
         with c3:
             mobile_no = st.text_input("Mobile No", value=res["Mobile No"], key=f"{form_key}_mobile")
 
-        # Row 2
         r2c1, r2c2, r2c3, r2c4 = st.columns(4)
         with r2c1:
             enquiry_date = st.date_input("Enquiry Date", value=res["Enquiry Date"], key=f"{form_key}_enquiry")
@@ -584,7 +580,6 @@ def show_edit_reservations():
         with r2c4:
             st.metric("No of Days", value=st.session_state[f"{form_key}_no_of_days"])
 
-        # Row 3
         r3c1, r3c2, r3c3, r3c4 = st.columns(4)
         with r3c1:
             adults = st.number_input("No of Adults", min_value=0, value=res["No of Adults"], key=f"{form_key}_adults", on_change=lambda: _update_derived(form_key))
@@ -595,7 +590,6 @@ def show_edit_reservations():
         with r3c4:
             breakfast = st.selectbox("Breakfast", ["CP", "EP"], index=["CP", "EP"].index(res["Breakfast"]), key=f"{form_key}_breakfast")
 
-        # Row 4
         r4c1, r4c2, r4c3, r4c4 = st.columns(4)
         with r4c1:
             st.metric("Total Pax", value=st.session_state[f"{form_key}_total_pax"])
@@ -616,7 +610,6 @@ def show_edit_reservations():
                 if suggestions:
                     st.caption(f"Suggestions: {', '.join(suggestions)}")
 
-        # Row 5
         r5c1, r5c2, r5c3, r5c4 = st.columns(4)
         with r5c1:
             total_tariff = st.number_input("Total Tariff", min_value=0.0, value=res["Total Tariff"], step=100.0, key=f"{form_key}_total_tariff", on_change=lambda: _update_derived(form_key))
@@ -631,7 +624,6 @@ def show_edit_reservations():
             advance_mop = st.selectbox("Advance MOP", adv_opts, index=adv_idx, key=f"{form_key}_advmop")
             custom_advance_mop = st.text_input("Custom Advance MOP", value=res["Advance MOP"] if adv_idx == -1 else "", key=f"{form_key}_custom_advmop") if advance_mop == "Other" else None
 
-        # Row 6
         r6c1, r6c2 = st.columns(2)
         with r6c1:
             st.metric("Balance Amount", value=f"₹{st.session_state[f'{form_key}_balance_amount']:.2f}")
@@ -641,7 +633,6 @@ def show_edit_reservations():
             balance_mop = st.selectbox("Balance MOP", bal_opts, index=bal_idx, key=f"{form_key}_balmop")
             custom_balance_mop = st.text_input("Custom Balance MOP", value=res["Balance MOP"] if bal_idx == len(bal_opts)-1 else "", key=f"{form_key}_custom_balmop") if balance_mop == "Other" else None
 
-        # Row 7
         r7c1, r7c2, r7c3 = st.columns(3)
         with r7c1:
             booking_date = st.date_input("Booking Date", value=res["Booking Date"], key=f"{form_key}_booking")
