@@ -93,7 +93,58 @@ PROPERTY_INVENTORY = {
         "all": ["101", "102", "103", "105", "201", "202", "203", "204", "205", "206", "207", "208", "301", "302", "303", "304", "305", "306", "307", "308", "401", "402", "Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show"],
         "three_bedroom": ["203", "204", "205"]
     },
-    # ... (rest of your inventory remains unchanged)
+    "Le Poshe Luxury": {
+        "all": ["101", "102", "201", "202", "203", "204", "205", "301", "302", "303", "304", "305", "401", "402", "403", "404", "405", "501", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203", "204", "205"]
+    },
+    "Le Poshe Suite": {
+        "all": ["601", "602", "603", "604", "701", "702", "703", "704", "801", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": []
+    },
+    "La Paradise Residency": {
+        "all": ["101", "102", "103", "201", "202", "203", "301", "302", "303", "304", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203"]
+    },
+    "La Paradise Luxury": {
+        "all": ["101", "102", "103", "201", "202", "203", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203"]
+    },
+    "La Villa Heritage": {
+        "all": ["101", "102", "103", "201", "202", "203", "301", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203"]
+    },
+    "Le Pondy Beach Side": {
+        "all": ["101", "102", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": []
+    },
+    "Le Royce Villa": {
+        "all": ["101", "102", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": []
+    },
+    "La Tamara Luxury": {
+        "all": ["101", "102", "103", "104", "105", "106", "201", "202", "203", "204", "205", "206", "301", "302", "303", "304", "305", "306", "401", "402", "403", "404", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203", "204", "205", "206"]
+    },
+    "La Antilia Luxury": {
+        "all": ["101", "201", "202", "203", "204", "301", "302", "303", "304", "401", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203", "204"]
+    },
+    "La Tamara Suite": {
+        "all": ["101", "102", "103", "104", "201", "202", "203", "204", "205", "206", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203", "204", "205", "206"]
+    },
+    "Le Park Resort": {
+        "all": ["111", "222", "333", "444", "555", "666", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": []
+    },
+    "Villa Shakti": {
+        "all": ["101", "102", "201", "201A", "202", "203", "301", "301A", "302", "303", "401", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": ["203"]
+    },
+    "Eden Beach Resort": {
+        "all": ["101", "102", "103", "201", "202", "Day Use 1", "Day Use 2", "No Show"],
+        "three_bedroom": []
+    }
 }
 
 def initialize_property_inventory(properties: List[str]) -> None:
@@ -257,9 +308,8 @@ def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dic
             continue
     return filtered
 
-# REPLACED: assign_inventory_numbers with multi-room logic
+# MULTI-ROOM SUPPORT: Split bookings into per-room entries
 def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple[List[Dict], List[Dict]]:
-    """Split multi-room bookings and calculate per-night per room."""
     assigned = []
     overbookings = []
     inventory = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
@@ -310,7 +360,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple
 
     return assigned, overbookings
 
-# REPLACED: create_inventory_table with multi-room support
+# MULTI-ROOM TABLE: Show per-room rows
 def create_inventory_table(assigned_bookings: List[Dict], overbookings: List[Dict], property: str) -> pd.DataFrame:
     columns = [
         "Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No", "Total Pax",
@@ -380,61 +430,75 @@ def create_inventory_table(assigned_bookings: List[Dict], overbookings: List[Dic
 
     return pd.DataFrame(df_data, columns=columns)
 
-# ... rest of compute_mop_report, compute_statistics, caching, show_daily_status remain unchanged ...
-# (Keep your existing implementations — only assign_inventory_numbers and create_inventory_table were replaced)
+def compute_mop_report(daily_bookings: List[Dict], target_date: date) -> pd.DataFrame:
+    mop_types = ["UPI", "Cash", "Go-MMT", "Agoda", "NOT PAID", "Expenses", "Bank Transfer", "Stayflexi", "Card Payment", "Expedia", "Cleartrip", "Website"]
+    mop_data = {mop: 0.0 for mop in mop_types}
+    total_cash = 0.0
+    total = 0.0
+    for b in daily_bookings:
+        if not (b.get('is_primary', False) and date.fromisoformat(b["check_in"]) == target_date):
+            continue
+        advance_mop = sanitize_string(b.get("advance_mop", ""))
+        balance_mop = sanitize_string(b.get("balance_mop", ""))
+        advance = safe_float(b.get("advance", 0.0))
+        balance = safe_float(b.get("balance", 0.0))
+        for standard_mop, variants in mop_mapping.items():
+            if advance_mop in variants:
+                mop_data[standard_mop] += advance
+                total += advance
+                if standard_mop == "Cash":
+                    total_cash += advance
+            if balance_mop in variants:
+                mop_data[standard_mop] += balance
+                total += balance
+                if standard_mop == "Cash":
+                    total_cash += balance
+    mop_data["Expenses"] = 0.0
+    mop_data["Total Cash"] = total_cash
+    mop_data["Total"] = total
+    return pd.DataFrame([{"MOP": mop, "Amount": f"{amount:.2f}"} for mop, amount in mop_data.items()], columns=["MOP", "Amount"])
 
-@st.cache_data
-def cached_load_properties():
-    return load_properties()
+def compute_statistics(bookings: List[Dict], property: str, target_date: date, month_dates: List[date]) -> tuple:
+    mob_types = ["Booking", "Direct", "Bkg-Direct", "Agoda", "Go-MMT", "Walk-In", "TIE Group", "Stayflexi", "Airbnb", "Social Media", "Expedia", "Cleartrip", "Website"]
+    inventory = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
+    total_inventory = len([i for i in inventory if not i.startswith(("Day Use", "No Show"))])
 
-@st.cache_data
-def cached_load_bookings(property, start_date, end_date):
-    return load_combined_bookings(property, start_date, end_date)
+    # D.T.D
+    dtd_data = {mob: {"rooms": 0, "value": 0.0, "arr": 0.0, "comm": 0.0} for mob in mob_types}
+    total_rooms = total_value = total_pax = total_gst = total_comm = 0
+    daily_assigned, _ = assign_inventory_numbers(filter_bookings_for_day(bookings, target_date), property)
 
-def show_daily_status():
-    st.title("Daily Status")
-    if st.button("Refresh Property List"):
-        st.cache_data.clear()
-        st.rerun()
-    current_year = date.today().year
-    year = st.selectbox("Select Year", list(range(current_year - 5, current_year + 6)), index=5)
-    month = st.selectbox("Select Month", list(range(1, 13)), index=date.today().month - 1)
-    properties = cached_load_properties()
-    if not properties:
-        st.info("No properties available.")
-        return
-    st.subheader("Properties")
-    st.markdown(TABLE_CSS, unsafe_allow_html=True)
-    for prop in properties:
-        with st.expander(f"{prop}"):
-            month_dates = generate_month_dates(year, month)
-            start_date = month_dates[0]
-            end_date = month_dates[-1]
-            bookings = cached_load_bookings(prop, start_date, end_date)
-            for day in month_dates:
-                daily_bookings = filter_bookings_for_day(bookings, day)
-                st.subheader(f"{prop} - {day.strftime('%B %d, %Y')}")
-                if daily_bookings:
-                    assigned, overbookings = assign_inventory_numbers(daily_bookings, prop)
-                    df = create_inventory_table(assigned, overbookings, prop)
-                    if 'Booking ID' in df.columns:
-                        df['Booking ID'] = df['Booking ID'].apply(lambda x: f'<span style="font-size: 0.75em;">{x.split(">")[1].split("</a>")[0] if ">" in str(x) else x}</span>')
-                    tooltip_cols = ['Guest Name', 'Room No', 'Remarks', 'Mobile No', 'MOB', 'Plan', 'Submitted by', 'Modified by']
-                    for col in tooltip_cols:
-                        if col in df.columns:
-                            df[col] = df[col].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x, str) else x)
-                    table_html = df.to_html(escape=False, index=False)
-                    st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
-                    dtd_df, mtd_df, summary, mop_df = compute_statistics(bookings, prop, day, month_dates)
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1: st.subheader("MOP Report"); st.dataframe(mop_df, use_container_width=True)
-                    with col2: st.subheader("D.T.D"); st.dataframe(dtd_df, use_container_width=True)
-                    with col3: st.subheader("M.T.D"); st.dataframe(mtd_df, use_container_width=True)
-                    with col4:
-                        st.subheader("Summary")
-                        st.dataframe(pd.DataFrame([
-                            {"Metric": k.replace("_", " ").title(), "Value": f"{v:.2f}" if isinstance(v, float) else v}
-                            for k, v in summary.items()
-                        ]), use_container_width=True)
-                else:
-                    st.info("No active bookings on this day.")
+    for b in daily_assigned:
+        raw_mob = sanitize_string(b.get("mob", "Unknown"))
+        mob = next((m for m, v in mob_mapping.items() if raw_mob.upper() in [x.upper() for x in v]), "Booking")
+        rooms = len(b.get("inventory_no", []))
+        value = b.get("receivable", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
+        comm = b.get("commission", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
+        dtd_data[mob]["rooms"] += rooms
+        dtd_data[mob]["value"] += value
+        dtd_data[mob]["comm"] += comm
+        total_rooms += rooms
+        total_value += value
+        total_pax += b.get("total_pax", 0)
+        total_gst += b.get("gst", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
+        total_comm += comm
+
+    for mob in mob_types:
+        rooms = dtd_data[mob]["rooms"]
+        dtd_data[mob]["arr"] = dtd_data[mob]["value"] / rooms if rooms > 0 else 0.0
+    dtd_data["Total"] = {"rooms": total_rooms, "value": total_value, "arr": total_value / total_rooms if total_rooms > 0 else 0.0, "comm": total_comm}
+    dtd_df = pd.DataFrame([{"MOB": mob, "D.T.D Rooms": d["rooms"], "D.T.D Value": f"{d['value']:.2f}", "D.T.D ARR": f"{d['arr']:.2f}", "D.T.D Comm": f"{d['comm']:.2f}"} for mob, d in dtd_data.items()], columns=["MOB", "D.T.D Rooms", "D.T.D Value", "D.T.D ARR", "D.T.D Comm"])
+
+    # M.T.D
+    mtd_rooms = mtd_value = mtd_pax = mtd_gst = mtd_comm = 0
+    mtd_data = {mob: {"rooms": 0, "value": 0.0, "arr": 0.0, "comm": 0.0} for mob in mob_types}
+    for day in month_dates:
+        if day > target_date: continue
+        daily_b = filter_bookings_for_day(bookings, day)
+        daily_a, _ = assign_inventory_numbers(daily_b, property)
+        for b in daily_a:
+            raw_mob = sanitize_string(b.get("mob", "Unknown"))
+            mob = next((m for m, v in mob_mapping.items() if raw_mob.upper() in [x.upper() for x in v]), "Booking")
+            rooms = len(b.get("inventory_no", []))
+            value = b.get("receivable", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
+            comm = b
