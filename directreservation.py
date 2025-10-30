@@ -439,15 +439,19 @@ def show_new_reservation_form():
             mobile_no = st.text_input("Mobile No", placeholder="Enter mobile number", key=f"{form_key}_mobile")
 
         # Row 2: Enquiry Date, Check In, Check Out, No of Days
+                # Row 2: Enquiry Date, Check In, Check Out, No of Days
         row2_col1, row2_col2, row2_col3, row2_col4 = st.columns(4)
         with row2_col1:
             enquiry_date = st.date_input("Enquiry Date", value=date.today(), key=f"{form_key}_enquiry")
         with row2_col2:
-            check_in = st.date_input("Check In", value=date.today(), key=f"{form_key}_checkin")
+            check_in = st.date_input("Check In", value=date.today(), key=f"{form_key}_checkin", on_change=lambda: update_no_of_days(form_key))
         with row2_col3:
-            check_out = st.date_input("Check Out", value=date.today() + timedelta(days=1), key=f"{form_key}_checkout")
+            check_out = st.date_input("Check Out", value=date.today() + timedelta(days=1), key=f"{form_key}_checkout", on_change=lambda: update_no_of_days(form_key))
         with row2_col4:
-            no_of_days = calculate_days(check_in, check_out)
+            # Initialize or get no_of_days from session state
+            if f"{form_key}_no_of_days" not in st.session_state:
+                st.session_state[f"{form_key}_no_of_days"] = 1
+            no_of_days = st.session_state[f"{form_key}_no_of_days"]
             st.text_input("No of Days", value=str(no_of_days), disabled=True, key=f"{form_key}_no_of_days_row2", help="Check-out - Check-in")
 
         # Row 3: No of Adults, No of Children, No of Infants, Breakfast
