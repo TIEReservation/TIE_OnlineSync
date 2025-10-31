@@ -285,10 +285,6 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
         st.error(f"Error loading bookings: {e}")
         return []
 
-def generate_month_dates(year: int, month: int) -> List[date]:
-    _, num_days = calendar.monthrange(year, month)
-    return [date(year, month, day) for day in range(1, num_days + 1)]
-
 def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dict]:
     filtered = []
     for b in bookings:
@@ -300,9 +296,14 @@ def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dic
             booking_status = sanitize_string(b.get("booking_status", "")).strip()
             payment_status = sanitize_string(b.get("payment_status", "")).strip()
 
+            # DEBUG: Log filtering decisions
+            logging.info(f"Filtering {b.get('booking_id', 'Unknown')}: status={booking_status}, payment={payment_status}, check_in={check_in}, target={target_date}")
+
             if booking_status != "Confirmed":
+                logging.info(f"Filtered out {b.get('booking_id')}: status '{booking_status}' != 'Confirmed'")
                 continue
             if payment_status not in ["Fully Paid", "Partially Paid"]:
+                logging.info(f"Filtered out {b.get('booking_id')}: payment '{payment_status}' not in allowed list")
                 continue
             # ------------------------------------------------------------------------
 
@@ -310,9 +311,11 @@ def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dic
                 b_copy = b.copy()
                 b_copy['target_date'] = target_date
                 filtered.append(b_copy)
-        except ValueError:
+                logging.info(f"Added {b.get('booking_id')} to filtered list")
+        except ValueError as e:
+            logging.warning(f"ValueError filtering {b.get('booking_id', 'Unknown')}: {e}")
             continue
-    return filtered
+        return filtered
 
 def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple[List[Dict], List[Dict]]:
     assigned = []
