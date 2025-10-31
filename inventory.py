@@ -24,9 +24,9 @@ property_mapping = {
     "Le Poshe Beach VIEW": "Le Poshe Beach view",
     "Millionaire": "La Millionaire Resort",
 }
-reverse_mapping = {}
+reverse_mapping = {canonical: [] for canonical in set(property_mapping.values())}
 for variant, canonical in property_mapping.items():
-    reverse_mapping.setdefault(canonical, []).append(variant)
+    reverse_mapping[canonical].append(variant)
 
 # MOP (Mode of Payment) mapping
 mop_mapping = {
@@ -215,16 +215,12 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
                 return None
             if days == 0:
                 days = 1
-        room_nights = safe_int(booking.get('room_nights', 0))
-        if room_nights and room_nights != days:
-            logging.warning(f"Booking {booking_id} room_nights mismatch")
         property_name = sanitize_string(booking.get('property', booking.get('property_name', '')))
         property_name = property_mapping.get(property_name, property_name)
         guest_name = sanitize_string(booking.get('guest_name', ''))
         mobile_no = sanitize_string(booking.get('guest_phone', booking.get('mobile_no', '')))
         total_pax = safe_int(booking.get('total_pax', 0))
         room_no = sanitize_string(booking.get('room_no', '')).title()
-        room_type = sanitize_string(booking.get('room_type', ''))
         mob = sanitize_string(booking.get('mode_of_booking', booking.get('mob', '')))
         plan = sanitize_string(booking.get('rate_plans', booking.get('plan', '')))
         submitted_by = sanitize_string(booking.get('submitted_by', ''))
@@ -252,7 +248,6 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict:
             "check_out": str(check_out) if check_out else "",
             "days": days or 0,
             "room_no": room_no,
-            "room_type": room_type,
             "mob": mob,
             "room_charges": room_charges,
             "gst": gst,
@@ -295,26 +290,65 @@ def generate_month_dates(year: int, month: int) -> List[date]:
     return [date(year, month, day) for day in range(1, num_days + 1)]
 
 def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dict]:
-    return [
-        b for b in bookings
-        if b.get("check_in") and b.get("check_out") and
-        date.fromisoformat(b["check_in"]) <= target_date < date.fromisoformat(b["check_out"])
-    ]
+    filtered = []
+    for b in bookings:
+        try:
+            check_in = date.fromisoformat(b["check_in"]) if b.get("check_in") else None
+            check_out = date.fromisoformat(b["check_out"]) if b.get("check_out") else None
+            if check_in and check_out and check_in <= target_date < check_out:
+                b_copy = b.copy()
+                b_copy['target_date'] = target_date
+                filtered.append(b_copy)
+        except ValueError:
+            continue
+    return filtered
 
-def assign_inventory_numbers(bookings: List[Dict], property: str) -> tuple[List[Dict], List[Dict]]:
-    inventory = [i for i in PROPERTY_INVENTORY.get(property, {}).get("all", []) if not i.startswith(("Day Use", "No Show"))]
+def assign_inventory_numbers(daily_bookings: List[Dict], property: str) -> tuple[List[Dict], List[Dict]]:
     assigned = []
     overbookings = []
-    for b in bookings:
-        rooms = [r.strip() for r in b["room_no"].split(",") if r.strip()]
-        valid_rooms = [r for r in rooms if r in inventory]
-        if len(valid_rooms) < len(rooms):
+    inventory = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
+    inventory_lower = [i.lower() for i in inventory]
+
+    for b in daily_bookings:
+        room_no = b.get('room_no', '').strip()
+        requested_rooms = [r.strip().title() for r in room_no.split(',') if r.strip()]
+        booking_id = b.get('booking_id', 'Unknown')
+
+        if not requested_rooms:
             overbookings.append(b)
+            continue
+
+        valid_rooms = []
+        for r in requested_rooms:
+            if r.lower() in inventory_lower:
+                valid_rooms.append(inventory[inventory_lower.index(r.lower())])
+            else:
+                overbookings.append(b)
+                logging.warning(f"Overbooking: {booking_id} - invalid room {r}")
+                break
         else:
-            b["inventory_no"] = valid_rooms
-            b["is_primary"] = True
-            b["target_date"] = date.fromisoformat(b["check_in"])
-            assigned.append(b)
+            valid_rooms.sort()
+            days = b.get('days', 1) or 1
+            per_night_per_room = b.get('receivable', 0.0) / len(valid_rooms) / days  # KEY LINE
+
+            base_pax = b['total_pax'] // len(valid_rooms)
+            remainder_pax = b['total_pax'] % len(valid_rooms)
+
+            if len(valid_rooms) == 1:
+                b['inventory_no'] = valid_rooms
+                b['per_night'] = per_night_per_room
+                b['is_primary'] = True
+                assigned.append(b)
+            else:
+                for idx, inv in enumerate(valid_rooms):
+                    new_b = b.copy()
+                    new_b['inventory_no'] = [inv]
+                    new_b['room_no'] = inv
+                    new_b['total_pax'] = base_pax + (1 if idx < remainder_pax else 0)
+                    new_b['per_night'] = per_night_per_room
+                    new_b['is_primary'] = (idx == 0)
+                    assigned.append(new_b)
+
     return assigned, overbookings
 
 def create_inventory_table(assigned_bookings: List[Dict], overbookings: List[Dict], property: str) -> pd.DataFrame:
@@ -325,8 +359,8 @@ def create_inventory_table(assigned_bookings: List[Dict], overbookings: List[Dic
         "Balance Mop", "Plan", "Booking Status", "Payment Status", "Submitted by",
         "Modified by", "Remarks"
     ]
-    df_data = []
     inventory = [i for i in PROPERTY_INVENTORY.get(property, {}).get("all", []) if not i.startswith(("Day Use", "No Show"))]
+    df_data = []
     for inv in inventory:
         row = {col: "" for col in columns}
         row["Inventory No"] = inv
@@ -347,7 +381,8 @@ def create_inventory_table(assigned_bookings: List[Dict], overbookings: List[Dic
                 "Payment Status": booking["payment_status"],
                 "Submitted by": booking["submitted_by"],
                 "Modified by": booking["modified_by"],
-                "Remarks": booking["remarks"]
+                "Remarks": booking["remarks"],
+                "Per Night": f"{booking.get('per_night', 0):.2f}"
             })
             if booking.get('is_primary', False):
                 row.update({
@@ -358,9 +393,11 @@ def create_inventory_table(assigned_bookings: List[Dict], overbookings: List[Dic
                     "Receivable": f"{booking.get('receivable', 0):.2f}",
                     "Advance": f"{booking.get('advance', 0):.2f}",
                     "Advance Mop": booking.get("advance_mop", ""),
-                    "Balance": f"{booking.get('balance', 0):.2f}"
+                    "Balance": f"{booking.get('balance', 0):.2f}",
+                    "Balance Mop": booking.get("balance_mop", "")
                 })
         df_data.append(row)
+
     if overbookings:
         overbooking_ids = ", ".join(format_booking_id(b) for b in overbookings)
         overbooking_str = ", ".join(f"{b.get('room_no', '')} ({b.get('booking_id', '')})" for b in overbookings)
@@ -409,15 +446,15 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
         raw_mob = sanitize_string(b.get("mob", "Unknown"))
         mob = next((m for m, v in mob_mapping.items() if raw_mob.upper() in [x.upper() for x in v]), "Booking")
         rooms = len(b.get("inventory_no", []))
-        value = b.get("receivable", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
-        comm = b.get("commission", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
+        value = b.get("receivable", 0.0) if b.get("is_primary", False) and date.fromisoformat(b["check_in"]) == target_date else 0.0
+        comm = b.get("commission", 0.0) if b.get("is_primary", False) and date.fromisoformat(b["check_in"]) == target_date else 0.0
         dtd_data[mob]["rooms"] += rooms
         dtd_data[mob]["value"] += value
         dtd_data[mob]["comm"] += comm
         total_rooms += rooms
         total_value += value
         total_pax += b.get("total_pax", 0)
-        total_gst += b.get("gst", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
+        total_gst += b.get("gst", 0.0) if b.get("is_primary", False) and date.fromisoformat(b["check_in"]) == target_date else 0.0
         total_comm += comm
     for mob in mob_types:
         rooms = dtd_data[mob]["rooms"]
@@ -435,15 +472,15 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
             raw_mob = sanitize_string(b.get("mob", "Unknown"))
             mob = next((m for m, v in mob_mapping.items() if raw_mob.upper() in [x.upper() for x in v]), "Booking")
             rooms = len(b.get("inventory_no", []))
-            value = b.get("receivable", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
-            comm = b.get("commission", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
+            value = b.get("receivable", 0.0) if b.get("is_primary", False) and date.fromisoformat(b["check_in"]) == day else 0.0
+            comm = b.get("commission", 0.0) if b.get("is_primary", False) and date.fromisoformat(b["check_in"]) == day else 0.0
             mtd_data[mob]["rooms"] += rooms
             mtd_data[mob]["value"] += value
             mtd_data[mob]["comm"] += comm
             mtd_rooms += rooms
             mtd_value += value
             mtd_pax += b.get("total_pax", 0)
-            mtd_gst += b.get("gst", 0.0) if b.get("is_primary", False) and b.get("target_date") == date.fromisoformat(b["check_in"]) else 0.0
+            mtd_gst += b.get("gst", 0.0) if b.get("is_primary", False) and date.fromisoformat(b["check_in"]) == day else 0.0
             mtd_comm += comm
     for mob in mob_types:
         rooms = mtd_data[mob]["rooms"]
