@@ -295,6 +295,17 @@ def filter_bookings_for_day(bookings: List[Dict], target_date: date) -> List[Dic
         try:
             check_in = date.fromisoformat(b["check_in"]) if b.get("check_in") else None
             check_out = date.fromisoformat(b["check_out"]) if b.get("check_out") else None
+
+            # ---- NEW: Only show if Confirmed AND (Fully Paid OR Partially Paid) ----
+            booking_status = sanitize_string(b.get("booking_status", "")).strip()
+            payment_status = sanitize_string(b.get("payment_status", "")).strip()
+
+            if booking_status != "Confirmed":
+                continue
+            if payment_status not in ["Fully Paid", "Partially Paid"]:
+                continue
+            # ------------------------------------------------------------------------
+
             if check_in and check_out and check_in <= target_date < check_out:
                 b_copy = b.copy()
                 b_copy['target_date'] = target_date
