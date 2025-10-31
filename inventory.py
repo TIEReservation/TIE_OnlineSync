@@ -178,8 +178,9 @@ def initialize_property_inventory(properties: List[str]) -> None:
             logging.warning(f"Added fallback inventory for unknown property: {p}")
 
 def format_booking_id(booking: Dict) -> str:
-    bid = sanitize_string(booking.get("booking_id"))
-    return f'<a target="_blank" href="/?edit_type={booking["type"]}&booking_id={bid}">{bid}</a>'
+    bid = sanitize_string(booking.get("booking_id", ""))
+    btype = sanitize_string(booking.get("type", "unknown"))
+    return f'<a target="_blank" href="/?edit_type={btype}&booking_id={bid}">{bid}</a>'
 
 def load_properties() -> List[str]:
     try:
@@ -218,7 +219,7 @@ def safe_float(v: Any, default: float = 0.0) -> float:
         return default
 
 # ----------------------------------------------------------------------
-# Normalise a booking – guarantees receivable & days
+# Normalise a booking – guarantees type, receivable, days
 # ----------------------------------------------------------------------
 def normalize_booking(booking: Dict, is_online: bool) -> Dict | None:
     bid = sanitize_string(booking.get("booking_id"))
@@ -263,7 +264,7 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict | None:
     per_night = receivable / days if days > 0 else 0.0
 
     return {
-        "type": "online" if is_online else "direct",
+        "type": "online" if is_online else "direct",  # Guaranteed
         "property": prop,
         "booking_id": bid,
         "guest_name": sanitize_string(booking.get("guest_name")),
@@ -664,15 +665,15 @@ def show_daily_status():
 
                     with col1:
                         st.subheader("MOP Report")
-                        st.dataframe(mop_df, use_container_width=True, hide_index=True)
+                        st.dataframe(mop_df, width="stretch", hide_index=True)
 
                     with col2:
                         st.subheader("D.T.D Statistics")
-                        st.dataframe(dtd_df, use_container_width=True, hide_index=True)
+                        st.dataframe(dtd_df, width="stretch", hide_index=True)
 
                     with col3:
                         st.subheader("M.T.D Statistics")
-                        st.dataframe(mtd_df, use_container_width=True, hide_index=True)
+                        st.dataframe(mtd_df, width="stretch", hide_index=True)
 
                     with col4:
                         st.subheader("Summary")
@@ -692,7 +693,7 @@ def show_daily_status():
                             {"Metric":"M.T.D Tax Ded.","Value":f"{summary['mtd_tax_deduction']:.2f}"},
                             {"Metric":"M.T.D Value","Value":f"{summary['mtd_value']:.2f}"}
                         ])
-                        st.dataframe(summary_df, use_container_width=True, hide_index=True)
+                        st.dataframe(summary_df, width="stretch", hide_index=True)
 
                 else:
                     st.info("No active bookings on this day.")
