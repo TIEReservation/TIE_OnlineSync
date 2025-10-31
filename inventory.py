@@ -1,20 +1,14 @@
 import streamlit as st
 from supabase import create_client, Client
-from datetime import date, timedelta
+from datetime import date
 import calendar
 import pandas as pd
 from typing import Any, List, Dict
 import logging
 
-# ----------------------------------------------------------------------
-# Logging
-# ----------------------------------------------------------------------
 logging.basicConfig(filename='app.log', level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
-# ----------------------------------------------------------------------
-# Supabase client
-# ----------------------------------------------------------------------
 try:
     supabase: Client = create_client(st.secrets["supabase"]["url"],
                                     st.secrets["supabase"]["key"])
@@ -22,9 +16,6 @@ except KeyError as e:
     st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets.")
     st.stop()
 
-# ----------------------------------------------------------------------
-# Property synonym mapping
-# ----------------------------------------------------------------------
 property_mapping = {
     "La Millionaire Luxury Resort": "La Millionaire Resort",
     "Le Poshe Beach View": "Le Poshe Beach view",
@@ -36,9 +27,6 @@ reverse_mapping = {}
 for variant, canonical in property_mapping.items():
     reverse_mapping.setdefault(canonical, []).append(variant)
 
-# ----------------------------------------------------------------------
-# MOP / MOB mappings
-# ----------------------------------------------------------------------
 mop_mapping = {
     "UPI": ["UPI"],
     "Cash": ["Cash"],
@@ -69,9 +57,6 @@ mob_mapping = {
     "Website": ["Stayflexi Booking Engine"]
 }
 
-# ----------------------------------------------------------------------
-# Table CSS
-# ----------------------------------------------------------------------
 TABLE_CSS = """
 <style>
 .custom-scrollable-table {overflow-x:auto; max-width:100%; min-width:800px;}
@@ -83,19 +68,24 @@ TABLE_CSS = """
 </style>
 """
 
-# ----------------------------------------------------------------------
-# Property inventory (room numbers)
-# ----------------------------------------------------------------------
 PROPERTY_INVENTORY = {
     "Le Poshe Beach view": {"all": ["101","102","201","202","203","204","301","302","303","304","Day Use 1","Day Use 2","No Show"], "three_bedroom":["203","204"]},
     "La Millionaire Resort": {"all": ["101","102","103","105","201","202","203","204","205","206","207","208","301","302","303","304","305","306","307","308","401","402","Day Use 1","Day Use 2","Day Use 3","Day Use 4","Day Use 5","No Show"], "three_bedroom":["203","204","205"]},
-    # … (keep the rest unchanged – omitted for brevity) …
+    "Le Poshe Luxury": {"all": ["101","102","201","202","203","204","205","301","302","303","304","305","401","402","403","404","405","501","Day Use 1","Day Use 2","No Show"], "three_bedroom":["203","204","205"]},
+    "Le Poshe Suite": {"all": ["601","602","603","604","701","702","703","704","801","Day Use 1","Day Use 2","No Show"], "three_bedroom":[]},
+    "La Paradise Residency": {"all": ["101","102","103","201","202","203","301","302","303","304","Day Use 1","Day Use 2","No Show"], "three_bedroom":["203"]},
+    "La Paradise Luxury": {"all": ["101","102","103","201","202","203","Day Use 1","Day Use 2","No Show"], "three_bedroom":["203"]},
+    "La Villa Heritage": {"all": ["101","102","103","201","202","203","301","Day Use 1","Day Use 2","No Show"], "three_bedroom":["203"]},
+    "Le Pondy Beach Side": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"], "three_bedroom":[]},
+    "Le Royce Villa": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"], "three_bedroom":[]},
+    "La Tamara Luxury": {"all": ["101","102","103","104","105","106","201","202","203","204","205","206","301","302","303","304","305","306","401","402","403","404","Day Use 1","Day Use 2","No Show"], "three_bedroom":["203","204","205","206"]},
+    "La Antilia Luxury": {"all": ["101","201","202","203","204","301","302","303","304","401","Day Use 1","Day Use 2","No Show"], "three_bedroom":["203","204"]},
+    "La Tamara Suite": {"all": ["101","102","103","104","201","202","203","204","205","206","Day Use 1","Day Use 2","No Show"], "three_bedroom":["203","204","205","206"]},
+    "Le Park Resort": {"all": ["111","222","333","444","555","666","Day Use 1","Day Use 2","No Show"], "three_bedroom":[]},
+    "Villa Shakti": {"all": ["101","102","201","201A","202","203","301","301A","302","303","401","Day Use 1","Day Use 2","No Show"], "three_bedroom":["203"]},
     "Eden Beach Resort": {"all": ["101","102","103","201","202","Day Use 1","Day Use 2","No Show"], "three_bedroom":[]}
 }
 
-# ----------------------------------------------------------------------
-# Helper functions
-# ----------------------------------------------------------------------
 def initialize_property_inventory(properties: List[str]) -> None:
     fallback = {"all": ["Unknown"], "three_bedroom": []}
     for p in properties:
@@ -137,9 +127,6 @@ def safe_float(v: Any, default: float = 0.0) -> float:
     try: return float(v) if v is not None else default
     except (ValueError, TypeError): return default
 
-# ----------------------------------------------------------------------
-# Normalise a booking (online or direct)
-# ----------------------------------------------------------------------
 def normalize_booking(booking: Dict, is_online: bool) -> Dict | None:
     bid = sanitize_string(booking.get('booking_id'))
     payment_status = sanitize_string(booking.get('payment_status')).title()
@@ -201,9 +188,6 @@ def normalize_booking(booking: Dict, is_online: bool) -> Dict | None:
         "remarks": sanitize_string(booking.get('remarks'))
     }
 
-# ----------------------------------------------------------------------
-# Load bookings that **overlap** the month
-# ----------------------------------------------------------------------
 def load_combined_bookings(property: str, start_date: date, end_date: date) -> List[Dict]:
     try:
         query_props = [property] + reverse_mapping.get(property, [])
@@ -212,23 +196,23 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
         online, direct = [], []
 
         for qp in query_props:
-            # ---- ONLINE ----
-            resp = (supabase.table("online_reservations")
-                    .select("*")
-                    .eq("property", qp)
-                    .gte("check_out", str(start_date))   # overlaps start
-                    .lte("check_in", str(end_date))     # overlaps end
-                    .execute())
-            online.extend([normalize_booking(b, True) for b in (resp.data or []) if normalize_booking(b, True)])
+            online_response = (
+                supabase.table("online_reservations")
+                .select("*")
+                .eq("property", qp)
+                .or_(f"and(check_in.lte.{end_date},check_out.gte.{start_date})")
+                .execute()
+            )
+            online.extend([b for b in (online_response.data or []) if normalize_booking(b, True)])
 
-            # ---- DIRECT ----
-            resp = (supabase.table("reservations")
-                    .select("*")
-                    .eq("property_name", qp)
-                    .gte("check_out", str(start_date))
-                    .lte("check_in", str(end_date))
-                    .execute())
-            direct.extend([normalize_booking(b, False) for b in (resp.data or []) if normalize_booking(b, False)])
+            direct_response = (
+                supabase.table("reservations")
+                .select("*")
+                .eq("property_name", qp)
+                .or_(f"and(check_in.lte.{end_date},check_out.gte.{start_date})")
+                .execute()
+            )
+            direct.extend([b for b in (direct_response.data or []) if normalize_booking(b, False)])
 
         combined = [b for b in online + direct if b]
         logging.info(f"Total overlapping bookings: {len(combined)}")
@@ -237,9 +221,6 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
         st.error(f"Error loading overlapping bookings: {e}")
         return []
 
-# ----------------------------------------------------------------------
-# Date helpers
-# ----------------------------------------------------------------------
 def generate_month_dates(year: int, month: int) -> List[date]:
     _, days = calendar.monthrange(year, month)
     return [date(year, month, d) for d in range(1, days + 1)]
@@ -258,9 +239,6 @@ def filter_bookings_for_day(bookings: List[Dict], target: date) -> List[Dict]:
             continue
     return filtered
 
-# ----------------------------------------------------------------------
-# Inventory assignment
-# ----------------------------------------------------------------------
 def assign_inventory_numbers(daily: List[Dict], prop: str) -> tuple[List[Dict], List[Dict]]:
     assigned, over = [], []
     inv = PROPERTY_INVENTORY.get(prop, {"all": []})["all"]
@@ -295,9 +273,6 @@ def assign_inventory_numbers(daily: List[Dict], prop: str) -> tuple[List[Dict], 
                 assigned.append(nb)
     return assigned, over
 
-# ----------------------------------------------------------------------
-# Build inventory table
-# ----------------------------------------------------------------------
 def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str) -> pd.DataFrame:
     cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
             "Check In","Check Out","Days","MOB","Room Charges","GST","Total","Commision",
@@ -351,9 +326,6 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str) ->
         }
     return df
 
-# ----------------------------------------------------------------------
-# MOP report
-# ----------------------------------------------------------------------
 def compute_mop_report(daily_assigned: List[Dict], target: date) -> pd.DataFrame:
     types = ["UPI","Cash","Go-MMT","Agoda","NOT PAID","Expenses",
              "Bank Transfer","Stayflexi","Card Payment","Expedia","Cleartrip","Website"]
@@ -379,15 +351,11 @@ def compute_mop_report(daily_assigned: List[Dict], target: date) -> pd.DataFrame
     return pd.DataFrame([{"MOP": k, "Amount": f"{v:.2f}"} for k, v in data.items()],
                         columns=["MOP","Amount"])
 
-# ----------------------------------------------------------------------
-# Statistics (D.T.D, M.T.D, Summary)
-# ----------------------------------------------------------------------
 def compute_statistics(bookings: List[Dict], prop: str, target: date, month_dates: List[date]) -> tuple[pd.DataFrame, pd.DataFrame, Dict, pd.DataFrame]:
     mob_types = list(mob_mapping.keys())
     inv = [i for i in PROPERTY_INVENTORY.get(prop, {"all": []})["all"] if not i.startswith(("Day Use","No Show"))]
     total_inv = len(inv)
 
-    # ---- D.T.D ----
     dtd = {m: {"rooms":0,"value":0.0,"arr":0.0,"comm":0.0} for m in mob_types}
     daily = filter_bookings_for_day(bookings, target)
     assigned, _ = assign_inventory_numbers(daily, prop)
@@ -409,7 +377,6 @@ def compute_statistics(bookings: List[Dict], prop: str, target: date, month_date
     dtd_df = pd.DataFrame([{"MOB":m, "D.T.D Rooms":d["rooms"], "D.T.D Value":f"{d['value']:.2f}",
                            "D.T.D ARR":f"{d['arr']:.2f}", "D.T.D Comm":f"{d['comm']:.2f}"} for m,d in dtd.items()])
 
-    # ---- M.T.D ----
     mtd = {m: {"rooms":0,"value":0.0,"arr":0.0,"comm":0.0} for m in mob_types}
     mtd_tot_rooms = mtd_tot_val = mtd_tot_pax = mtd_tot_gst = mtd_tot_comm = 0
 
@@ -433,7 +400,6 @@ def compute_statistics(bookings: List[Dict], prop: str, target: date, month_date
     mtd_df = pd.DataFrame([{"MOB":m, "M.T.D Rooms":d["rooms"], "M.T.D Value":f"{d['value']:.2f}",
                            "M.T.D ARR":f"{d['arr']:.2f}", "M.T.D Comm":f"{d['comm']:.2f}"} for m,d in mtd.items()])
 
-    # ---- Summary ----
     summary = {
         "rooms_sold": dtd_tot_rooms,
         "value": dtd_tot_val,
@@ -455,9 +421,6 @@ def compute_statistics(bookings: List[Dict], prop: str, target: date, month_date
     mop_df = compute_mop_report(assigned, target)
     return dtd_df, mtd_df, summary, mop_df
 
-# ----------------------------------------------------------------------
-# Cached loaders
-# ----------------------------------------------------------------------
 @st.cache_data(ttl=600)
 def cached_load_properties() -> List[str]:
     return load_properties()
@@ -466,9 +429,6 @@ def cached_load_properties() -> List[str]:
 def cached_load_bookings(_prop: str, _start: date, _end: date) -> List[Dict]:
     return load_combined_bookings(_prop, _start, _end)
 
-# ----------------------------------------------------------------------
-# Main UI
-# ----------------------------------------------------------------------
 def show_daily_status():
     st.title("Daily Status")
     if st.button("Refresh Property List"):
@@ -501,7 +461,6 @@ def show_daily_status():
                     assigned, over = assign_inventory_numbers(daily, prop)
                     inv_df = create_inventory_table(assigned, over, prop)
 
-                    # Tooltips
                     for c in ["Guest Name","Room No","Remarks","Mobile No","MOB","Plan","Submitted by","Modified by"]:
                         if c in inv_df.columns:
                             inv_df[c] = inv_df[c].apply(lambda x: f'<span title="{x}">{x}</span>' if isinstance(x,str) else x)
@@ -510,7 +469,6 @@ def show_daily_status():
 
                     dtd_df, mtd_df, summary, mop_df = compute_statistics(bookings, prop, day, month_dates)
 
-                    # ---- 4 columns side-by-side ----
                     col1, col2, col3, col4 = st.columns(4)
 
                     with col1:
@@ -548,8 +506,5 @@ def show_daily_status():
                 else:
                     st.info("No active bookings on this day.")
 
-# ----------------------------------------------------------------------
-# Run
-# ----------------------------------------------------------------------
 if __name__ == "__main__":
     show_daily_status()
