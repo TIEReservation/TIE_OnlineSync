@@ -453,29 +453,11 @@ def show_new_reservation_form():
         # Row 3: No of Adults, No of Children, No of Infants, Breakfast
         row3_col1, row3_col2, row3_col3, row3_col4 = st.columns(4)
         with row3_col1:
-                adults = st.number_input(
-        "No of Adults", 
-        min_value=0, 
-        value=1, 
-        key=f"{form_key}_adults",
-        on_change=lambda: None  # Triggers rerun on change
-            )
+            adults = st.number_input("No of Adults", min_value=0, value=1, key=f"{form_key}_adults")
         with row3_col2:
-            children = st.number_input(
-                "No of Children", 
-                min_value=0, 
-                value=0, 
-                key=f"{form_key}_children",
-                on_change=lambda: None  # Triggers rerun on change
-            )
+            children = st.number_input("No of Children", min_value=0, value=0, key=f"{form_key}_children")
         with row3_col3:
-            infants = st.number_input(
-                "No of Infants", 
-                min_value=0, 
-                value=0, 
-                key=f"{form_key}_infants",
-                on_change=lambda: None  # Triggers rerun on change
-            )
+            infants = st.number_input("No of Infants", min_value=0, value=0, key=f"{form_key}_infants")
         with row3_col4:
             breakfast = st.selectbox("Breakfast", ["CP", "EP"], key=f"{form_key}_breakfast")
 
@@ -483,13 +465,7 @@ def show_new_reservation_form():
         row4_col1, row4_col2, row4_col3, row4_col4 = st.columns(4)
         with row4_col1:
             total_pax = safe_int(adults) + safe_int(children) + safe_int(infants)
-            st.text_input(
-                "Total Pax", 
-                value=str(total_pax), 
-                disabled=True, 
-                key=f"{form_key}_total_pax", 
-                help="Adults + Children + Infants"
-            )
+            st.text_input("Total Pax", value=str(total_pax), disabled=True, key=f"{form_key}_total_pax", help="Adults + Children + Infants")
         with row4_col2:
             mob = st.selectbox("MOB (Mode of Booking)",
                                ["Direct", "Online", "Agent", "Walk-in", "Phone", "Website", "Booking-Drt", "Social Media", "Stay-back", "TIE-Group", "Others"],
@@ -808,36 +784,14 @@ def show_edit_form(edit_index):
         # Row 3: No of Adults, No of Children, No of Infants, Breakfast
         row3_col1, row3_col2, row3_col3, row3_col4 = st.columns(4)
         with row3_col1:
-            adults = st.number_input(
-        "No of Adults", 
-        min_value=0, 
-        value=reservation["No of Adults"], 
-        key=f"{form_key}_adults",
-        on_change=lambda: None  # Triggers rerun on change
-            )
+            adults = st.number_input("No of Adults", min_value=0, value=reservation["No of Adults"], key=f"{form_key}_adults")
         with row3_col2:
-            children = st.number_input(
-                "No of Children", 
-                min_value=0, 
-                value=reservation["No of Children"], 
-                key=f"{form_key}_children",
-                on_change=lambda: None  # Triggers rerun on change
-            )
+            children = st.number_input("No of Children", min_value=0, value=reservation["No of Children"], key=f"{form_key}_children")
         with row3_col3:
-            infants = st.number_input(
-                "No of Infants", 
-                min_value=0, 
-                value=reservation["No of Infants"], 
-                key=f"{form_key}_infants",
-                on_change=lambda: None  # Triggers rerun on change
-            )
+            infants = st.number_input("No of Infants", min_value=0, value=reservation["No of Infants"], key=f"{form_key}_infants")
         with row3_col4:
-            breakfast = st.selectbox(
-                "Breakfast", 
-                ["CP", "EP"], 
-                index=["CP", "EP"].index(reservation["Breakfast"]), 
-                key=f"{form_key}_breakfast"
-            )
+            breakfast = st.selectbox("Breakfast", ["CP", "EP"], index=["CP", "EP"].index(reservation["Breakfast"]), key=f"{form_key}_breakfast")
+
         # Row 4: Total Pax, MOB, Room Type, Room No (WITH EDITABLE ROOM NUMBER LOGIC)
         fetched_room_no = str(reservation.get("Room No", "") or "")
         fetched_room_type = str(reservation.get("Room Type", "") or "")
@@ -845,13 +799,6 @@ def show_edit_form(edit_index):
         row4_col1, row4_col2, row4_col3, row4_col4 = st.columns(4)
         with row4_col1:
             total_pax = safe_int(adults) + safe_int(children) + safe_int(infants)
-            st.text_input(
-                "Total Pax", 
-                value=str(total_pax), 
-                disabled=True, 
-                key=f"{form_key}_total_pax", 
-                help="Adults + Children + Infants"
-            )
             st.text_input("Total Pax", value=str(total_pax), disabled=True, key=f"{form_key}_total_pax", help="Adults + Children + Infants")
         with row4_col2:
             mob_options = ["Direct", "Online", "Agent", "Walk-in", "Phone", "Website", "Booking-Drt", "Social Media", "Stay-back", "TIE-Group", "Others"]
