@@ -151,7 +151,7 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
             .in_("property_name", query_props)
             .lte("check_in", str(end_date))
             .gte("check_out", str(start_date))
-            .in_("booking_status", ["Confirmed", "Completed"])   # CORRECT column
+            .in_("plan_status", ["Confirmed", "Completed"])      # DIRECT
             .in_("payment_status", ["Partially Paid", "Fully Paid"])
             .execute()
         )
@@ -162,28 +162,6 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
         logging.info(f"Direct ({prop}): {len(q.data or [])} → {len([c for c in combined if c['type']=='direct'])}")
     except Exception as e:
         logging.error(f"Direct query error: {e}")
-
-    # ---------- ONLINE ----------
-    try:
-        q = (
-            supabase.table("online_reservations")
-            .select("*")
-            .in_("property", query_props)
-            .lte("check_in", str(end_date))
-            .gte("check_out", str(start_date))
-            .in_("booking_status", ["Confirmed", "Completed"])
-            .in_("payment_status", ["Partially Paid", "Fully Paid"])
-            .execute()
-        )
-        for r in q.data or []:
-            norm = normalize_booking(r, is_online=True)
-            if norm:
-                combined.append(norm)
-        logging.info(f"Online ({prop}): {len(q.data or [])} → {len([c for c in combined if c['type']=='online'])}")
-    except Exception as e:
-        logging.error(f"Online query error: {e}")
-
-    return combined
 
     # ---------- ONLINE ----------
     try:
