@@ -272,34 +272,38 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     inv_lower = [i.lower() for i in inv]
 
     for b in daily_bookings:
-        req = [r.strip().title() for r in b.get("room_no","").split(",") if r.strip()]
+        req = [r.strip().title() for r in b.get("room_no", "").split(",") if r.strip()]
         if not req:
-            over.append(b); continue
+            over.append(b)
+            continue
 
         valid = []
         for r in req:
             if r.lower() in inv_lower:
                 valid.append(inv[inv_lower.index(r.lower())])
             else:
-                over.append(b); break
+                over.append(b)
+                break
         else:
             days = b.get("days", 1) or 1
             receivable = b.get("receivable", 0.0)
-            per_night = receivable / days if days > 0 else 0.0  # Per booking per night
+            num_rooms = len(valid) if valid else 1
 
-            base_pax = b["total_pax"] // len(valid) if valid else 0
-            rem = b["total_pax"] % len(valid) if valid else 0
+            # CORRECT: Per Night per Room
+            per_night = receivable / num_rooms / days if num_rooms > 0 and days > 0 else 0.0
+
+            base_pax = b["total_pax"] // num_rooms if num_rooms > 0 else 0
+            rem = b["total_pax"] % num_rooms if num_rooms > 0 else 0
 
             for idx, room in enumerate(valid):
                 nb = b.copy()
                 nb["inventory_no"] = [room]
                 nb["room_no"] = room
                 nb["total_pax"] = base_pax + (1 if idx < rem else 0)
-                nb["per_night"] = per_night
+                nb["per_night"] = per_night  # Same for all rooms
                 nb["is_primary"] = (idx == 0)
                 assigned.append(nb)
     return assigned, over
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Table & Stats (unchanged logic, correct data)
 # ──────────────────────────────────────────────────────────────────────────────
