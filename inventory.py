@@ -275,7 +275,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
 
             # NEW: Per-night per-room (receivable ÷ total nights)
             total_nights = days * num_rooms
-            per_night = receivable / total_nights if total_nights > 0 else 0.0
+            per_night = receivable / (days * num_rooms)
             base_pax = b["total_pax"] // len(valid) if valid else 0
             rem = b["total_pax"] % len(valid) if valid else 0
             for idx, room in enumerate(valid):
