@@ -1,4 +1,4 @@
-# inventory.py - FINAL: ALL TABLES + CORRECT PER-NIGHT
+# inventory.py - FINAL: ALL TABLES + PER-NIGHT + ZERO-DIVISION SAFE
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date
@@ -178,7 +178,7 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
     return combined
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Normalize Booking – FIXED: receivable calculated here
+# Normalize Booking – CORRECT receivable
 # ──────────────────────────────────────────────────────────────────────────────
 def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
     try:
@@ -230,7 +230,7 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
             "room_charges": room_charges,
             "gst": gst,
             "commission": commission,
-            "receivable": receivable,  # NOW CORRECT
+            "receivable": receivable,  # CORRECT
             "advance": safe_float(row.get("total_payment_made") if is_online else row.get("advance_amount")),
             "advance_mop": sanitize_string(row.get("advance_mop")),
             "balance": safe_float(row.get("balance_due") if is_online else row.get("balance_amount")),
@@ -246,7 +246,7 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
         return None
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Filter & Assign – PER-NIGHT FIXED
+# Filter & Assign – PER-NIGHT SAFE
 # ──────────────────────────────────────────────────────────────────────────────
 def filter_bookings_for_day(bookings: List[Dict], day: date) -> List[Dict]:
     return [
@@ -278,7 +278,6 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
             receivable = b.get("receivable", 0.0)
             num_rooms = len(valid) if valid else 1
 
-            # CORRECT PER-NIGHT: receivable / (days * rooms)
             total_nights = days * num_rooms
             per_night = receivable / total_nights if total_nights > 0 else 0.0
 
@@ -296,7 +295,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     return assigned, over
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Table & Stats
+# Table
 # ──────────────────────────────────────────────────────────────────────────────
 def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str) -> pd.DataFrame:
     cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
@@ -352,6 +351,9 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str) ->
         })
     return pd.DataFrame(rows, columns=cols)
 
+# ──────────────────────────────────────────────────────────────────────────────
+# MOP Report
+# ──────────────────────────────────────────────────────────────────────────────
 def compute_mop_report(daily_bookings: List[Dict], target_date: date) -> pd.DataFrame:
     mop_types = ["UPI", "Cash", "Go-MMT", "Agoda", "NOT PAID", "Expenses", "Bank Transfer", "Stayflexi", "Card Payment", "Expedia", "Cleartrip", "Website"]
     mop_data = {mop: 0.0 for mop in mop_types}
@@ -378,7 +380,7 @@ def compute_mop_report(daily_bookings: List[Dict], target_date: date) -> pd.Data
     return pd.DataFrame([{"MOP": mop, "Amount": f"₹{amount:,.2f}"} for mop, amount in mop_data.items()], columns=["MOP", "Amount"])
 
 # ──────────────────────────────────────────────────────────────────────────────
-# FULL STATISTICS (D.T.D + M.T.D + Summary)
+# FULL STATISTICS – ZERO-DIVISION SAFE
 # ──────────────────────────────────────────────────────────────────────────────
 def compute_statistics(bookings: List[Dict], property: str, target_date: date, month_dates: List[date]) -> tuple:
     mob_types = ["Booking", "Direct", "Bkg-Direct", "Agoda", "Go-MMT", "Walk-In", "TIE Group", "Stayflexi", "Airbnb", "Social Media", "Expedia", "Cleartrip", "Website"]
@@ -427,19 +429,22 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
             mtd_value += value
             mtd_comm += comm
     for mob in mob_types:
-        rooms = mtd_data[mob]["rooms"]
+        rooms = mtd_data[mob]["  rooms"]
         mtd_data[mob]["arr"] = mtd_data[mob]["value"] / rooms if rooms > 0 else 0.0
     mtd_data["Total"] = {"rooms": mtd_rooms, "value": mtd_value, "arr": mtd_value / mtd_rooms if mtd_rooms > 0 else 0.0, "comm": mtd_comm}
     mtd_df = pd.DataFrame([{"MOB": mob, "M.T.D Rooms": d["rooms"], "M.T.D Value": f"₹{d['value']:,.2f}", "M.T.D ARR": f"₹{d['arr']:,.2f}", "M.T.D Comm": f"₹{d['comm']:,.2f}"} for mob, d in mtd_data.items()], columns=["MOB", "M.T.D Rooms", "M.T.D Value", "M.T.D ARR", "M.T.D Comm"])
 
-    # Summary
+    # Summary – ZERO-DIVISION SAFE
+    occ_percent = (total_rooms / total_inventory * 100) if total_inventory > 0 else 0.0
+    mtd_occ_percent = (mtd_rooms / (total_inventory * target_date.day) * 100) if (total_inventory > 0 and target_date.day > 0) else 0.0
+
     summary = {
-        "Occupancy %": f"{(total_rooms / total_inventory * 100):.1f}%",
+        "Occupancy %": f"{occ_percent:.1f}%",
         "Rooms Sold": total_rooms,
         "Total Rooms": total_inventory,
         "Revenue": f"₹{total_value:,.2f}",
         "Commission": f"₹{total_comm:,.2f}",
-        "M.T.D Occ %": f"{(mtd_rooms / (total_inventory * target_date.day) * 100):.1f}%",
+        "M.T.D Occ %": f"{mtd_occ_percent:.1f}%",
         "M.T.D Revenue": f"₹{mtd_value:,.2f}",
     }
 
