@@ -455,13 +455,21 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
     mtd_occ = (mtd_rooms/(total_inventory*target_date.day)*100) if (total_inventory and target_date.day) else 0.0
 
     summary = {
-        "Occupancy %": f"{occ:.1f}%",
-        "Rooms Sold": dtd_rooms,
-        "Total Rooms": total_inventory,
-        "Revenue": f"₹{dtd_value:,.2f}",
+       "Rooms Sold": dtd_rooms,
+        "Value": f"₹{dtd_value:,.2f}",
+        "Arr": f"₹{dtd_value/dtd_rooms:,.2f}" if dtd_rooms else "₹0.00",
+        "Occ Percent": f"{occ_pct:.1f}%",
+        "Total Pax": dtd_pax,
+        "Total Inventory": total_inventory,
+        "Gst": f"₹{dtd_gst:,.2f}",
         "Commission": f"₹{dtd_comm:,.2f}",
-        "M.T.D Occ %": f"{mtd_occ:.1f}%",
-        "M.T.D Revenue": f"₹{mtd_value:,.2f}",
+        "Tax Deduction": f"₹{dtd_tax_ded:,.2f}",
+        "Mtd Occ Percent": f"{mtd_occ_pct:.1f}%",
+        "Mtd Pax": mtd_pax,
+        "Mtd Rooms": mtd_rooms,
+        "Mtd Gst": f"₹{mtd_gst:,.2f}",
+        "Mtd Tax Deduction": f"₹{mtd_tax_ded:,.2f}",
+        "Mtd Value": f"₹{mtd_value:,.2f}",
     }
 
     mop_df = compute_mop_report(daily_assigned, target_date)
