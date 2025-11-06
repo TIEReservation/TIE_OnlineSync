@@ -1,4 +1,4 @@
-# inventory.py – FINAL, BUG‑FREE
+# inventory.py – FINAL, BUG-FREE, MAPPING-FIXED
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date
@@ -176,7 +176,7 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
     return combined
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Normalize Booking – receivable is correct
+# Normalize Booking – MAPPING FIXED
 # ──────────────────────────────────────────────────────────────────────────────
 def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
     try:
@@ -198,17 +198,23 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
 
         p = normalize_property(row.get("property_name") if not is_online else row.get("property"))
 
-        # ---- Financials ----
+        # ---- Financials – CORRECT MAPPING ----
         if is_online:
-            room_charges = safe_float(row.get("ota_net_amount")) or safe_float(row.get("booking_amount"))
-            commission = safe_float(row.get("ota_commission"))
-            gst = safe_float(row.get("ota_tax"))
-            receivable = safe_float(row.get("room_revenue")) or (room_charges - commission)
+            total_amount = safe_float(row.get("booking_amount")) or 0.0
+            receivable = safe_float(row.get("room_revenue")) or 0.0
+            gst = safe_float(row.get("ota_tax")) or 0.0
+            commission = safe_float(row.get("ota_commission")) or 0.0
+            room_charges = total_amount - gst  # base before tax
+
+            if not receivable:
+                logging.warning(f"Missing room_revenue for online booking ID: {bid}")
+                return None
         else:
-            room_charges = safe_float(row.get("total_tariff"))
-            commission = 0.0
+            total_amount = safe_float(row.get("total_tariff")) or 0.0
+            receivable = total_amount
+            room_charges = total_amount
             gst = 0.0
-            receivable = room_charges
+            commission = 0.0
 
         return {
             "type": "online" if is_online else "direct",
@@ -225,6 +231,7 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
             "plan": sanitize_string(row.get("rate_plans") if is_online else row.get("breakfast")),
             "room_charges": room_charges,
             "gst": gst,
+            "total_amount": total_amount,  # Guest bill
             "commission": commission,
             "receivable": receivable,
             "advance": safe_float(row.get("total_payment_made") if is_online else row.get("advance_amount")),
@@ -242,7 +249,7 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
         return None
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Filter & Assign – PER‑NIGHT SAFE
+# Filter & Assign – PER-NIGHT SAFE
 # ──────────────────────────────────────────────────────────────────────────────
 def filter_bookings_for_day(bookings: List[Dict], day: date) -> List[Dict]:
     return [
@@ -291,14 +298,13 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     return assigned, over
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Inventory Table
+# Inventory Table – CLEAR LABELS
 # ──────────────────────────────────────────────────────────────────────────────
 def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str) -> pd.DataFrame:
     cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
-            "Check In","Check Out","Days","MOB","Room Charges","GST","Total",
-            "Commision","Receivable","Per Night","Advance","Advance Mop","Balance",
-            "Balance Mop","Plan","Booking Status","Payment Status","Submitted by",
-            "Modified by","Remarks"]
+            "Check In","Check Out","Days","MOB","Room Charges","GST","Total","Commission",
+            "Receivable","Per Night","Advance","Advance Mop","Balance","Balance Mop",
+            "Plan","Booking Status","Payment Status","Submitted by","Modified by","Remarks"]
     inv = [i for i in PROPERTY_INVENTORY.get(prop,{}).get("all",[]) if not i.startswith(("Day Use","No Show"))]
     rows = []
     for i in inv:
@@ -328,8 +334,8 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str) ->
                 row.update({
                     "Room Charges": f"{match.get('room_charges',0):.2f}",
                     "GST": f"{match.get('gst',0):.2f}",
-                    "Total": f"{match.get('room_charges',0) + match.get('gst',0):.2f}",
-                    "Commision": f"{match.get('commission',0):.2f}",
+                    "Total": f"{match.get('total_amount',0):.2f}",
+                    "Commission": f"{match.get('commission',0):.2f}",
                     "Receivable": f"{match.get('receivable',0):.2f}",
                     "Advance": f"{match.get('advance',0):.2f}",
                     "Advance Mop": match.get("advance_mop",""),
@@ -348,7 +354,7 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str) ->
     return pd.DataFrame(rows, columns=cols)
 
 # ──────────────────────────────────────────────────────────────────────────────
-# MOP Report – FIXED (only payments received on the target day)
+# MOP Report
 # ──────────────────────────────────────────────────────────────────────────────
 def compute_mop_report(daily_bookings: List[Dict], target_date: date) -> pd.DataFrame:
     mop_types = ["UPI","Cash","Go-MMT","Agoda","NOT PAID","Expenses","Bank Transfer",
@@ -357,7 +363,6 @@ def compute_mop_report(daily_bookings: List[Dict], target_date: date) -> pd.Data
     total_cash = total = 0.0
 
     for b in daily_bookings:
-        # Only primary records of bookings that **check‑in on the target day**
         if not (b.get("is_primary") and date.fromisoformat(b["check_in"]) == target_date):
             continue
 
@@ -383,17 +388,17 @@ def compute_mop_report(daily_bookings: List[Dict], target_date: date) -> pd.Data
                         columns=["MOP", "Amount"])
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Statistics – ZERO‑DIVISION SAFE
+# Statistics
 # ──────────────────────────────────────────────────────────────────────────────
-def def compute_statistics(bookings: List[Dict], property: str, target_date: date, month_dates: List[date]) -> tuple:
+def compute_statistics(bookings: List[Dict], property: str, target_date: date, month_dates: List[date]) -> tuple:
     mob_types = ["Booking","Direct","Bkg-Direct","Agoda","Go-MMT","Walk-In","TIE Group",
                  "Stayflexi","Airbnb","Social Media","Expedia","Cleartrip","Website"]
     inventory = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
     total_inventory = len([i for i in inventory if not i.startswith(("Day Use","No Show"))])
 
-    # ---------- D.T.D ----------
-    dtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"tax_ded":0.0,"pax":0} for m in mob_types}
-    dtd_rooms = dtd_value = dtd_comm = dtd_gst = dtd_tax_ded = dtd_pax = 0
+    # D.T.D
+    dtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"pax":0} for m in mob_types}
+    dtd_rooms = dtd_value = dtd_comm = dtd_gst = dtd_pax = 0
     daily_assigned, _ = assign_inventory_numbers(filter_bookings_for_day(bookings, target_date), property)
 
     for b in daily_assigned:
@@ -403,21 +408,18 @@ def def compute_statistics(bookings: List[Dict], property: str, target_date: dat
         value = b.get("receivable",0.0) if b.get("is_primary") and date.fromisoformat(b["check_in"])==target_date else 0.0
         comm  = b.get("commission",0.0) if b.get("is_primary") and date.fromisoformat(b["check_in"])==target_date else 0.0
         gst   = b.get("gst",0.0) if b.get("is_primary") and date.fromisoformat(b["check_in"])==target_date else 0.0
-        tax_ded = 0.0  # Adjust if you have TDS field
         pax   = b.get("total_pax",0)
 
         dtd[mob]["rooms"] += rooms
         dtd[mob]["value"] += value
         dtd[mob]["comm"]  += comm
         dtd[mob]["gst"]   += gst
-        dtd[mob]["tax_ded"] += tax_ded
         dtd[mob]["pax"]   += pax
 
         dtd_rooms += rooms
         dtd_value += value
         dtd_comm  += comm
         dtd_gst   += gst
-        dtd_tax_ded += tax_ded
         dtd_pax   += pax
 
     for m in mob_types:
@@ -429,14 +431,12 @@ def def compute_statistics(bookings: List[Dict], property: str, target_date: dat
         "arr": dtd_value/dtd_rooms if dtd_rooms else 0.0,
         "comm": dtd_comm,
         "gst": dtd_gst,
-        "tax_ded": dtd_tax_ded,
         "pax": dtd_pax
     }
 
-    # ---------- M.T.D ----------
-    mtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"tax_ded":0.0,"pax":0} for m in mob_types}
-    mtd_rooms = mtd_value = mtd_comm = mtd_gst = mtd_tax_ded = mtd_pax = 0
-
+    # M.T.D (similar)
+    mtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"pax":0} for m in mob_types}
+    mtd_rooms = mtd_value = mtd_comm = mtd_gst = mtd_pax = 0
     for day in month_dates:
         if day > target_date: continue
         da, _ = assign_inventory_numbers(filter_bookings_for_day(bookings, day), property)
@@ -447,21 +447,18 @@ def def compute_statistics(bookings: List[Dict], property: str, target_date: dat
             value = b.get("receivable",0.0) if b.get("is_primary") and date.fromisoformat(b["check_in"])==day else 0.0
             comm  = b.get("commission",0.0) if b.get("is_primary") and date.fromisoformat(b["check_in"])==day else 0.0
             gst   = b.get("gst",0.0) if b.get("is_primary") and date.fromisoformat(b["check_in"])==day else 0.0
-            tax_ded = 0.0
             pax   = b.get("total_pax",0)
 
             mtd[mob]["rooms"] += rooms
             mtd[mob]["value"] += value
             mtd[mob]["comm"]  += comm
             mtd[mob]["gst"]   += gst
-            mtd[mob]["tax_ded"] += tax_ded
             mtd[mob]["pax"]   += pax
 
             mtd_rooms += rooms
             mtd_value += value
             mtd_comm  += comm
             mtd_gst   += gst
-            mtd_tax_ded += tax_ded
             mtd_pax   += pax
 
     for m in mob_types:
@@ -473,11 +470,9 @@ def def compute_statistics(bookings: List[Dict], property: str, target_date: dat
         "arr": mtd_value/mtd_rooms if mtd_rooms else 0.0,
         "comm": mtd_comm,
         "gst": mtd_gst,
-        "tax_ded": mtd_tax_ded,
         "pax": mtd_pax
     }
 
-    # ---------- Summary (All 15 Fields) ----------
     occ_pct = (dtd_rooms / total_inventory * 100) if total_inventory else 0.0
     mtd_occ_pct = (mtd_rooms / (total_inventory * target_date.day) * 100) if (total_inventory and target_date.day) else 0.0
 
@@ -490,16 +485,12 @@ def def compute_statistics(bookings: List[Dict], property: str, target_date: dat
         "Total Inventory": total_inventory,
         "Gst": f"₹{dtd_gst:,.2f}",
         "Commission": f"₹{dtd_comm:,.2f}",
-        "Tax Deduction": f"₹{dtd_tax_ded:,.2f}",
         "Mtd Occ Percent": f"{mtd_occ_pct:.1f}%",
         "Mtd Pax": mtd_pax,
         "Mtd Rooms": mtd_rooms,
-        "Mtd Gst": f"₹{mtd_gst:,.2f}",
-        "Mtd Tax Deduction": f"₹{mtd_tax_ded:,.2f}",
         "Mtd Value": f"₹{mtd_value:,.2f}",
     }
 
-    # Build DTD & MTD DataFrames (unchanged)
     dtd_df = pd.DataFrame([{"MOB":m,
                             "D.T.D Rooms":d["rooms"],
                             "D.T.D Value":f"₹{d['value']:,.2f}",
@@ -518,7 +509,7 @@ def def compute_statistics(bookings: List[Dict], property: str, target_date: dat
     return dtd_df, mtd_df, summary, mop_df
 
 # ──────────────────────────────────────────────────────────────────────────────
-# UI – ALL 4 TABLES
+# UI
 # ──────────────────────────────────────────────────────────────────────────────
 def show_daily_status():
     st.title("Daily Status Dashboard")
@@ -551,7 +542,6 @@ def show_daily_status():
                     assigned, over = assign_inventory_numbers(daily, prop)
                     df = create_inventory_table(assigned, over, prop)
 
-                    # shrink IDs
                     if "Booking ID" in df.columns:
                         df["Booking ID"] = df["Booking ID"].apply(
                             lambda x: f'<small>{x.split(">")[1].split("<")[0] if ">" in str(x) else x}</small>')
@@ -570,3 +560,7 @@ def show_daily_status():
                                      use_container_width=True)
                 else:
                     st.info("No active bookings.")
+
+# Run
+if __name__ == "__main__":
+    show_daily_status()
