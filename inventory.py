@@ -1,4 +1,4 @@
-# inventory.py – FINAL, BUG-FREE, MAPPING-FIXED
+# inventory.py – FINAL, FULLY FIXED, FULL BOOKING ID VISIBLE
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date
@@ -63,14 +63,30 @@ mob_mapping = {
     "Website": ["Stayflexi Booking Engine"],
 }
 
-# ────── CSS ──────
+# ────── CSS – FULL BOOKING ID VISIBLE ──────
 TABLE_CSS = """
 <style>
 .custom-scrollable-table {overflow-x:auto;max-width:100%;min-width:800px;}
 .custom-scrollable-table table {table-layout:auto;border-collapse:collapse;}
-.custom-scrollable-table td,.custom-scrollable-table th {white-space:nowrap;
-    text-overflow:ellipsis;overflow:hidden;max-width:150px;padding:8px;
-    border:1px solid #ddd;}
+.custom-scrollable-table td,.custom-scrollable-table th {
+    white-space:nowrap;
+    overflow:visible;
+    max-width:none;
+    min-width:80px;
+    padding:8px;
+    border:1px solid #ddd;
+}
+.custom-scrollable-table th:nth-child(3),
+.custom-scrollable-table td:nth-child(3) {
+    min-width:180px;   /* Booking ID column – full width */
+}
+.custom-scrollable-table a {
+    color: #1E90FF;
+    text-decoration: none;
+}
+.custom-scrollable-table a:hover {
+    text-decoration: underline;
+}
 </style>
 """
 
@@ -298,7 +314,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     return assigned, over
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Inventory Table – CLEAR LABELS
+# Inventory Table – FULL BOOKING ID
 # ──────────────────────────────────────────────────────────────────────────────
 def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str) -> pd.DataFrame:
     cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
@@ -434,7 +450,7 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
         "pax": dtd_pax
     }
 
-    # M.T.D (similar)
+    # M.T.D
     mtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"pax":0} for m in mob_types}
     mtd_rooms = mtd_value = mtd_comm = mtd_gst = mtd_pax = 0
     for day in month_dates:
@@ -542,10 +558,6 @@ def show_daily_status():
                     assigned, over = assign_inventory_numbers(daily, prop)
                     df = create_inventory_table(assigned, over, prop)
 
-                    if "Booking ID" in df.columns:
-                        df["Booking ID"] = df["Booking ID"].apply(
-                            lambda x: f'<small>{x.split(">")[1].split("<")[0] if ">" in str(x) else x}</small>')
-
                     st.markdown(f'<div class="custom-scrollable-table">{df.to_html(escape=False,index=False)}</div>', unsafe_allow_html=True)
 
                     dtd_df, mtd_df, summary, mop_df = compute_statistics(bookings, prop, day, month_dates)
@@ -561,6 +573,8 @@ def show_daily_status():
                 else:
                     st.info("No active bookings.")
 
+# ──────────────────────────────────────────────────────────────────────────────
 # Run
+# ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     show_daily_status()
