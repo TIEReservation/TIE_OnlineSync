@@ -404,7 +404,7 @@ def compute_mop_report(daily_bookings: List[Dict], target_date: date) -> pd.Data
                         columns=["MOP", "Amount"])
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Statistics
+# Statistics – FIXED DTD & MTD
 # ──────────────────────────────────────────────────────────────────────────────
 def compute_statistics(bookings: List[Dict], property: str, target_date: date, month_dates: List[date]) -> tuple:
     mob_types = ["Booking","Direct","Bkg-Direct","Agoda","Go-MMT","Walk-In","TIE Group",
@@ -412,31 +412,35 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
     inventory = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
     total_inventory = len([i for i in inventory if not i.startswith(("Day Use","No Show"))])
 
-    # D.T.D
+    # D.T.D – Only count on check-in date
     dtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"pax":0} for m in mob_types}
     dtd_rooms = dtd_value = dtd_comm = dtd_gst = dtd_pax = 0
     daily_assigned, _ = assign_inventory_numbers(filter_bookings_for_day(bookings, target_date), property)
 
     for b in daily_assigned:
-        mob_raw = sanitize_string(b.get("mob",""))
-        mob = next((m for m,vs in mob_mapping.items() if mob_raw.upper() in [v.upper() for v in vs]), "Booking")
+        if date.fromisoformat(b["check_in"]) != target_date:
+            continue  # Only count check-ins today
+
+        mob_raw = sanitize_string(b.get("mob", ""))
+        mob = next((m for m, vs in mob_mapping.items() if mob_raw.upper() in [v.upper() for v in vs]), "Booking")
         rooms = len(b.get("inventory_no", []))
-        value = b.get("receivable",0.0) if b.get("is_primary") and date.fromisoformat(b["check_in"])==target_date else 0.0
-        comm  = b.get("commission",0.0) if b.get("is_primary") and date.fromisoformat(b["check_in"])==target_date else 0.0
-        gst   = b.get("gst",0.0) if b.get("is_primary") and date.fromisoformat(b["check_in"])==target_date else 0.0
-        pax   = b.get("total_pax",0)
+        pax = b.get("total_pax", 0)
+
+        value = b.get("receivable", 0.0) if b.get("is_primary") else 0.0
+        comm = b.get("commission", 0.0) if b.get("is_primary") else 0.0
+        gst = b.get("gst", 0.0) if b.get("is_primary") else 0.0
 
         dtd[mob]["rooms"] += rooms
         dtd[mob]["value"] += value
-        dtd[mob]["comm"]  += comm
-        dtd[mob]["gst"]   += gst
-        dtd[mob]["pax"]   += pax
+        dtd[mob]["comm"] += comm
+        dtd[mob]["gst"] += gst
+        dtd[mob]["pax"] += pax
 
         dtd_rooms += rooms
         dtd_value += value
-        dtd_comm  += comm
-        dtd_gst   += gst
-        dtd_pax   += pax
+        dtd_comm += comm
+        dtd_gst += gst
+        dtd_pax += pax
 
     for m in mob_types:
         r = dtd[m]["rooms"]
@@ -450,32 +454,37 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
         "pax": dtd_pax
     }
 
-    # M.T.D
+    # M.T.D – Only count on check-in date for each day
     mtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"pax":0} for m in mob_types}
     mtd_rooms = mtd_value = mtd_comm = mtd_gst = mtd_pax = 0
     for day in month_dates:
-        if day > target_date: continue
+        if day > target_date:
+            continue
         da, _ = assign_inventory_numbers(filter_bookings_for_day(bookings, day), property)
         for b in da:
-            mob_raw = sanitize_string(b.get("mob",""))
-            mob = next((m for m,vs in mob_mapping.items() if mob_raw.upper() in [v.upper() for v in vs]), "Booking")
+            if date.fromisoformat(b["check_in"]) != day:
+                continue  # Only count check-ins on this day
+
+            mob_raw = sanitize_string(b.get("mob", ""))
+            mob = next((m for m, vs in mob_mapping.items() if mob_raw.upper() in [v.upper() for v in vs]), "Booking")
             rooms = len(b.get("inventory_no", []))
-            value = b.get("receivable",0.0) if b.get("is_primary") and date.fromisoformat(b["check_in"])==day else 0.0
-            comm  = b.get("commission",0.0) if b.get("is_primary") and date.fromisoformat(b["check_in"])==day else 0.0
-            gst   = b.get("gst",0.0) if b.get("is_primary") and date.fromisoformat(b["check_in"])==day else 0.0
-            pax   = b.get("total_pax",0)
+            pax = b.get("total_pax", 0)
+
+            value = b.get("receivable", 0.0) if b.get("is_primary") else 0.0
+            comm = b.get("commission", 0.0) if b.get("is_primary") else 0.0
+            gst = b.get("gst", 0.0) if b.get("is_primary") else 0.0
 
             mtd[mob]["rooms"] += rooms
             mtd[mob]["value"] += value
-            mtd[mob]["comm"]  += comm
-            mtd[mob]["gst"]   += gst
-            mtd[mob]["pax"]   += pax
+            mtd[mob]["comm"] += comm
+            mtd[mob]["gst"] += gst
+            mtd[mob]["pax"] += pax
 
             mtd_rooms += rooms
             mtd_value += value
-            mtd_comm  += comm
-            mtd_gst   += gst
-            mtd_pax   += pax
+            mtd_comm += comm
+            mtd_gst += gst
+            mtd_pax += pax
 
     for m in mob_types:
         r = mtd[m]["rooms"]
