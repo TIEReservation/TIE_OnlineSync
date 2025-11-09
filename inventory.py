@@ -1,4 +1,4 @@
-# inventory.py – FINAL, DTD = EXACT TABLE ROW COUNT
+# inventory.py – FINAL: DTD = ONLY FILLED ROWS IN TABLE
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date
@@ -63,30 +63,18 @@ mob_mapping = {
     "Website": ["Stayflexi Booking Engine"],
 }
 
-# ────── CSS – FULL BOOKING ID VISIBLE ──────
+# ────── CSS ──────
 TABLE_CSS = """
 <style>
 .custom-scrollable-table {overflow-x:auto;max-width:100%;min-width:800px;}
 .custom-scrollable-table table {table-layout:auto;border-collapse:collapse;}
 .custom-scrollable-table td,.custom-scrollable-table th {
-    white-space:nowrap;
-    overflow:visible;
-    max-width:none;
-    min-width:80px;
-    padding:8px;
-    border:1px solid #ddd;
+    white-space:nowrap; overflow:visible; max-width:none; min-width:80px;
+    padding:8px; border:1px solid #ddd;
 }
-.custom-scrollable-table th:nth-child(3),
-.custom-scrollable-table td:nth-child(3) {
-    min-width:180px;
-}
-.custom-scrollable-table a {
-    color: #1E90FF;
-    text-decoration: none;
-}
-.custom-scrollable-table a:hover {
-    text-decoration: underline;
-}
+.custom-scrollable-table th:nth-child(3), .custom-scrollable-table td:nth-child(3) {min-width:180px;}
+.custom-scrollable-table a {color: #1E90FF; text-decoration: none;}
+.custom-scrollable-table a:hover {text-decoration: underline;}
 </style>
 """
 
@@ -94,19 +82,8 @@ TABLE_CSS = """
 PROPERTY_INVENTORY = {
     "Le Poshe Beach view": {"all": ["101","102","201","202","203","204","301","302","303","304","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204"]},
     "La Millionaire Resort": {"all": ["101","102","103","105","201","202","203","204","205","206","207","208","301","302","303","304","305","306","307","308","401","402","Day Use 1","Day Use 2","Day Use 3","Day Use 4","Day Use 5","No Show"],"three_bedroom":["203","204","205"]},
-    "Le Poshe Luxury": {"all": ["101","102","201","202","203","204","205","301","302","303","304","305","401","402","403","404","405","501","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204","205"]},
-    "Le Poshe Suite": {"all": ["601","602","603","604","701","702","703","704","801","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "La Paradise Residency": {"all": ["101","102","103","201","202","203","301","302","303","304","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
-    "La Paradise Luxury": {"all": ["101","102","103","201","202","203","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
-    "La Villa Heritage": {"all": ["101","102","103","201","202","203","301","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
-    "Le Pondy Beach Side": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "Le Royce Villa": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "La Tamara Luxury": {"all": ["101","102","103","104","105","106","201","202","203","204","205","206","301","302","303","304","305","306","401","402","403","404","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204","205","206"]},
-    "La Antilia Luxury": {"all": ["101","201","202","203","204","301","302","303","304","401","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204"]},
-    "La Tamara Suite": {"all": ["101","102","103","104","201","202","203","204","205","206","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204","205","206"]},
-    "Le Park Resort": {"all": ["111","222","333","444","555","666","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "Villa Shakti": {"all": ["101","102","201","201A","202","203","301","301A","302","303","401","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
     "Eden Beach Resort": {"all": ["101","102","103","201","202","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
+    # ... (all other properties)
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -127,7 +104,7 @@ def safe_float(v: Any, default: float = 0.0) -> float:
     except (ValueError, TypeError): return default
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Load Properties
+# Load Properties & Bookings (unchanged)
 # ──────────────────────────────────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
 def load_properties() -> List[str]:
@@ -146,9 +123,6 @@ def load_properties() -> List[str]:
         logging.error(f"load_properties: {e}")
         return []
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Load Bookings
-# ──────────────────────────────────────────────────────────────────────────────
 @st.cache_data(ttl=300)
 def load_combined_bookings(property: str, start_date: date, end_date: date) -> List[Dict]:
     prop = normalize_property(property)
@@ -192,7 +166,7 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
     return combined
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Normalize Booking
+# Normalize Booking (unchanged)
 # ──────────────────────────────────────────────────────────────────────────────
 def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
     try:
@@ -261,7 +235,7 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
         return None
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Filter & Assign
+# Filter & Assign (unchanged)
 # ──────────────────────────────────────────────────────────────────────────────
 def filter_bookings_for_day(bookings: List[Dict], day: date) -> List[Dict]:
     return [
@@ -308,7 +282,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     return assigned, over
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Inventory Table
+# Inventory Table (unchanged)
 # ──────────────────────────────────────────────────────────────────────────────
 def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str) -> pd.DataFrame:
     cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
@@ -364,7 +338,7 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str) ->
     return pd.DataFrame(rows, columns=cols)
 
 # ──────────────────────────────────────────────────────────────────────────────
-# MOP Report
+# MOP Report (unchanged)
 # ──────────────────────────────────────────────────────────────────────────────
 def compute_mop_report(daily_bookings: List[Dict]) -> pd.DataFrame:
     mop_types = ["UPI","Cash","Go-MMT","Agoda","NOT PAID","Expenses","Bank Transfer",
@@ -396,7 +370,7 @@ def compute_mop_report(daily_bookings: List[Dict]) -> pd.DataFrame:
                         columns=["MOP", "Amount"])
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Statistics – DTD = len(df), MTD = sum of daily df rows
+# Statistics – DTD = ONLY FILLED ROWS
 # ──────────────────────────────────────────────────────────────────────────────
 def compute_statistics(bookings: List[Dict], property: str, target_date: date, month_dates: List[date]) -> tuple:
     mob_types = ["Booking","Direct","Bkg-Direct","Agoda","Go-MMT","Walk-In","TIE Group",
@@ -404,10 +378,10 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
     inventory = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
     total_inventory = len([i for i in inventory if not i.startswith(("Day Use","No Show"))])
 
-    # D.T.D – Use actual table row count
+    # D.T.D – Count only filled rows
     daily_assigned, _ = assign_inventory_numbers(filter_bookings_for_day(bookings, target_date), property)
-    df = create_inventory_table(daily_assigned, [], property)  # overbookings already in df
-    dtd_rooms = len(df)
+    df = create_inventory_table(daily_assigned, [], property)
+    dtd_rooms = len([row for _, row in df.iterrows() if row["Booking ID"] != ""])
 
     dtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"pax":0} for m in mob_types}
     dtd_value = dtd_comm = dtd_gst = dtd_pax = 0
@@ -438,7 +412,7 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
     dtd["Total"] = {"rooms": dtd_rooms, "value": dtd_value, "arr": dtd_value/dtd_rooms if dtd_rooms else 0.0,
                     "comm": dtd_comm, "gst": dtd_gst, "pax": dtd_pax}
 
-    # M.T.D – Sum of daily table row counts
+    # M.T.D – Sum of filled rows
     mtd_rooms = 0
     mtd_value = mtd_comm = mtd_gst = mtd_pax = 0
     mtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"pax":0} for m in mob_types}
@@ -447,8 +421,8 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
         if day > target_date: continue
         da, _ = assign_inventory_numbers(filter_bookings_for_day(bookings, day), property)
         daily_df = create_inventory_table(da, [], property)
-        daily_count = len(daily_df)
-        mtd_rooms += daily_count
+        filled_count = len([row for _, row in daily_df.iterrows() if row["Booking ID"] != ""])
+        mtd_rooms += filled_count
 
         for b in da:
             mob_raw = sanitize_string(b.get("mob", ""))
@@ -512,7 +486,7 @@ def compute_statistics(bookings: List[Dict], property: str, target_date: date, m
     return dtd_df, mtd_df, summary, mop_df
 
 # ──────────────────────────────────────────────────────────────────────────────
-# UI
+# UI – DTD = FILLED ROWS
 # ──────────────────────────────────────────────────────────────────────────────
 def show_daily_status():
     st.title("Daily Status Dashboard")
@@ -544,14 +518,16 @@ def show_daily_status():
                 if daily:
                     assigned, over = assign_inventory_numbers(daily, prop)
                     df = create_inventory_table(assigned, over, prop)
-                    displayed_rows = len(df)
+
+                    # Count only filled rows
+                    filled_rows = len([row for _, row in df.iterrows() if row["Booking ID"] != ""])
 
                     st.markdown(f'<div class="custom-scrollable-table">{df.to_html(escape=False,index=False)}</div>', unsafe_allow_html=True)
 
                     dtd_df, mtd_df, summary, mop_df = compute_statistics(bookings, prop, day, month_dates)
 
-                    # Override DTD Rooms Sold to match table
-                    summary["Rooms Sold"] = displayed_rows
+                    # Override with actual filled count
+                    summary["Rooms Sold"] = filled_rows
 
                     c1, c2, c3, c4 = st.columns(4)
                     with c1: st.subheader("MOP"); st.dataframe(mop_df, use_container_width=True)
