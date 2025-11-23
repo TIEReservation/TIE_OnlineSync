@@ -23,6 +23,7 @@ property_mapping = {
     "Le Poshe Beach View": "Le Poshe Beach view",
     "Le Poshe Beach view": "Le Poshe Beach view",
     "Le Poshe Beach VIEW": "Le Poshe Beach view",
+    "Le Poshe Beachview": "Le Poshe Beach view",
     "Millionaire": "La Millionaire Resort",
 }
 reverse_mapping = {c: [] for c in set(property_mapping.values())}
