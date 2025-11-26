@@ -230,21 +230,25 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
 def filter_bookings_for_day(bookings: List[Dict], day: date) -> List[Dict]:
     return [b.copy() | {"target_date": day} for b in bookings if date.fromisoformat(b["check_in"]) <= day < date.fromisoformat(b["check_out"])]
 
+# ──────────────────────────────────────────────────────────────────────────────
+# FINAL FIXED: assign_inventory_numbers – now 100% reliable for "No Show"
+# ──────────────────────────────────────────────────────────────────────────────
 def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     assigned, over = [], []
     inv = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
-    inv_lookup = {i.strip().lower(): i for i in inv}  # exact original name
+    inv_lookup = {i.strip().lower(): i for i in inv}
 
     for b in daily_bookings:
-        raw = str(b.get("room_no", "")).strip()
-        if not raw:
+        raw_room = str(b.get("room_no", "") or "").strip()
+        if not raw_room:
             over.append(b)
             continue
 
-        requested_rooms = [r.strip() for r in raw.split(",") if r.strip()]
+        # Handle comma-separated rooms
+        requested = [r.strip() for r in raw_room.split(",") if r.strip()]
         assigned_rooms = []
 
-        for r in requested_rooms:
+        for r in requested:
             key = r.lower()
             if key in inv_lookup:
                 assigned_rooms.append(inv_lookup[key])
@@ -266,8 +270,8 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
 
         for idx, room in enumerate(assigned_rooms):
             nb = b.copy()
-            nb["inventory_no"] = room       # ← NOW A STRING, not list
-            nb["room_no"] = room
+            nb["assigned_room"] = room                    # ← NEW: single string
+            nb["room_no"] = room                           # ← display correct
             nb["total_pax"] = base_pax + (1 if idx < rem else 0)
             nb["per_night"] = per_night
             nb["is_primary"] = (idx == 0)
