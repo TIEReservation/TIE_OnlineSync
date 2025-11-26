@@ -1,4 +1,4 @@
-# inventory.py – FINAL VERSION: Multi-night + Correct Hotel Receivable
+# inventory.py – FINAL VERSION: Complete Professional Hotel Dashboard
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date
@@ -32,32 +32,16 @@ for v, c in property_mapping.items():
 
 # ────── MOP / MOB mappings ──────
 mop_mapping = {
-    "UPI": ["UPI"],
-    "Cash": ["Cash"],
-    "Go-MMT": ["Goibibo", "MMT", "Go-MMT", "MAKEMYTRIP"],
-    "Agoda": ["Agoda"],
-    "NOT PAID": ["Not Paid", "", " "],
-    "Bank Transfer": ["Bank Transfer"],
-    "Stayflexi": ["STAYFLEXI_GHA"],
-    "Card Payment": ["Card"],
-    "Expedia": ["Expedia"],
-    "Cleartrip": ["Cleartrip"],
-    "Website": ["Stayflexi Booking Engine"],
+    "UPI": ["UPI"], "Cash": ["Cash"], "Go-MMT": ["Goibibo", "MMT", "Go-MMT", "MAKEMYTRIP"],
+    "Agoda": ["Agoda"], "NOT PAID": ["Not Paid", "", " "], "Bank Transfer": ["Bank Transfer"],
+    "Stayflexi": ["STAYFLEXI_GHA"], "Card Payment": ["Card"], "Expedia": ["Expedia"],
+    "Cleartrip": ["Cleartrip"], "Website": ["Stayflexi Booking Engine"],
 }
 mob_mapping = {
-    "Booking": ["BOOKING"],
-    "Direct": ["Direct"],
-    "Bkg-Direct": ["Bkg-Direct"],
-    "Agoda": ["Agoda"],
-    "Go-MMT": ["Goibibo", "MMT", "Go-MMT", "MAKEMYTRIP"],
-    "Walk-In": ["Walk-In"],
-    "TIE Group": ["TIE Group"],
-    "Stayflexi": ["STAYFLEXI_GHA"],
-    "Airbnb": ["Airbnb"],
-    "Social Media": ["Social Media"],
-    "Expedia": ["Expedia"],
-    "Cleartrip": ["Cleartrip"],
-    "Website": ["Stayflexi Booking Engine"],
+    "Booking": ["BOOKING"], "Direct": ["Direct"], "Bkg-Direct": ["Bkg-Direct"], "Agoda": ["Agoda"],
+    "Go-MMT": ["Goibibo", "MMT", "Go-MMT", "MAKEMYTRIP"], "Walk-In": ["Walk-In"], "TIE Group": ["TIE Group"],
+    "Stayflexi": ["STAYFLEXI_GHA"], "Airbnb": ["Airbnb"], "Social Media": ["Social Media"],
+    "Expedia": ["Expedia"], "Cleartrip": ["Cleartrip"], "Website": ["Stayflexi Booking Engine"],
 }
 
 # ────── CSS ──────
@@ -72,26 +56,29 @@ TABLE_CSS = """
 .custom-scrollable-table th:nth-child(3), .custom-scrollable-table td:nth-child(3) {min-width:180px;}
 .custom-scrollable-table a {color: #1E90FF; text-decoration: none;}
 .custom-scrollable-table a:hover {text-decoration: underline;}
+.day-use-row {background-color: #e6f7ff !important; color: #0066cc; font-weight: bold;}
+.no-show-row {background-color: #fff2f0 !important; color: #d4380d; font-style: italic;}
+.overbooking-row {background-color: #fffbe6 !important; color: #d46b08; font-weight: bold;}
 </style>
 """
 
-# ────── Full inventory ──────
+# ────── Full Inventory – Day Use & No Show for ALL properties ──────
 PROPERTY_INVENTORY = {
-    "Le Poshe Beach view": {"all": ["101","102","201","202","203","204","301","302","303","304","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204"]},
-    "La Millionaire Resort": {"all": ["101","102","103","105","201","202","203","204","205","206","207","208","301","302","303","304","305","306","307","308","401","402","Day Use 1","Day Use 2","Day Use 3","Day Use 4","Day Use 5","No Show"],"three_bedroom":["203","204","205"]},
-    "Le Poshe Luxury": {"all": ["101","102","201","202","203","204","205","301","302","303","304","305","401","402","403","404","405","501","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204","205"]},
-    "Le Poshe Suite": {"all": ["601","602","603","604","701","702","703","704","801","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "La Paradise Residency": {"all": ["101","102","103","201","202","203","301","302","303","304","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
-    "La Paradise Luxury": {"all": ["101","102","103","201","202","203","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
-    "La Villa Heritage": {"all": ["101","102","103","201","202","203","301","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
-    "Le Pondy Beach Side": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "Le Royce Villa": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "La Tamara Luxury": {"all": ["101","102","103","104","105","106","201","202","203","204","205","206","301","302","303","304","305","306","401","402","403","404","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204","205","206"]},
-    "La Antilia Luxury": {"all": ["101","201","202","202","203","204","301","302","303","304","401","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204"]},
-    "La Tamara Suite": {"all": ["101","102","103","104","201","202","203","204","205","206","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204","205","206"]},
-    "Le Park Resort": {"all": ["111","222","333","444","555","666","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "Villa Shakti": {"all": ["101","102","201","201A","202","203","301","301A","302","303","401","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
-    "Eden Beach Resort": {"all": ["101","102","103","201","202","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
+    "Le Poshe Beach view": {"all": ["101","102","201","202","203","204","301","302","303","304","Day Use 1","Day Use 2","No Show"]},
+    "La Millionaire Resort": {"all": ["101","102","103","105","201","202","203","204","205","206","207","208","301","302","303","304","305","306","307","308","401","402","Day Use 1","Day Use 2","Day Use 3","Day Use 4","Day Use 5","No Show"]},
+    "Le Poshe Luxury": {"all": ["101","102","201","202","203","204","205","301","302","303","304","305","401","402","403","404","405","501","Day Use 1","Day Use 2","No Show"]},
+    "Le Poshe Suite": {"all": ["601","602","603","604","701","702","703","704","801","Day Use 1","Day Use 2","No Show"]},
+    "La Paradise Residency": {"all": ["101","102","103","201","202","203","301","302","303","304","Day Use 1","Day Use 2","No Show"]},
+    "La Paradise Luxury": {"all": ["101","102","103","201","202","203","Day Use 1","Day Use 2","No Show"]},
+    "La Villa Heritage": {"all": ["101","102","103","201","202","203","301","Day Use 1","Day Use 2","No Show"]},
+    "Le Pondy Beach Side": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"]},
+    "Le Royce Villa": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"]},
+    "La Tamara Luxury": {"all": ["101","102","103","104","105","106","201","202","203","204","205","206","301","302","303","304","305","306","401","402","403","404","Day Use 1","Day Use 2","No Show"]},
+    "La Antilia Luxury": {"all": ["101","201","202","203","204","301","302","303","304","401","Day Use 1","Day Use 2","No Show"]},
+    "La Tamara Suite": {"all": ["101","102","103","104","201","202","203","204","205","206","Day Use 1","Day Use 2","No Show"]},
+    "Le Park Resort": {"all": ["111","222","333","444","555","666","Day Use 1","Day Use 2","No Show"]},
+    "Villa Shakti": {"all": ["101","102","201","201A","202","203","301","301A","302","303","401","Day Use 1","Day Use 2","No Show"]},
+    "Eden Beach Resort": {"all": ["101","102","103","201","202","Day Use 1","Day Use 2","No Show"]},
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -104,16 +91,12 @@ def sanitize_string(v: Any, default: str = "") -> str:
     return str(v).strip() if v is not None else default
 
 def safe_int(v: Any, default: int = 0) -> int:
-    try:
-        return int(float(v)) if v not in [None, "", " "] else default
-    except:
-        return default
+    try: return int(float(v)) if v not in [None, "", " "] else default
+    except: return default
 
 def safe_float(v: Any, default: float = 0.0) -> float:
-    try:
-        return float(v) if v not in [None, "", " "] else default
-    except:
-        return default
+    try: return float(v) if v not in [None, "", " "] else default
+    except: return default
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Load Properties & Bookings
@@ -158,7 +141,7 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
     return combined
 
 # ──────────────────────────────────────────────────────────────────────────────
-# CORRECTED: Receivable = Total - GST - Commission
+# CORRECT: Hotel Receivable = Total – GST – Commission
 # ──────────────────────────────────────────────────────────────────────────────
 def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
     try:
@@ -176,7 +159,6 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
         if days <= 0: days = 1
         p = normalize_property(row.get("property_name") if not is_online else row.get("property"))
 
-        # Raw values
         if is_online:
             total_amount = safe_float(row.get("booking_amount")) or 0.0
             gst = safe_float(row.get("ota_tax")) or 0.0
@@ -188,7 +170,6 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
             commission = 0.0
             room_charges = total_amount
 
-        # CORRECT: Hotel actually receives this
         receivable = total_amount - gst - commission
         if receivable < 0: receivable = 0.0
 
@@ -209,7 +190,7 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
             "gst": gst,
             "total_amount": total_amount,
             "commission": commission,
-            "receivable": receivable,  # NOW 100% CORRECT
+            "receivable": receivable,
             "advance": safe_float(row.get("total_payment_made") if is_online else row.get("advance_amount")),
             "advance_mop": sanitize_string(row.get("advance_mop")),
             "balance": safe_float(row.get("balance_due") if is_online else row.get("balance_amount")),
@@ -267,7 +248,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     return assigned, over
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Build Table – Financials ONLY on Check-in Day
+# Build Table – Always shows Day Use & No Show
 # ──────────────────────────────────────────────────────────────────────────────
 def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date) -> pd.DataFrame:
     cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
@@ -275,12 +256,19 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
             "Hotel Receivable","Per Night","Advance","Advance Mop","Balance","Balance Mop",
             "Plan","Booking Status","Payment Status","Submitted by","Modified by","Remarks"]
     
-    inv = [i for i in PROPERTY_INVENTORY.get(prop,{}).get("all",[]) if not i.startswith(("Day Use","No Show"))]
+    all_inventory = PROPERTY_INVENTORY.get(prop, {}).get("all", [])
     rows = []
 
-    for inventory_no in inv:
+    for inventory_no in all_inventory:
         row = {c: "" for c in cols}
-        row["Inventory No"] = inventory_no
+        display_name = inventory_no
+        
+        if "Day Use" in inventory_no:
+            display_name = f'<span class="day-use-row">{inventory_no}</span>'
+        elif inventory_no == "No Show":
+            display_name = f'<span class="no-show-row">{inventory_no}</span>'
+            
+        row["Inventory No"] = display_name
         
         match = next((a for a in assigned if inventory_no in a.get("inventory_no", [])), None)
         
@@ -288,7 +276,6 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
             check_in_date = date.fromisoformat(match["check_in"])
             is_check_in_day = (target_date == check_in_date)
 
-            # Always show occupancy info
             row.update({
                 "Room No": match["room_no"],
                 "Booking ID": f'<a target="_blank" href="/?edit_type={match["type"]}&booking_id={match["booking_id"]}">{match["booking_id"]}</a>',
@@ -302,7 +289,6 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
                 "Per Night": f"{match.get('per_night', 0):.2f}",
             })
 
-            # Financials ONLY on check-in day + primary room
             if is_check_in_day and match.get("is_primary", False):
                 row.update({
                     "Room Charges": f"{match.get('room_charges', 0):.2f}",
@@ -326,7 +312,7 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
 
     if over:
         over_row = {c: "" for c in cols}
-        over_row["Inventory No"] = "Overbookings"
+        over_row["Inventory No"] = '<span class="overbooking-row">Overbookings</span>'
         over_row["Room No"] = ", ".join(f"{b.get('room_no','')} ({b.get('booking_id','')})" for b in over)
         over_row["Booking ID"] = ", ".join(f'<a href="#">OVER: {b.get("booking_id","")}</a>' for b in over)
         rows.append(over_row)
@@ -334,14 +320,13 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
     return pd.DataFrame(rows, columns=cols)
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Extract Stats – uses "Hotel Receivable"
+# Extract Stats
 # ──────────────────────────────────────────────────────────────────────────────
 def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     occupied = df[df["Booking ID"].str.contains('<a', na=False)].copy()
 
     def to_float(col):
         return pd.to_numeric(occupied[col].replace('', '0').str.replace(',', ''), errors='coerce').fillna(0.0)
-
     def to_int(col):
         return pd.to_numeric(occupied[col], errors='coerce').fillna(0).astype(int)
 
@@ -352,7 +337,6 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     occupied["Balance"] = to_float("Balance")
     occupied["Total Pax"] = to_int("Total Pax")
 
-    # MOP
     mop_data = {m: 0.0 for m in ["UPI","Cash","Go-MMT","Agoda","NOT PAID","Expenses","Bank Transfer","Stayflexi","Card Payment","Expedia","Cleartrip","Website"]}
     total_cash = total = 0.0
 
@@ -371,7 +355,6 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     mop_data["Total Cash"] = total_cash
     mop_data["Total"] = total
 
-    # DTD
     dtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"pax":0} for m in mob_types}
     dtd_rooms = len(occupied)
     dtd_value = occupied["Hotel Receivable"].sum()
@@ -393,18 +376,14 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
         dtd[m]["arr"] = dtd[m]["value"] / r if r > 0 else 0.0
 
     dtd["Total"] = {
-        "rooms": dtd_rooms,
-        "value": dtd_value,
-        "arr": dtd_value / dtd_rooms if dtd_rooms > 0 else 0.0,
-        "comm": dtd_comm,
-        "gst": dtd_gst,
-        "pax": dtd_pax
+        "rooms": dtd_rooms, "value": dtd_value, "arr": dtd_value / dtd_rooms if dtd_rooms > 0 else 0.0,
+        "comm": dtd_comm, "gst": dtd_gst, "pax": dtd_pax
     }
 
     return {"mop": mop_data, "dtd": dtd}
 
 # ──────────────────────────────────────────────────────────────────────────────
-# UI – Dashboard
+# Main Dashboard
 # ──────────────────────────────────────────────────────────────────────────────
 def show_daily_status():
     st.title("Daily Status Dashboard")
@@ -437,78 +416,59 @@ def show_daily_status():
                 daily = filter_bookings_for_day(bookings, day)
                 st.markdown(f"### {day.strftime('%b %d, %Y')}")
 
-                if daily:
-                    assigned, over = assign_inventory_numbers(daily, prop)
-                    df = create_inventory_table(assigned, over, prop, day)
+                assigned, over = assign_inventory_numbers(daily, prop)
+                df = create_inventory_table(assigned, over, prop, day)
 
-                    stats = extract_stats_from_table(df, mob_types)
-                    dtd = stats["dtd"]
-                    mop_data = stats["mop"]
+                stats = extract_stats_from_table(df, mob_types)
+                dtd = stats["dtd"]
+                mop_data = stats["mop"]
 
-                    if day <= today:
-                        mtd_rooms += dtd["Total"]["rooms"]
-                        mtd_value += dtd["Total"]["value"]
-                        mtd_comm += dtd["Total"]["comm"]
-                        mtd_gst += dtd["Total"]["gst"]
-                        mtd_pax += dtd["Total"]["pax"]
-                        for m in mob_types:
-                            mtd[m]["rooms"] += dtd[m]["rooms"]
-                            mtd[m]["value"] += dtd[m]["value"]
-                            mtd[m]["comm"] += dtd[m]["comm"]
-                            mtd[m]["gst"] += dtd[m]["gst"]
-                            mtd[m]["pax"] += dtd[m]["pax"]
+                if day <= today:
+                    mtd_rooms += dtd["Total"]["rooms"]
+                    mtd_value += dtd["Total"]["value"]
+                    mtd_comm += dtd["Total"]["comm"]
+                    mtd_gst += dtd["Total"]["gst"]
+                    mtd_pax += dtd["Total"]["pax"]
+                    for m in mob_types:
+                        mtd[m]["rooms"] += dtd[m]["rooms"]
+                        mtd[m]["value"] += dtd[m]["value"]
+                        mtd[m]["comm"] += dtd[m]["comm"]
+                        mtd[m]["gst"] += dtd[m]["gst"]
+                        mtd[m]["pax"] += dtd[m]["pax"]
 
-                    st.markdown(f'<div class="custom-scrollable-table">{df.to_html(escape=False,index=False)}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="custom-scrollable-table">{df.to_html(escape=False, index=False)}</div>', unsafe_allow_html=True)
 
-                    # Tables
-                    dtd_df = pd.DataFrame([
-                        {"MOB": m, "D.T.D Rooms": d["rooms"], "D.T.D Value": f"₹{d['value']:,.2f}",
-                         "D.T.D ARR": f"₹{d['arr']:,.2f}", "D.T.D Comm": f"₹{d['comm']:,.2f}"} 
-                        for m, d in dtd.items() if m != "Total"
-                    ] + [{"MOB": "Total", "D.T.D Rooms": dtd["Total"]["rooms"], 
-                          "D.T.D Value": f"₹{dtd['Total']['value']:,.2f}",
-                          "D.T.D ARR": f"₹{dtd['Total']['arr']:,.2f}", 
-                          "D.T.D Comm": f"₹{dtd['Total']['comm']:,.2f}"}],
-                        columns=["MOB","D.T.D Rooms","D.T.D Value","D.T.D ARR","D.T.D Comm"])
+                # Summary Tables
+                dtd_df = pd.DataFrame([
+                    {"MOB": m, "Rooms": d["rooms"], "Revenue": f"₹{d['value']:,.2f}",
+                     "ARR": f"₹{d['arr']:,.2f}", "Comm": f"₹{d['comm']:,.2f}"} 
+                    for m, d in dtd.items() if m != "Total"
+                ] + [{"MOB": "Total", "Rooms": dtd["Total"]["rooms"], 
+                      "Revenue": f"₹{dtd['Total']['value']:,.2f}",
+                      "ARR": f"₹{dtd['Total']['arr']:,.2f}", 
+                      "Comm": f"₹{dtd['Total']['comm']:,.2f}"}],
+                    columns=["MOB","Rooms","Revenue","ARR","Comm"])
 
-                    mop_df = pd.DataFrame([{"MOP": m, "Amount": f"₹{v:,.2f}"} for m, v in mop_data.items()], 
-                                         columns=["MOP", "Amount"])
+                mop_df = pd.DataFrame([{"MOP": k, "Amount": f"₹{v:,.2f}"} for k, v in mop_data.items() if v > 0], 
+                                     columns=["MOP", "Amount"])
 
-                    mtd_df = pd.DataFrame([
-                        {"MOB": m, "M.T.D Rooms": mtd[m]["rooms"], "M.T.D Value": f"₹{mtd[m]['value']:,.2f}",
-                         "M.T.D ARR": f"₹{mtd[m]['value']/mtd[m]['rooms']:,.2f}" if mtd[m]["rooms"] > 0 else "₹0.00",
-                         "M.T.D Comm": f"₹{mtd[m]['comm']:,.2f}"} for m in mob_types
-                    ] + [{"MOB": "Total", "M.T.D Rooms": mtd_rooms, "M.T.D Value": f"₹{mtd_value:,.2f}",
-                          "M.T.D ARR": f"₹{mtd_value/mtd_rooms:,.2f}" if mtd_rooms > 0 else "₹0.00",
-                          "M.T.D Comm": f"₹{mtd_comm:,.2f}"}], 
-                        columns=["MOB","M.T.D Rooms","M.T.D Value","M.T.D ARR","M.T.D Comm"])
+                total_rooms = len(PROPERTY_INVENTORY.get(prop, {}).get("all", []))
+                occ_pct = (dtd["Total"]["rooms"] / total_rooms * 100) if total_rooms else 0
 
-                    total_inventory = len([i for i in PROPERTY_INVENTORY.get(prop,{}).get("all",[]) if not i.startswith(("Day Use","No Show"))])
-                    occ_pct = (dtd["Total"]["rooms"] / total_inventory * 100) if total_inventory else 0.0
-                    mtd_occ_pct = (mtd_rooms / (total_inventory * min(today.day, day.day)) * 100) if total_inventory else 0.0
-
-                    summary = {
-                        "Rooms Sold": dtd["Total"]["rooms"],
-                        "Hotel Revenue": f"₹{dtd['Total']['value']:,.2f}",
-                        "ARR": f"₹{dtd['Total']['arr']:,.2f}",
-                        "Occupancy": f"{occ_pct:.1f}%",
-                        "Total Pax": dtd["Total"]["pax"],
-                        "Total Rooms": total_inventory,
-                        "GST Paid": f"₹{dtd['Total']['gst']:,.2f}",
-                        "Commission Paid": f"₹{dtd['Total']['comm']:,.2f}",
-                        "MTD Occupancy": f"{mtd_occ_pct:.1f}%",
-                        "MTD Revenue": f"₹{mtd_value:,.2f}",
-                    }
-
-                    c1, c2, c3, c4 = st.columns(4)
-                    with c1: st.subheader("MOP"); st.dataframe(mop_df, use_container_width=True)
-                    with c2: st.subheader("Day Revenue"); st.dataframe(dtd_df, use_container_width=True)
-                    with c3: st.subheader("Month Revenue"); st.dataframe(mtd_df, use_container_width=True)
-                    with c4:
-                        st.subheader("Summary")
-                        st.dataframe(pd.DataFrame([{"Metric": k, "Value": v} for k, v in summary.items()]), use_container_width=True)
-                else:
-                    st.info("No active bookings.")
+                col1, col2, col3 = st.columns([2, 2, 3])
+                with col1:
+                    st.subheader("MOP")
+                    st.dataframe(mop_df, use_container_width=True, hide_index=True)
+                with col2:
+                    st.subheader("Day Revenue")
+                    st.dataframe(dtd_df, use_container_width=True, hide_index=True)
+                with col3:
+                    st.subheader("Summary")
+                    st.metric("Rooms Sold", dtd["Total"]["rooms"])
+                    st.metric("Hotel Revenue", f"₹{dtd['Total']['value']:,.2f}")
+                    st.metric("ARR", f"₹{dtd['Total']['arr']:,.2f}")
+                    st.metric("Occupancy", f"{occ_pct:.1f}%")
+                    st.metric("Pax", dtd["Total"]["pax"])
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Run
