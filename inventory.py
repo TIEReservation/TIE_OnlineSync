@@ -233,37 +233,46 @@ def filter_bookings_for_day(bookings: List[Dict], day: date) -> List[Dict]:
 def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     assigned, over = [], []
     inv = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
-    inv_lower = [i.lower() for i in inv]
+    inv_lookup = {i.strip().lower(): i for i in inv}  # exact original name
 
     for b in daily_bookings:
-        req = [r.strip().title() for r in b.get("room_no", "").split(",") if r.strip()]
-        if not req:
+        raw = str(b.get("room_no", "")).strip()
+        if not raw:
             over.append(b)
             continue
-        valid = []
-        for r in req:
-            if r.lower() in inv_lower:
-                valid.append(inv[inv_lower.index(r.lower())])
+
+        requested_rooms = [r.strip() for r in raw.split(",") if r.strip()]
+        assigned_rooms = []
+
+        for r in requested_rooms:
+            key = r.lower()
+            if key in inv_lookup:
+                assigned_rooms.append(inv_lookup[key])
             else:
                 over.append(b)
+                assigned_rooms = []
                 break
-        else:
-            days = b.get("days", 1) or 1
-            receivable = b.get("receivable", 0.0)
-            num_rooms = len(valid)
-            total_nights = days * num_rooms
-            per_night = receivable / total_nights if total_nights > 0 else 0.0
-            base_pax = b["total_pax"] // num_rooms if num_rooms > 0 else 0
-            rem = b["total_pax"] % num_rooms if num_rooms > 0 else 0
 
-            for idx, room in enumerate(valid):
-                nb = b.copy()
-                nb["inventory_no"] = [room]
-                nb["room_no"] = room
-                nb["total_pax"] = base_pax + (1 if idx < rem else 0)
-                nb["per_night"] = per_night
-                nb["is_primary"] = (idx == 0)
-                assigned.append(nb)
+        if not assigned_rooms:
+            continue
+
+        days = max(b.get("days", 1), 1)
+        receivable = b.get("receivable", 0.0)
+        num_rooms = len(assigned_rooms)
+        total_nights = days * num_rooms
+        per_night = receivable / total_nights if total_nights > 0 else 0.0
+        base_pax = b["total_pax"] // num_rooms if num_rooms else 0
+        rem = b["total_pax"] % num_rooms if num_rooms else 0
+
+        for idx, room in enumerate(assigned_rooms):
+            nb = b.copy()
+            nb["inventory_no"] = room       # ← NOW A STRING, not list
+            nb["room_no"] = room
+            nb["total_pax"] = base_pax + (1 if idx < rem else 0)
+            nb["per_night"] = per_night
+            nb["is_primary"] = (idx == 0)
+            assigned.append(nb)
+
     return assigned, over
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -283,10 +292,14 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
 
     for inventory_no in all_inventory:
         row = {c: "" for c in cols}
-        row["Inventory No"] = inventory_no  # Plain black text
+        row["Inventory No"] = inventory_no
 
-        # Match by exact inventory name (case-sensitive now that we fixed assignment)
-        match = next((a for a in assigned if inventory_no in a.get("inventory_no", [])), None)
+        # FIXED: Compare as string, case-insensitive + strip
+        match = next(
+            (a for a in assigned 
+             if str(a.get("inventory_no", "")).strip().lower() == inventory_no.strip().lower()),
+            None
+        )
         
         if match:
             check_in_date = date.fromisoformat(match["check_in"])
