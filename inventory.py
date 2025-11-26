@@ -64,10 +64,10 @@ mob_mapping = {
 TABLE_CSS = """
 <style>
 .custom-scrollable-table {overflow-x:auto;max-width:100%;min-width:800px;}
-.custom-scrollable-table table {table-layout:auto;border-collapse:collapse;}
+.custom-scrollable-table table {table-layout:auto;border-collapse:collapse;width:100%;}
 .custom-scrollable-table td,.custom-scrollable-table th {
     white-space:nowrap; overflow:visible; max-width:none; min-width:80px;
-    padding:8px; border:1px solid #ddd;
+    padding:8px; border:1px solid #ddd; text-align:left;
 }
 .custom-scrollable-table th:nth-child(3), .custom-scrollable-table td:nth-child(3) {min-width:180px;}
 .custom-scrollable-table a {color: #1E90FF; text-decoration: none;}
