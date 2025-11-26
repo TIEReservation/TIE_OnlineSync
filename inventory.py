@@ -269,27 +269,29 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
 # ──────────────────────────────────────────────────────────────────────────────
 # Build Table – Financials ONLY on Check-in Day
 # ──────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
+# Build Table – Now correctly shows "No Show", "Day Use 1", etc. even with bad formatting
+# ──────────────────────────────────────────────────────────────────────────────
 def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date) -> pd.DataFrame:
     cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
             "Check In","Check Out","Days","MOB","Room Charges","GST","Total","Commission",
             "Hotel Receivable","Per Night","Advance","Advance Mop","Balance","Balance Mop",
             "Plan","Booking Status","Payment Status","Submitted by","Modified by","Remarks"]
     
-    # Use ALL inventory items including Day Use & No Show
     all_inventory = PROPERTY_INVENTORY.get(prop, {}).get("all", [])
     rows = []
 
     for inventory_no in all_inventory:
         row = {c: "" for c in cols}
-        row["Inventory No"] = inventory_no  # Plain text, no styling
-        
+        row["Inventory No"] = inventory_no  # Plain black text
+
+        # Match by exact inventory name (case-sensitive now that we fixed assignment)
         match = next((a for a in assigned if inventory_no in a.get("inventory_no", [])), None)
         
         if match:
             check_in_date = date.fromisoformat(match["check_in"])
             is_check_in_day = (target_date == check_in_date)
 
-            # Always show occupancy info
             row.update({
                 "Room No": match["room_no"],
                 "Booking ID": f'<a target="_blank" href="/?edit_type={match["type"]}&booking_id={match["booking_id"]}">{match["booking_id"]}</a>',
@@ -303,7 +305,6 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
                 "Per Night": f"{match.get('per_night', 0):.2f}",
             })
 
-            # Financials only on check-in day + primary room
             if is_check_in_day and match.get("is_primary", False):
                 row.update({
                     "Room Charges": f"{match.get('room_charges', 0):.2f}",
@@ -325,16 +326,13 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
 
         rows.append(row)
 
-    # Overbookings row (also plain)
     if over:
         over_row = {c: "" for c in cols}
         over_row["Inventory No"] = "Overbookings"
         over_row["Room No"] = ", ".join(f"{b.get('room_no','')} ({b.get('booking_id','')})" for b in over)
-        over_row["Booking ID"] = ", ".join(f'<a href="#">OVER: {b.get("booking_id","")}</a>' for b in over)
         rows.append(over_row)
 
     return pd.DataFrame(rows, columns=cols)
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Extract Stats – uses "Hotel Receivable"
 # ──────────────────────────────────────────────────────────────────────────────
