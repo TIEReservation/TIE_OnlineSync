@@ -2,6 +2,7 @@
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date, timedelta
+from datetime import datetime
 import pandas as pd
 import calendar
 from online_reservation import load_online_reservations_from_supabase
@@ -70,49 +71,48 @@ def filter_bookings_for_day(bookings, target_date):
     filtered_bookings = []
     for booking in bookings:
         status = booking.get("booking_status", "")
-        payment_status = booking.get("payment_status", "")
+        payment = booking.get("payment_status", "")
 
-        # Skip fully cancelled or checked-out bookings
+        # Skip cancelled/no-show
         if status in ["CANCELLED", "Cancelled", "Checked Out", "No Show"]:
             continue
 
-        # Include these cases:
-        # 1. Pending / Follow-up / ON_HOLD → show regardless of payment
-        # 2. Confirmed + Not Paid
-        # 3. Confirmed + Fully Paid → but only if check-in is in future or today
+        # Include logic (same as before but simpler)
         if status in ["Pending", "Follow-up", "ON_HOLD", "On Hold"]:
             include = True
         elif status == "Confirmed":
-            if payment_status == "Not Paid":
-                include = True
-            elif payment_status == "Fully Paid":
-                # Only show Fully Paid Confirmed if guest hasn't checked in yet
-                check_in = booking.get("check_in")
-                if check_in:
-                    check_in_date = date.fromisoformat(check_in.split(" ")[0])
-                    include = check_in_date >= target_date
-                else:
-                    include = False
-            else:
-                include = False
+            include = (payment in ["Not Paid", "Partially Paid"]) or \
+                     (payment == "Fully Paid" and booking.get("check_in", "").split("T")[0] >= str(target_date))
         else:
             include = False
 
-        if include:
-            try:
-                check_in_str = booking.get("check_in", "")
-                check_out_str = booking.get("check_out", "")
-                if not check_in_str or not check_out_str:
-                    continue
-                check_in = date.fromisoformat(check_in_str.split(" ")[0])
-                check_out = date.fromisoformat(check_out_str.split(" ")[0])
-                if check_in <= target_date < check_out:
-                    booking["source"] = "direct" if "property_name" in booking else "online"
-                    filtered_bookings.append(booking)
-            except:
-                continue  # skip malformed dates
-    return filtered_bookings
+        if not include:
+            continue
 
+        # ROBUST DATE PARSING — THIS IS THE KEY FIX
+        ci_str = booking.get("check_in", "")
+        co_str = booking.get("check_out", "")
+
+        if not ci_str or not co_str:
+            continue
+
+        try:
+            # Handle any format: 2025-10-17, 2025-10-17 05:30:00, 2025-10-17T00:00:00.000Z
+            check_in = datetime.fromisoformat(ci_str.replace("Z", "+00:00")).date()
+            check_out = datetime.fromisoformat(co_str.replace("Z", "+00:00")).date()
+        except:
+            # Fallback: try stripping everything after space or T
+            try:
+                check_in = datetime.strptime(ci_str.split("T")[0].split()[0], "%Y-%m-%d").date()
+                check_out = datetime.strptime(co_str.split("T")[0].split()[0], "%Y-%m-%d").date()
+            except:
+                continue  # completely malformed → skip
+
+        if check_in <= target_date < check_out:
+            booking["source"] = "direct" if "property_name" in booking else "online"
+            filtered_bookings.append(booking)
+
+    return filtered_bookings
 def create_bookings_table(bookings):
     columns = [
         "Source", "Booking ID", "Guest Name", "Mobile No", "Check-in Date", "Check-out Date", "Room No",
