@@ -285,6 +285,9 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
 # ──────────────────────────────────────────────────────────────────────────────
 # Build Table – Now correctly shows "No Show", "Day Use 1", etc. even with bad formatting
 # ──────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
+# FINAL FIXED: create_inventory_table – now matches perfectly
+# ──────────────────────────────────────────────────────────────────────────────
 def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date) -> pd.DataFrame:
     cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
             "Check In","Check Out","Days","MOB","Room Charges","GST","Total","Commission",
@@ -298,10 +301,9 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
         row = {c: "" for c in cols}
         row["Inventory No"] = inventory_no
 
-        # FIXED: Compare as string, case-insensitive + strip
+        # FIXED: Match using the new "assigned_room" field (string)
         match = next(
-            (a for a in assigned 
-             if str(a.get("inventory_no", "")).strip().lower() == inventory_no.strip().lower()),
+            (a for a in assigned if str(a.get("assigned_room", "")).strip() == inventory_no.strip()),
             None
         )
         
