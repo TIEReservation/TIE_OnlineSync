@@ -15,8 +15,12 @@ except KeyError as e:
 
 # Property synonym mapping
 property_mapping = {
-    "La Millionaire Luxury Resort": "La Millionaire Resort",
+   "La Millionaire Luxury Resort": "La Millionaire Resort",
     "Le Poshe Beach View": "Le Poshe Beach view",
+    "Le Poshe Beach view": "Le Poshe Beach view",
+    "Le Poshe Beach VIEW": "Le Poshe Beach view",
+    "Le Poshe Beachview": "Le Poshe Beach view",
+    "Millionaire": "La Millionaire Resort",
 }
 
 # Table CSS (exactly your original)
