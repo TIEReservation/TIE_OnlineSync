@@ -1,4 +1,4 @@
-# inventory.py – FINAL: MOP, DTD, MTD = FROM DAILY TABLE ONLY (NO CRASHES)
+# inventory.py – FINAL: Multi-night bookings show financials ONLY on Check-in day
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date
@@ -75,7 +75,7 @@ TABLE_CSS = """
 </style>
 """
 
-# ────── Full inventory (partial – add others as needed) ──────
+# ────── Full inventory ──────
 PROPERTY_INVENTORY = {
     "Le Poshe Beach view": {"all": ["101","102","201","202","203","204","301","302","303","304","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204"]},
     "La Millionaire Resort": {"all": ["101","102","103","105","201","202","203","204","205","206","207","208","301","302","303","304","305","306","307","308","401","402","Day Use 1","Day Use 2","Day Use 3","Day Use 4","Day Use 5","No Show"],"three_bedroom":["203","204","205"]},
@@ -262,20 +262,28 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     return assigned, over
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Build Table
+# UPDATED: Build Table – Financials only on Check-in day
 # ──────────────────────────────────────────────────────────────────────────────
-def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str) -> pd.DataFrame:
+def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date) -> pd.DataFrame:
     cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
             "Check In","Check Out","Days","MOB","Room Charges","GST","Total","Commission",
             "Receivable","Per Night","Advance","Advance Mop","Balance","Balance Mop",
             "Plan","Booking Status","Payment Status","Submitted by","Modified by","Remarks"]
+    
     inv = [i for i in PROPERTY_INVENTORY.get(prop,{}).get("all",[]) if not i.startswith(("Day Use","No Show"))]
     rows = []
-    for i in inv:
-        row = {c:"" for c in cols}
-        row["Inventory No"] = i
-        match = next((a for a in assigned if i in a.get("inventory_no",[])), None)
+
+    for inventory_no in inv:
+        row = {c: "" for c in cols}
+        row["Inventory No"] = inventory_no
+        
+        match = next((a for a in assigned if inventory_no in a.get("inventory_no", [])), None)
+        
         if match:
+            check_in_date = date.fromisoformat(match["check_in"])
+            is_check_in_day = (target_date == check_in_date)
+
+            # Always show basic info
             row.update({
                 "Room No": match["room_no"],
                 "Booking ID": f'<a target="_blank" href="/?edit_type={match["type"]}&booking_id={match["booking_id"]}">{match["booking_id"]}</a>',
@@ -286,45 +294,48 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str) ->
                 "Check Out": match["check_out"],
                 "Days": match["days"],
                 "MOB": match["mob"],
-                "Plan": match["plan"],
-                "Booking Status": match["booking_status"],
-                "Payment Status": match["payment_status"],
-                "Submitted by": match["submitted_by"],
-                "Modified by": match["modified_by"],
-                "Remarks": match["remarks"],
-                "Per Night": f"{match.get('per_night',0):.2f}",
+                "Per Night": f"{match.get('per_night', 0):.2f}",
             })
-            if match.get("is_primary"):
+
+            # Show financials ONLY on check-in day AND only on primary room
+            if is_check_in_day and match.get("is_primary", False):
                 row.update({
-                    "Room Charges": f"{match.get('room_charges',0):.2f}",
-                    "GST": f"{match.get('gst',0):.2f}",
-                    "Total": f"{match.get('total_amount',0):.2f}",
-                    "Commission": f"{match.get('commission',0):.2f}",
-                    "Receivable": f"{match.get('receivable',0):.2f}",
-                    "Advance": f"{match.get('advance',0):.2f}",
-                    "Advance Mop": match.get("advance_mop",""),
-                    "Balance": f"{match.get('balance',0):.2f}",
-                    "Balance Mop": match.get("balance_mop",""),
+                    "Room Charges": f"{match.get('room_charges', 0):.2f}",
+                    "GST": f"{match.get('gst', 0):.2f}",
+                    "Total": f"{match.get('total_amount', 0):.2f}",
+                    "Commission": f"{match.get('commission', 0):.2f}",
+                    "Receivable": f"{match.get('receivable', 0):.2f}",
+                    "Advance": f"{match.get('advance', 0):.2f}",
+                    "Advance Mop": match.get("advance_mop", ""),
+                    "Balance": f"{match.get('balance', 0):.2f}",
+                    "Balance Mop": match.get("balance_mop", ""),
+                    "Plan": match["plan"],
+                    "Booking Status": match["booking_status"],
+                    "Payment Status": match["payment_status"],
+                    "Submitted by": match["submitted_by"],
+                    "Modified by": match["modified_by"],
+                    "Remarks": match["remarks"],
                 })
+            # On subsequent days: financial columns remain blank
+
         rows.append(row)
 
+    # Overbookings row
     if over:
-        rows.append({
-            "Inventory No": "Overbookings",
-            "Room No": ", ".join(f"{b.get('room_no','')} ({b.get('booking_id','')})" for b in over),
-            "Booking ID": ", ".join(f'<a href="#">{b.get("booking_id","")}</a>' for b in over),
-            **{c:"" for c in cols[3:]}
-        })
+        over_row = {c: "" for c in cols}
+        over_row["Inventory No"] = "Overbookings"
+        over_row["Room No"] = ", ".join(f"{b.get('room_no','')} ({b.get('booking_id','')})" for b in over)
+        over_row["Booking ID"] = ", ".join(f'<a href="#">OVER: {b.get("booking_id","")}</a>' for b in over)
+        rows.append(over_row)
+
     return pd.DataFrame(rows, columns=cols)
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Extract MOP, DTD, MTD from Table – SAFE & CORRECT
+# Extract MOP, DTD, MTD from Table – unchanged & safe
 # ──────────────────────────────────────────────────────────────────────────────
 def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
-    # Filter only rows with booking
     occupied = df[df["Booking ID"].str.contains('<a', na=False)].copy()
 
-    # === SAFELY CONVERT COLUMNS ===
     def to_float(col):
         return pd.to_numeric(occupied[col].replace('', '0').str.replace(',', ''), errors='coerce').fillna(0.0)
 
@@ -338,7 +349,7 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     occupied["Balance"] = to_float("Balance")
     occupied["Total Pax"] = to_int("Total Pax")
 
-    # === MOP ===
+    # MOP
     mop_data = {m: 0.0 for m in ["UPI","Cash","Go-MMT","Agoda","NOT PAID","Expenses","Bank Transfer","Stayflexi","Card Payment","Expedia","Cleartrip","Website"]}
     total_cash = total = 0.0
 
@@ -357,7 +368,7 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     mop_data["Total Cash"] = total_cash
     mop_data["Total"] = total
 
-    # === DTD ===
+    # DTD
     dtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"pax":0} for m in mob_types}
     dtd_rooms = len(occupied)
     dtd_value = occupied["Receivable"].sum()
@@ -387,13 +398,10 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
         "pax": dtd_pax
     }
 
-    return {
-        "mop": mop_data,
-        "dtd": dtd
-    }
+    return {"mop": mop_data, "dtd": dtd}
 
 # ──────────────────────────────────────────────────────────────────────────────
-# UI – EVERYTHING FROM TABLE
+# UI – Main Dashboard
 # ──────────────────────────────────────────────────────────────────────────────
 def show_daily_status():
     st.title("Daily Status Dashboard")
@@ -411,7 +419,6 @@ def show_daily_status():
         return
 
     st.markdown(TABLE_CSS, unsafe_allow_html=True)
-
     mob_types = ["Booking","Direct","Bkg-Direct","Agoda","Go-MMT","Walk-In","TIE Group","Stayflexi","Airbnb","Social Media","Expedia","Cleartrip","Website"]
 
     for prop in props:
@@ -430,14 +437,12 @@ def show_daily_status():
 
                 if daily:
                     assigned, over = assign_inventory_numbers(daily, prop)
-                    df = create_inventory_table(assigned, over, prop)
+                    df = create_inventory_table(assigned, over, prop, day)  # ← Now passing day!
 
-                    # Extract from table
                     stats = extract_stats_from_table(df, mob_types)
                     dtd = stats["dtd"]
                     mop_data = stats["mop"]
 
-                    # Update MTD (only up to today)
                     if day <= today:
                         mtd_rooms += dtd["Total"]["rooms"]
                         mtd_value += dtd["Total"]["value"]
@@ -451,30 +456,31 @@ def show_daily_status():
                             mtd[m]["gst"] += dtd[m]["gst"]
                             mtd[m]["pax"] += dtd[m]["pax"]
 
-                    # Display table
                     st.markdown(f'<div class="custom-scrollable-table">{df.to_html(escape=False,index=False)}</div>', unsafe_allow_html=True)
 
-                    # DTD
+                    # Tables
                     dtd_df = pd.DataFrame([
                         {"MOB": m, "D.T.D Rooms": d["rooms"], "D.T.D Value": f"₹{d['value']:,.2f}",
-                         "D.T.D ARR": f"₹{d['arr']:,.2f}", "D.T.D Comm": f"₹{d['comm']:,.2f}"} for m, d in dtd.items() if m != "Total"
-                    ] + [{"MOB": "Total", "D.T.D Rooms": dtd["Total"]["rooms"], "D.T.D Value": f"₹{dtd['Total']['value']:,.2f}",
-                          "D.T.D ARR": f"₹{dtd['Total']['arr']:,.2f}", "D.T.D Comm": f"₹{dtd['Total']['comm']:,.2f}"}],
+                         "D.T.D ARR": f"₹{d['arr']:,.2f}", "D.T.D Comm": f"₹{d['comm']:,.2f}"} 
+                        for m, d in dtd.items() if m != "Total"
+                    ] + [{"MOB": "Total", "D.T.D Rooms": dtd["Total"]["rooms"], 
+                          "D.T.D Value": f"₹{dtd['Total']['value']:,.2f}",
+                          "D.T.D ARR": f"₹{dtd['Total']['arr']:,.2f}", 
+                          "D.T.D Comm": f"₹{dtd['Total']['comm']:,.2f}"}],
                         columns=["MOB","D.T.D Rooms","D.T.D Value","D.T.D ARR","D.T.D Comm"])
 
-                    # MOP
-                    mop_df = pd.DataFrame([{"MOP": m, "Amount": f"₹{v:,.2f}"} for m, v in mop_data.items()], columns=["MOP", "Amount"])
+                    mop_df = pd.DataFrame([{"MOP": m, "Amount": f"₹{v:,.2f}"} for m, v in mop_data.items()], 
+                                         columns=["MOP", "Amount"])
 
-                    # MTD
                     mtd_df = pd.DataFrame([
                         {"MOB": m, "M.T.D Rooms": mtd[m]["rooms"], "M.T.D Value": f"₹{mtd[m]['value']:,.2f}",
                          "M.T.D ARR": f"₹{mtd[m]['value']/mtd[m]['rooms']:,.2f}" if mtd[m]["rooms"] > 0 else "₹0.00",
                          "M.T.D Comm": f"₹{mtd[m]['comm']:,.2f}"} for m in mob_types
                     ] + [{"MOB": "Total", "M.T.D Rooms": mtd_rooms, "M.T.D Value": f"₹{mtd_value:,.2f}",
                           "M.T.D ARR": f"₹{mtd_value/mtd_rooms:,.2f}" if mtd_rooms > 0 else "₹0.00",
-                          "M.T.D Comm": f"₹{mtd_comm:,.2f}"}], columns=["MOB","M.T.D Rooms","M.T.D Value","M.T.D ARR","M.T.D Comm"])
+                          "M.T.D Comm": f"₹{mtd_comm:,.2f}"}], 
+                        columns=["MOB","M.T.D Rooms","M.T.D Value","M.T.D ARR","M.T.D Comm"])
 
-                    # Summary
                     total_inventory = len([i for i in PROPERTY_INVENTORY.get(prop,{}).get("all",[]) if not i.startswith(("Day Use","No Show"))])
                     occ_pct = (dtd["Total"]["rooms"] / total_inventory * 100) if total_inventory else 0.0
                     mtd_occ_pct = (mtd_rooms / (total_inventory * today.day) * 100) if (total_inventory and today.day) else 0.0
