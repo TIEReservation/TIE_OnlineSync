@@ -69,18 +69,48 @@ def generate_month_dates(year, month):
 def filter_bookings_for_day(bookings, target_date):
     filtered_bookings = []
     for booking in bookings:
-        if booking.get("booking_status") in ["Pending", "Follow-up"]:
-            check_in = date.fromisoformat(booking["check_in"]) if booking.get("check_in") else None
-            check_out = date.fromisoformat(booking["check_out"]) if booking.get("check_out") else None
-            if check_in and check_out and check_in <= target_date < check_out:
-                booking["source"] = "direct" if "property_name" in booking else "online"
-                filtered_bookings.append(booking)
-        elif booking.get("booking_status") == "Confirmed" and booking.get("payment_status") == "Not Paid":
-            check_in = date.fromisoformat(booking["check_in"]) if booking.get("check_in") else None
-            check_out = date.fromisoformat(booking["check_out"]) if booking.get("check_out") else None
-            if check_in and check_out and check_in <= target_date < check_out:
-                booking["source"] = "direct" if "property_name" in booking else "online"
-                filtered_bookings.append(booking)
+        status = booking.get("booking_status", "")
+        payment_status = booking.get("payment_status", "")
+
+        # Skip fully cancelled or checked-out bookings
+        if status in ["CANCELLED", "Cancelled", "Checked Out", "No Show"]:
+            continue
+
+        # Include these cases:
+        # 1. Pending / Follow-up / ON_HOLD → show regardless of payment
+        # 2. Confirmed + Not Paid
+        # 3. Confirmed + Fully Paid → but only if check-in is in future or today
+        if status in ["Pending", "Follow-up", "ON_HOLD", "On Hold"]:
+            include = True
+        elif status == "Confirmed":
+            if payment_status == "Not Paid":
+                include = True
+            elif payment_status == "Fully Paid":
+                # Only show Fully Paid Confirmed if guest hasn't checked in yet
+                check_in = booking.get("check_in")
+                if check_in:
+                    check_in_date = date.fromisoformat(check_in.split(" ")[0])
+                    include = check_in_date >= target_date
+                else:
+                    include = False
+            else:
+                include = False
+        else:
+            include = False
+
+        if include:
+            try:
+                check_in_str = booking.get("check_in", "")
+                check_out_str = booking.get("check_out", "")
+                if not check_in_str or not check_out_str:
+                    continue
+                check_in = date.fromisoformat(check_in_str.split(" ")[0])
+                check_out = date.fromisoformat(check_out_str.split(" ")[0])
+                if check_in <= target_date < check_out:
+                    booking["source"] = "direct" if "property_name" in booking else "online"
+                    filtered_bookings.append(booking)
+            except:
+                continue  # skip malformed dates
     return filtered_bookings
 
 def create_bookings_table(bookings):
