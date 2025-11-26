@@ -275,20 +275,30 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
             "Hotel Receivable","Per Night","Advance","Advance Mop","Balance","Balance Mop",
             "Plan","Booking Status","Payment Status","Submitted by","Modified by","Remarks"]
     
-    inv = [i for i in PROPERTY_INVENTORY.get(prop,{}).get("all",[]) if not i.startswith(("Day Use","No Show"))]
+    # FIXED: Include ALL inventory items (including Day Use & No Show)
+    all_inventory = PROPERTY_INVENTORY.get(prop, {}).get("all", [])
     rows = []
 
-    for inventory_no in inv:
+    for inventory_no in all_inventory:
         row = {c: "" for c in cols}
-        row["Inventory No"] = inventory_no
         
+        # Styling for special rooms
+        display_name = inventory_no
+        if "Day Use" in inventory_no:
+            display_name = f'<span style="background:#e6f7ff;color:#0066cc;font-weight:bold;padding:2px 6px;border-radius:4px;">{inventory_no}</span>'
+        elif inventory_no == "No Show":
+            display_name = f'<span style="background:#ffebee;color:#d32f2f;font-style:italic;font-weight:bold;padding:2px 6px;border-radius:4px;">No Show</span>'
+        
+        row["Inventory No"] = display_name
+        
+        # Find booking assigned to this inventory item
         match = next((a for a in assigned if inventory_no in a.get("inventory_no", [])), None)
         
         if match:
             check_in_date = date.fromisoformat(match["check_in"])
             is_check_in_day = (target_date == check_in_date)
 
-            # Always show occupancy info
+            # Always show basic occupancy info
             row.update({
                 "Room No": match["room_no"],
                 "Booking ID": f'<a target="_blank" href="/?edit_type={match["type"]}&booking_id={match["booking_id"]}">{match["booking_id"]}</a>',
@@ -302,7 +312,7 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
                 "Per Night": f"{match.get('per_night', 0):.2f}",
             })
 
-            # Financials ONLY on check-in day + primary room
+            # Financials only on check-in day + primary room (for multi-room bookings)
             if is_check_in_day and match.get("is_primary", False):
                 row.update({
                     "Room Charges": f"{match.get('room_charges', 0):.2f}",
@@ -321,12 +331,14 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
                     "Modified by": match["modified_by"],
                     "Remarks": match["remarks"],
                 })
+        # If no booking → row stays empty (but still visible!)
 
         rows.append(row)
 
+    # Overbookings row
     if over:
         over_row = {c: "" for c in cols}
-        over_row["Inventory No"] = "Overbookings"
+        over_row["Inventory No"] = '<span style="background:#fff2b3;color:#e65100;font-weight:bold;padding:2px 6px;border-radius:4px;">Overbookings</span>'
         over_row["Room No"] = ", ".join(f"{b.get('room_no','')} ({b.get('booking_id','')})" for b in over)
         over_row["Booking ID"] = ", ".join(f'<a href="#">OVER: {b.get("booking_id","")}</a>' for b in over)
         rows.append(over_row)
