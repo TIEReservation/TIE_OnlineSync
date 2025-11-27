@@ -1,10 +1,9 @@
-# dms.py — FINAL WORKING VERSION (All Properties + La Antilia Fixed + Correct Logic)
+# dms.py – FINAL WORKING VERSION (All Properties + La Antilia Fixed + Correct Logic + Date Range Fix)
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date, timedelta, datetime
 import pandas as pd
 import calendar
-from online_reservation import load_online_reservations_from_supabase
 
 # Initialize Supabase client
 try:
@@ -54,14 +53,26 @@ TABLE_CSS = """
 """
 
 def load_direct_reservations_from_supabase():
+    """Load ALL direct reservations without date limits"""
     try:
-        response = supabase.table("reservations").select("*").order("check_in", desc=True).execute()
+        # Removed any date filtering - fetch ALL records
+        response = supabase.table("reservations").select("*").execute()
         return response.data if response.data else []
     except Exception as e:
         st.error(f"Error loading direct reservations: {e}")
         return []
 
-# ROBUST DATE PARSING — THIS FIXES LA ANTILIA & ALL DATES
+def load_online_reservations_from_supabase():
+    """Load ALL online reservations without date limits"""
+    try:
+        # Removed any date filtering - fetch ALL records
+        response = supabase.table("online_reservations").select("*").execute()
+        return response.data if response.data else []
+    except Exception as e:
+        st.error(f"Error loading online reservations: {e}")
+        return []
+
+# ROBUST DATE PARSING – THIS FIXES LA ANTILIA & ALL DATES
 def safe_date_parse(date_str):
     if not date_str:
         return None
@@ -92,6 +103,7 @@ def should_show_in_dms(booking):
     return False
 
 def filter_bookings_for_day(bookings, target_date):
+    """Filter bookings that are active on the target date"""
     filtered = []
     for b in bookings:
         if not should_show_in_dms(b):
@@ -158,8 +170,12 @@ def show_dms():
     year = st.selectbox("Select Year", list(range(current_year - 5, current_year + 6)), index=5)
     month = st.selectbox("Select Month", list(range(1, 13)), index=date.today().month - 1)
 
+    # Load ALL bookings without date restrictions
     online_bookings = cached_load_online_reservations()
     direct_bookings = cached_load_direct_reservations()
+
+    # Debug info to see what's being loaded
+    st.info(f"Total records loaded: Online={len(online_bookings)}, Direct={len(direct_bookings)}")
 
     # Map plan_status → booking_status
     for b in direct_bookings:
@@ -181,8 +197,8 @@ def show_dms():
     # Get all properties
     online_df = pd.DataFrame(online_bookings)
     direct_df = pd.DataFrame(direct_bookings)
-    online_props = sorted(online_df["property"].dropna().unique().tolist())
-    direct_props = sorted(direct_df["property_name"].dropna().unique().tolist())
+    online_props = sorted(online_df["property"].dropna().unique().tolist()) if "property" in online_df.columns else []
+    direct_props = sorted(direct_df["property_name"].dropna().unique().tolist()) if "property_name" in direct_df.columns else []
     all_properties = sorted(list(set(online_props + direct_props)))
 
     if not all_properties:
