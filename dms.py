@@ -53,21 +53,53 @@ TABLE_CSS = """
 """
 
 def load_direct_reservations_from_supabase():
-    """Load ALL direct reservations without date limits"""
+    """Load ALL direct reservations without any limits using pagination"""
     try:
-        # Removed any date filtering - fetch ALL records
-        response = supabase.table("reservations").select("*").execute()
-        return response.data if response.data else []
+        all_data = []
+        page_size = 1000
+        offset = 0
+        
+        while True:
+            response = supabase.table("reservations")\
+                .select("*")\
+                .range(offset, offset + page_size - 1)\
+                .execute()
+            
+            if response.data:
+                all_data.extend(response.data)
+                if len(response.data) < page_size:
+                    break
+                offset += page_size
+            else:
+                break
+        
+        return all_data
     except Exception as e:
         st.error(f"Error loading direct reservations: {e}")
         return []
 
 def load_online_reservations_from_supabase():
-    """Load ALL online reservations without date limits"""
+    """Load ALL online reservations without any limits using pagination"""
     try:
-        # Removed any date filtering - fetch ALL records
-        response = supabase.table("online_reservations").select("*").execute()
-        return response.data if response.data else []
+        all_data = []
+        page_size = 1000
+        offset = 0
+        
+        while True:
+            response = supabase.table("online_reservations")\
+                .select("*")\
+                .range(offset, offset + page_size - 1)\
+                .execute()
+            
+            if response.data:
+                all_data.extend(response.data)
+                if len(response.data) < page_size:
+                    break
+                offset += page_size
+            else:
+                break
+        
+        return all_data
     except Exception as e:
         st.error(f"Error loading online reservations: {e}")
         return []
