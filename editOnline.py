@@ -136,24 +136,6 @@ def show_edit_online_reservations(selected_booking_id=None):
     """Display edit online reservations page."""
     st.title("✏️ Edit Online Reservations")
     
-    # Add a debug section to check constraint
-    with st.expander("🔧 Debug: Check Database Constraint (Click to expand)"):
-        st.info("""
-        To find the allowed booking_status values, run this SQL in Supabase SQL Editor:
-        
-        ```sql
-        SELECT cc.check_clause 
-        FROM information_schema.check_constraints cc
-        JOIN information_schema.table_constraints tc 
-        ON cc.constraint_name = tc.constraint_name
-        WHERE tc.table_name = 'online_reservations' 
-        AND tc.constraint_name = 'online_reservations_booking_status_check';
-        ```
-        
-        This will show you the exact allowed values for booking_status.
-        Once you know the values, update the booking_status_options list in the code.
-        """)
-    
     # Add refresh button to clear cache and reload data
     col1, col2 = st.columns([1, 4])
     with col1:
