@@ -155,7 +155,7 @@ def show_edit_online_reservations(selected_booking_id=None):
     with col_search2:
         st.write("")  # Spacer
         st.write("")  # Spacer
-        search_button = st.button("🔎 Search", use_container_width=True)
+        search_button = st.button("🔍 Search", use_container_width=True)
     
     # Handle search
     if search_button and search_booking_id:
@@ -347,13 +347,8 @@ def show_edit_online_reservations(selected_booking_id=None):
                 mob_index = 0
             mode_of_booking = st.selectbox("MOB", mob_options, index=mob_index)
         with col2:
-            # FIXED: Updated booking status options to match database constraint
-            # Changed "Follow-up" to "Follow-Up" (capital U)
-            booking_status_options = ["Pending", "Follow-Up", "Confirmed", "Cancelled", "Completed", "No Show"]
+            booking_status_options = ["Pending", "Follow-up", "Confirmed", "Cancelled", "Completed", "No Show"]
             current_status = reservation.get("booking_status", "Pending")
-            # Normalize current status to match options (handle case variations)
-            if current_status and current_status.lower() == "follow-up":
-                current_status = "Follow-Up"
             try:
                 status_index = booking_status_options.index(current_status)
             except ValueError:
