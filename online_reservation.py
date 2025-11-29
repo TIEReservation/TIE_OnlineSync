@@ -269,7 +269,7 @@ def show_online_reservations():
     else:
         # Display selected columns
         display_columns = [
-            "property", "booking_id", "guest_name", "check_in", "check_out", "room_no", "room_type",
+            "property", "booking_id", "guest_name", "guest_phone", "check_in", "check_out", "room_no", "room_type",
             "booking_status", "payment_status", "booking_amount", "total_payment_made", "balance_due"
         ]
         st.dataframe(filtered_df[display_columns], use_container_width=True)
