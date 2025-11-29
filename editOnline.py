@@ -365,19 +365,14 @@ def show_edit_online_reservations(selected_booking_id=None):
                 mob_index = 0
             mode_of_booking = st.selectbox("MOB", mob_options, index=mob_index)
         with col2:
-            # FIXED: Removed "Follow-Up" as it's not allowed by database constraint
-            # Use the debug expander above to check what values your DB accepts
-            booking_status_options = ["Pending", "Confirmed", "Cancelled", "Completed", "No Show"]
+            # Booking status options - now includes Follow-Up
+            booking_status_options = ["Pending", "Follow-Up", "Confirmed", "Cancelled", "Completed", "No Show"]
             current_status = reservation.get("booking_status", "Pending")
             
-            # Show warning if current status is not in allowed options
+            # Handle status not in options
             if current_status and current_status not in booking_status_options:
-                if "follow" in current_status.lower():
-                    st.warning(f"⚠️ Current status '{current_status}' is not allowed. It will be changed to 'Pending'.")
-                    current_status = "Pending"
-                else:
-                    # Try to preserve unknown status by adding it temporarily
-                    booking_status_options.insert(0, current_status)
+                # Try to preserve unknown status by adding it temporarily
+                booking_status_options.insert(0, current_status)
             
             try:
                 status_index = booking_status_options.index(current_status)
@@ -385,12 +380,6 @@ def show_edit_online_reservations(selected_booking_id=None):
                 status_index = 0
             
             booking_status = st.selectbox("Booking Status", booking_status_options, index=status_index)
-            
-            # Show info about constraint
-            if any("follow" in opt.lower() for opt in ["Follow-up", "Follow-Up"]):
-                pass  # Don't show message
-            else:
-                st.caption("ℹ️ 'Follow-Up' status removed due to database constraints")
                 
         with col3:
             payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], index=["Not Paid", "Fully Paid", "Partially Paid"].index(reservation.get("payment_status", "Not Paid")))
