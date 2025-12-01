@@ -389,7 +389,10 @@ def show_summary_report():
                 lambda x: f"{x:,.2f}" if isinstance(x, (int, float)) else x
             )
 
-        st.dataframe(df, use_container_width=True)
+        # Display full table without scrolling - calculate appropriate height
+        # Height = header (38px) + rows (35px each) + padding
+        table_height = 38 + (len(df) * 35) + 10
+        st.dataframe(df, use_container_width=True, height=table_height)
         st.markdown("---")
 
 
