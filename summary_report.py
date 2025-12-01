@@ -1,8 +1,5 @@
-# summary_report.py
-# ------------------------------------------------------------
-# TIE Hotels & Resort – 8-Section Monthly Summary Report
-# Re-uses the exact same booking logic as Daily Status → 100% data match
-# ------------------------------------------------------------
+# summary_report.py - CORRECTLY FIXED VERSION
+# Now uses the EXACT same booking query logic as Daily Status
 
 import streamlit as st
 from datetime import date, timedelta
@@ -14,20 +11,18 @@ import os
 
 # -------------------------- Supabase --------------------------
 try:
-    # Try secrets first (for Streamlit Cloud)
     supabase: Client = create_client(
         st.secrets["supabase"]["url"],
         st.secrets["supabase"]["key"]
     )
 except (KeyError, FileNotFoundError):
-    # Fallback to environment variables (for local development)
     try:
         supabase: Client = create_client(
             os.environ["SUPABASE_URL"],
             os.environ["SUPABASE_KEY"]
         )
     except KeyError as e:
-        st.error(f"Missing Supabase configuration: {e}. Please check secrets or environment variables.")
+        st.error(f"Missing Supabase configuration: {e}")
         st.stop()
 
 # -------------------------- Property Mapping --------------------------
@@ -42,20 +37,22 @@ PROPERTY_MAPPING = {
     "Le Teera": "Le Terra"
 }
 
+# Add reverse mapping
+reverse_mapping = {c: [] for c in set(PROPERTY_MAPPING.values())}
+for v, c in PROPERTY_MAPPING.items():
+    reverse_mapping[c].append(v)
+
 def normalize_property_name(prop_name: str) -> str:
-    """Normalize property name using the mapping."""
     if not prop_name:
         return prop_name
     return PROPERTY_MAPPING.get(prop_name, prop_name)
 
 # -------------------------- Helpers --------------------------
 def load_properties() -> List[str]:
-    """Return a sorted list of all unique property names (direct + online)."""
     try:
         direct = supabase.table("reservations").select("property_name").execute().data or []
         online = supabase.table("online_reservations").select("property").execute().data or []
         
-        # Normalize all property names
         props = {
             normalize_property_name(r.get("property_name") or r.get("property"))
             for r in direct + online
@@ -68,42 +65,55 @@ def load_properties() -> List[str]:
 
 
 def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
-    """Same query used in Daily Status – fetches both direct & online bookings."""
+    """
+    FIXED: Now uses EXACT same query logic as Daily Status (inventory.py).
+    Fetches bookings that overlap with the date range, not just those starting in range.
+    """
+    normalized_prop = normalize_property_name(prop)
+    query_props = [normalized_prop] + reverse_mapping.get(normalized_prop, [])
+    
     try:
-        # Direct reservations
+        # FIXED: Use .lte("check_in") and .gte("check_out") like Daily Status
         direct = (
             supabase.table("reservations")
             .select("*")
-            .gte("check_in", str(start))
-            .lt("check_out", str(end + timedelta(days=1)))
+            .in_("property_name", query_props)
+            .lte("check_in", str(end))  # Check-in on or before end date
+            .gte("check_out", str(start))  # Check-out on or after start date
+            .in_("plan_status", ["Confirmed", "Completed"])
+            .in_("payment_status", ["Partially Paid", "Fully Paid"])
             .execute()
             .data
             or []
         )
         
-        # Online reservations
         online = (
             supabase.table("online_reservations")
             .select("*")
-            .gte("check_in", str(start))
-            .lt("check_out", str(end + timedelta(days=1)))
+            .in_("property", query_props)
+            .lte("check_in", str(end))  # Check-in on or before end date
+            .gte("check_out", str(start))  # Check-out on or after start date
+            .in_("booking_status", ["Confirmed", "Completed"])
+            .in_("payment_status", ["Partially Paid", "Fully Paid"])
             .execute()
             .data
             or []
         )
         
-        # Normalize property names and filter by property
+        # Normalize all bookings
         all_bookings = []
         for booking in direct:
             normalized = normalize_property_name(booking.get("property_name"))
             if normalized == prop:
                 booking["property_name"] = normalized
+                booking["type"] = "direct"
                 all_bookings.append(booking)
         
         for booking in online:
             normalized = normalize_property_name(booking.get("property"))
             if normalized == prop:
                 booking["property"] = normalized
+                booking["type"] = "online"
                 all_bookings.append(booking)
         
         return all_bookings
@@ -123,8 +133,8 @@ def filter_bookings_for_day(bookings: List[Dict], target: date) -> List[Dict]:
 
 def assign_inventory_numbers(daily: List[Dict], prop: str):
     """
-    UPDATED: Now properly splits multi-room bookings into separate inventory entries.
-    This matches the logic in inventory.py for accurate room counting.
+    Splits comma-separated room_no and creates separate entries per room.
+    Matches inventory.py logic exactly.
     """
     assigned = []
     
@@ -138,72 +148,69 @@ def assign_inventory_numbers(daily: List[Dict], prop: str):
             assigned.append(new_b)
             continue
         
-        # Split comma-separated rooms (e.g., "101,102,103")
+        # Split comma-separated rooms
         rooms = [r.strip() for r in raw_room.split(",") if r.strip()]
         if not rooms:
             rooms = ["1"]
-        
-        # Calculate per-night value for splitting financials
-        days = max(b.get("days", 1), 1)
-        num_rooms = len(rooms)
-        total_nights = days * num_rooms
-        
-        receivable = b.get("receivable", b.get("booking_amount", 0.0))
-        commission = b.get("commission", b.get("ota_commission", 0.0))
-        gst = b.get("gst", 0.0)
-        room_charges = b.get("room_charges", b.get("booking_amount", 0.0)) - gst
-        
-        per_night_receivable = receivable / total_nights if total_nights > 0 else 0.0
-        per_night_charges = room_charges / total_nights if total_nights > 0 else 0.0
-        per_night_gst = gst / total_nights if total_nights > 0 else 0.0
-        per_night_commission = commission / total_nights if total_nights > 0 else 0.0
-        
-        # Split pax across rooms
-        base_pax = b.get("total_pax", 0) // num_rooms if num_rooms else 0
-        rem_pax = b.get("total_pax", 0) % num_rooms if num_rooms else 0
         
         # Create separate entry for each room
         for idx, room in enumerate(rooms):
             new_b = b.copy()
             new_b["assigned_room"] = room
             new_b["room_no"] = room
-            new_b["total_pax"] = base_pax + (1 if idx < rem_pax else 0)
-            new_b["per_night_receivable"] = per_night_receivable
-            new_b["per_night_charges"] = per_night_charges
-            new_b["per_night_gst"] = per_night_gst
-            new_b["per_night_commission"] = per_night_commission
-            new_b["is_primary"] = (idx == 0)  # Only first room gets full financials on check-in
+            new_b["is_primary"] = (idx == 0)
             assigned.append(new_b)
     
-    return assigned, []  # No overbooking handling for reports
+    return assigned, []
+
+
+def safe_float(value, default=0.0):
+    """Safely convert to float."""
+    try:
+        return float(value) if value not in [None, "", " "] else default
+    except:
+        return default
 
 
 def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     """
-    FIXED: Now counts rooms correctly by using the split assignments.
-    Mirrors Daily Status calculations exactly.
+    FIXED: Calculates metrics matching Daily Status exactly.
+    - Rooms sold = count of occupied inventory slots on that day
+    - Financials only counted on check-in day for primary bookings
     """
     daily = filter_bookings_for_day(bookings, day)
     assigned, _ = assign_inventory_numbers(daily, prop)
 
-    # ---------- Rooms sold = count of assigned inventory entries ----------
-    rooms_sold = len(assigned)  # FIXED: Now counts actual room entries, not inventory_no length
+    # Rooms sold = count of assigned inventory entries
+    rooms_sold = len(assigned)
 
-    # ---------- Primary-night charges (only on check-in day) ----------
-    check_in_bookings = [
+    # Financial metrics: ONLY for bookings checking in today (primary only)
+    check_in_primaries = [
         b for b in assigned
         if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day
     ]
 
-    room_charges = sum(b.get("room_charges", b.get("booking_amount", 0.0)) for b in check_in_bookings)
-    gst = sum(b.get("gst", 0.0) for b in check_in_bookings)
+    # Extract financial values
+    room_charges = 0.0
+    gst = 0.0
+    commission = 0.0
+    
+    for b in check_in_primaries:
+        is_online = b.get("type") == "online"
+        
+        if is_online:
+            total_amount = safe_float(b.get("booking_amount"))
+            gst += safe_float(b.get("ota_tax"))
+            commission += safe_float(b.get("ota_commission"))
+            room_charges += total_amount - safe_float(b.get("ota_tax"))
+        else:
+            total_amount = safe_float(b.get("total_tariff"))
+            room_charges += total_amount
+            # Direct bookings: gst and commission already 0
+
     total = room_charges + gst
-    commission = sum(b.get("commission", b.get("ota_commission", 0.0)) for b in check_in_bookings)
-    
     receivable = total - commission
-    tax_deduction = receivable * 0.003  # 0.3%
-    
-    # Per night calculation using ALL assigned rooms (not just check-ins)
+    tax_deduction = receivable * 0.003
     per_night = receivable / rooms_sold if rooms_sold else 0.0
 
     return {
@@ -246,7 +253,7 @@ def build_report(
         grand_total += day_sum
         rows.append(row)
 
-    # ---- month total row ----
+    # Month total row
     total_row = {"Date": "Total"}
     for p in props:
         total_row[p] = prop_totals[p]
@@ -277,19 +284,19 @@ def show_summary_report():
         st.info("No properties found in the database.")
         return
 
-    # ----- month calendar -----
+    # Month calendar
     _, days_in_month = calendar.monthrange(year, month)
     month_dates = [date(year, month, d) for d in range(1, days_in_month + 1)]
     start_date = month_dates[0]
     end_date = month_dates[-1]
 
-    # ----- load all bookings once -----
+    # Load all bookings once
     with st.spinner("Loading booking data..."):
         bookings = {
             p: load_combined_bookings(p, start_date, end_date) for p in properties
         }
 
-    # ----- 8 report definitions -----
+    # 8 report definitions
     report_defs = {
         "rooms_report": ("TIE Hotels & Resort Rooms Report", "rooms_sold"),
         "room_charges_report": ("TIE Hotels & Resort Room Charges Report", "room_charges"),
@@ -304,21 +311,19 @@ def show_summary_report():
         ),
     }
 
-    # ----- render each section -----
+    # Render each section
     for key, (title, metric) in report_defs.items():
         st.subheader(title)
         df = build_report(properties, month_dates, bookings, metric)
 
-        # pretty-print monetary columns
+        # Pretty-print monetary columns
         if metric != "rooms_sold":
-            monetary_cols = df.columns[1:]  # everything except Date
+            monetary_cols = df.columns[1:]
             df[monetary_cols] = df[monetary_cols].applymap(
                 lambda x: f"{x:,.2f}" if isinstance(x, (int, float)) else x
             )
 
         st.dataframe(df, use_container_width=True)
-        
-        # Add some spacing between reports
         st.markdown("---")
 
 
