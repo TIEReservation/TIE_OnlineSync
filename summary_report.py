@@ -123,52 +123,87 @@ def filter_bookings_for_day(bookings: List[Dict], target: date) -> List[Dict]:
 
 def assign_inventory_numbers(daily: List[Dict], prop: str):
     """
-    Same logic as inventory.py.
-    - Splits comma-separated room_no (e.g. "101,102")
-    - Guarantees at least one room if field is missing.
-    Returns (assigned, overbooked). Overbooking logic omitted for simplicity.
+    UPDATED: Now properly splits multi-room bookings into separate inventory entries.
+    This matches the logic in inventory.py for accurate room counting.
     """
     assigned = []
+    
     for b in daily:
-        rooms = str(b.get("room_no") or "").split(",")
-        rooms = [r.strip() for r in rooms if r.strip()]
-        if not rooms:                     # fallback
+        raw_room = str(b.get("room_no") or "").strip()
+        if not raw_room:
+            # Fallback: treat as 1 room
+            new_b = b.copy()
+            new_b["assigned_room"] = "1"
+            new_b["is_primary"] = True
+            assigned.append(new_b)
+            continue
+        
+        # Split comma-separated rooms (e.g., "101,102,103")
+        rooms = [r.strip() for r in raw_room.split(",") if r.strip()]
+        if not rooms:
             rooms = ["1"]
-        b["inventory_no"] = rooms
-        assigned.append(b)
-    return assigned, []   # no overbooking handling needed for the report
+        
+        # Calculate per-night value for splitting financials
+        days = max(b.get("days", 1), 1)
+        num_rooms = len(rooms)
+        total_nights = days * num_rooms
+        
+        receivable = b.get("receivable", b.get("booking_amount", 0.0))
+        commission = b.get("commission", b.get("ota_commission", 0.0))
+        gst = b.get("gst", 0.0)
+        room_charges = b.get("room_charges", b.get("booking_amount", 0.0)) - gst
+        
+        per_night_receivable = receivable / total_nights if total_nights > 0 else 0.0
+        per_night_charges = room_charges / total_nights if total_nights > 0 else 0.0
+        per_night_gst = gst / total_nights if total_nights > 0 else 0.0
+        per_night_commission = commission / total_nights if total_nights > 0 else 0.0
+        
+        # Split pax across rooms
+        base_pax = b.get("total_pax", 0) // num_rooms if num_rooms else 0
+        rem_pax = b.get("total_pax", 0) % num_rooms if num_rooms else 0
+        
+        # Create separate entry for each room
+        for idx, room in enumerate(rooms):
+            new_b = b.copy()
+            new_b["assigned_room"] = room
+            new_b["room_no"] = room
+            new_b["total_pax"] = base_pax + (1 if idx < rem_pax else 0)
+            new_b["per_night_receivable"] = per_night_receivable
+            new_b["per_night_charges"] = per_night_charges
+            new_b["per_night_gst"] = per_night_gst
+            new_b["per_night_commission"] = per_night_commission
+            new_b["is_primary"] = (idx == 0)  # Only first room gets full financials on check-in
+            assigned.append(new_b)
+    
+    return assigned, []  # No overbooking handling for reports
 
 
 def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     """
-    Calculates the 8 metrics for a single property on a single day.
+    FIXED: Now counts rooms correctly by using the split assignments.
     Mirrors Daily Status calculations exactly.
     """
     daily = filter_bookings_for_day(bookings, day)
     assigned, _ = assign_inventory_numbers(daily, prop)
 
-    # ---------- Rooms sold ----------
-    rooms_sold = sum(len(b.get("inventory_no", [])) for b in assigned)
+    # ---------- Rooms sold = count of assigned inventory entries ----------
+    rooms_sold = len(assigned)  # FIXED: Now counts actual room entries, not inventory_no length
 
     # ---------- Primary-night charges (only on check-in day) ----------
-    primary = [
-        b
-        for b in assigned
-        if b.get("is_primary", True)
-        and date.fromisoformat(b["check_in"]) == day
+    check_in_bookings = [
+        b for b in assigned
+        if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day
     ]
 
-    room_charges = sum(
-        b.get("room_charges", b.get("booking_amount", 0.0)) for b in primary
-    )
-    gst = sum(b.get("gst", 0.0) for b in primary)
+    room_charges = sum(b.get("room_charges", b.get("booking_amount", 0.0)) for b in check_in_bookings)
+    gst = sum(b.get("gst", 0.0) for b in check_in_bookings)
     total = room_charges + gst
-
-    commission = sum(
-        b.get("commission", b.get("ota_commission", 0.0)) for b in primary
-    )
+    commission = sum(b.get("commission", b.get("ota_commission", 0.0)) for b in check_in_bookings)
+    
     receivable = total - commission
-    tax_deduction = receivable * 0.003                     # 0.3%
+    tax_deduction = receivable * 0.003  # 0.3%
+    
+    # Per night calculation using ALL assigned rooms (not just check-ins)
     per_night = receivable / rooms_sold if rooms_sold else 0.0
 
     return {
