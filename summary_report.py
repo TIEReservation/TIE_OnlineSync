@@ -389,22 +389,13 @@ def show_summary_report():
                 lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) else x
             )
 
-        # Configure column widths - narrower columns for better fit
-        column_config = {}
-        # Date column narrower
-        column_config["Date"] = st.column_config.TextColumn("Date", width="small")
-        # Property columns - extra small
-        for col in df.columns[1:]:
-            column_config[col] = st.column_config.TextColumn(col, width="small")
-
         # Display full table without scrolling - calculate appropriate height
         # Height = header (38px) + rows (35px each) + padding
         table_height = 38 + (len(df) * 35) + 10
         st.dataframe(
             df, 
-            use_container_width=True, 
-            height=table_height,
-            column_config=column_config
+            use_container_width=False,  # Let columns auto-fit to content
+            height=table_height
         )
         st.markdown("---")
 
