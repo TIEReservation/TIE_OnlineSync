@@ -10,16 +10,43 @@ import calendar
 import pandas as pd
 from supabase import create_client, Client
 from typing import List, Dict
+import os
 
 # -------------------------- Supabase --------------------------
 try:
+    # Try secrets first (for Streamlit Cloud)
     supabase: Client = create_client(
         st.secrets["supabase"]["url"],
         st.secrets["supabase"]["key"]
     )
-except KeyError as e:
-    st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets configuration.")
-    st.stop()
+except (KeyError, FileNotFoundError):
+    # Fallback to environment variables (for local development)
+    try:
+        supabase: Client = create_client(
+            os.environ["SUPABASE_URL"],
+            os.environ["SUPABASE_KEY"]
+        )
+    except KeyError as e:
+        st.error(f"Missing Supabase configuration: {e}. Please check secrets or environment variables.")
+        st.stop()
+
+# -------------------------- Property Mapping --------------------------
+PROPERTY_MAPPING = {
+    "La Millionaire Luxury Resort": "La Millionaire Resort",
+    "Le Poshe Beach View": "Le Poshe Beach view",
+    "Le Poshe Beach view": "Le Poshe Beach view",
+    "Le Poshe Beach VIEW": "Le Poshe Beach view",
+    "Le Poshe Beachview": "Le Poshe Beach view",
+    "Millionaire": "La Millionaire Resort",
+    "Le Pondy Beach Side": "Le Pondy Beachside",
+    "Le Teera": "Le Terra"
+}
+
+def normalize_property_name(prop_name: str) -> str:
+    """Normalize property name using the mapping."""
+    if not prop_name:
+        return prop_name
+    return PROPERTY_MAPPING.get(prop_name, prop_name)
 
 # -------------------------- Helpers --------------------------
 def load_properties() -> List[str]:
@@ -27,8 +54,10 @@ def load_properties() -> List[str]:
     try:
         direct = supabase.table("reservations").select("property_name").execute().data or []
         online = supabase.table("online_reservations").select("property").execute().data or []
+        
+        # Normalize all property names
         props = {
-            r.get("property_name") or r.get("property")
+            normalize_property_name(r.get("property_name") or r.get("property"))
             for r in direct + online
             if r.get("property_name") or r.get("property")
         }
@@ -45,25 +74,39 @@ def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
         direct = (
             supabase.table("reservations")
             .select("*")
-            .eq("property_name", prop)
             .gte("check_in", str(start))
             .lt("check_out", str(end + timedelta(days=1)))
             .execute()
             .data
             or []
         )
+        
         # Online reservations
         online = (
             supabase.table("online_reservations")
             .select("*")
-            .eq("property", prop)
             .gte("check_in", str(start))
             .lt("check_out", str(end + timedelta(days=1)))
             .execute()
             .data
             or []
         )
-        return direct + online
+        
+        # Normalize property names and filter by property
+        all_bookings = []
+        for booking in direct:
+            normalized = normalize_property_name(booking.get("property_name"))
+            if normalized == prop:
+                booking["property_name"] = normalized
+                all_bookings.append(booking)
+        
+        for booking in online:
+            normalized = normalize_property_name(booking.get("property"))
+            if normalized == prop:
+                booking["property"] = normalized
+                all_bookings.append(booking)
+        
+        return all_bookings
     except Exception as e:
         st.error(f"Error loading bookings for {prop}: {e}")
         return []
@@ -206,9 +249,10 @@ def show_summary_report():
     end_date = month_dates[-1]
 
     # ----- load all bookings once -----
-    bookings = {
-        p: load_combined_bookings(p, start_date, end_date) for p in properties
-    }
+    with st.spinner("Loading booking data..."):
+        bookings = {
+            p: load_combined_bookings(p, start_date, end_date) for p in properties
+        }
 
     # ----- 8 report definitions -----
     report_defs = {
@@ -238,6 +282,9 @@ def show_summary_report():
             )
 
         st.dataframe(df, use_container_width=True)
+        
+        # Add some spacing between reports
+        st.markdown("---")
 
 
 # -------------------------- Run --------------------------
