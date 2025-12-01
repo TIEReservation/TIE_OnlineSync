@@ -247,7 +247,9 @@ def show_user_management():
                         
                         all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
                         current_screens = user_to_modify.get("screens", [])
-                        mod_screens = st.multiselect("Visible Screens", all_screens, default=current_screens, key="modify_screens")
+                        # Filter out any screens that don't exist in all_screens to avoid the error
+                        valid_current_screens = [screen for screen in current_screens if screen in all_screens]
+                        mod_screens = st.multiselect("Visible Screens", all_screens, default=valid_current_screens, key="modify_screens")
                         
                         current_perms = user_to_modify.get("permissions", {"add": False, "edit": False, "delete": False})
                         mod_add = st.checkbox("Add Permission", value=current_perms.get("add", False), key="modify_add_perm")
