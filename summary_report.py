@@ -1,4 +1,4 @@
-# summary_report.py - CORRECTLY FIXED VERSION
+# summary_report.py - CORRECTLY FIXED VERSION with Short Property Names
 # Now uses the EXACT same booking query logic as Daily Status
 
 import streamlit as st
@@ -37,6 +37,28 @@ PROPERTY_MAPPING = {
     "Le Teera": "Le Terra"
 }
 
+# Property short names for display
+PROPERTY_SHORT_NAMES = {
+    "Eden Beach Resort": "EBR",
+    "La Antilia Luxury": "LAL",
+    "La Coromandel Luxury": "LCL",
+    "La Millionaire Resort": "LMR",
+    "La Paradise Luxury": "LaPL",
+    "La Paradise Residency": "LPR",
+    "La Tamara Luxury": "LTL",
+    "La Tamara Suite": "LTS",
+    "La Villa Heritage": "LVH",
+    "Le Park Resort": "LPR",
+    "Le Pondy Beachside": "LPBs",
+    "Le Poshe Beach view": "LPBv",
+    "Le Poshe Luxury": "LePL",
+    "Le Poshe Suite": "LPS",
+    "Le Royce Villa": "LRV",
+    "Villa Shakti": "VS",
+    "Happymates Forest Retreat": "HFR",
+    "Le Terra": "LT"
+}
+
 # Add reverse mapping
 reverse_mapping = {c: [] for c in set(PROPERTY_MAPPING.values())}
 for v, c in PROPERTY_MAPPING.items():
@@ -46,6 +68,10 @@ def normalize_property_name(prop_name: str) -> str:
     if not prop_name:
         return prop_name
     return PROPERTY_MAPPING.get(prop_name, prop_name)
+
+def get_short_name(prop_name: str) -> str:
+    """Get short name for property, fallback to full name if not found"""
+    return PROPERTY_SHORT_NAMES.get(prop_name, prop_name)
 
 # -------------------------- Helpers --------------------------
 def load_properties() -> List[str]:
@@ -271,7 +297,7 @@ def build_report(
 ) -> pd.DataFrame:
     """
     Generic builder – one DataFrame per metric.
-    Columns: Date | <Property1> | <Property2> … | Total
+    Columns: Date | <Short Property Name> | ... | Total
     Last row = month totals.
     """
     rows = []
@@ -283,7 +309,9 @@ def build_report(
         day_sum = 0.0
         for p in props:
             val = compute_daily_metrics(bookings.get(p, []), p, d).get(metric, 0.0)
-            row[p] = val
+            # Use short name as column header
+            short_name = get_short_name(p)
+            row[short_name] = val
             day_sum += val
             prop_totals[p] += val
         row["Total"] = day_sum
@@ -293,7 +321,8 @@ def build_report(
     # Month total row
     total_row = {"Date": "Total"}
     for p in props:
-        total_row[p] = prop_totals[p]
+        short_name = get_short_name(p)
+        total_row[short_name] = prop_totals[p]
     total_row["Total"] = grand_total
     rows.append(total_row)
 
