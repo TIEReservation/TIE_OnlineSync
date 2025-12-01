@@ -14,7 +14,7 @@ from inventory import show_daily_status
 from dms import show_dms
 from monthlyconsolidation import show_monthly_consolidation
 from dashboard import show_dashboard
-from summary_report import show_summary_report
+from summary_report import show_summary_report  # NEW IMPORT
 import pandas as pd
 from log import show_log_report, log_activity
 from users import validate_user, create_user, update_user, delete_user, load_users
@@ -100,6 +100,7 @@ def check_authentication():
                         st.session_state.permissions = user_data.get("permissions", {"add": False, "edit": False, "delete": False})
                         
                         valid_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"]
+                        
                         if st.session_state.role == "Admin":
                             valid_screens.append("User Management")
                         elif st.session_state.role == "Management":
@@ -134,6 +135,7 @@ def check_authentication():
         query_page = query_params.get("page", [st.session_state.current_page])[0]
         
         valid_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"]
+        
         if st.session_state.role == "Admin":
             valid_screens = ["User Management"]
         elif st.session_state.role == "Management":
@@ -178,7 +180,7 @@ def show_user_management():
     with st.form("create_user_form", clear_on_submit=False):
         new_username = st.text_input("Username", key="create_username")
         new_password = st.text_input("Password", type="password", key="create_password")
-        new_role = st.selectbox("Role", ["Management", "ReservationTeam"], key="create_role")
+        new_role = st.selectbox("Role", ["Management", "ReservationTeam", "ReservationHead"], key="create_role")
         
         all_properties = [
             "Le Poshe Beachview", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite",
@@ -190,15 +192,17 @@ def show_user_management():
         new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties, key="create_properties")
         
         all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"]
-
+        
         # Default screens based on role
         if new_role == "Management":
             default_screens = all_screens
         elif new_role == "ReservationHead":
             default_screens = ["Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Monthly Consolidation", "Summary Report"]
         else:
-            default_screens = [s for s in all_screens if s not in ["Daily Management Status", "Analytics", "Inventory Dashboard", "Summary Report"]]new_screens = st.multiselect("Visible Screens", all_screens, default=default_screens, key="create_screens")
-                
+            default_screens = [s for s in all_screens if s not in ["Daily Management Status", "Analytics", "Inventory Dashboard", "Summary Report"]]
+        
+        new_screens = st.multiselect("Visible Screens", all_screens, default=default_screens, key="create_screens")
+        
         add_perm = st.checkbox("Add Permission", value=True, key="create_add_perm")
         edit_perm = st.checkbox("Edit Permission", value=True, key="create_edit_perm")
         delete_perm = st.checkbox("Delete Permission", value=False, key="create_delete_perm")
@@ -243,7 +247,7 @@ def show_user_management():
                         
                         current_role = user_to_modify.get("role", "ReservationTeam")
                         mod_role = st.selectbox("Role", ["Management", "ReservationTeam", "ReservationHead"], 
-                                              index=0 if current_role == "Management" else 1, 
+                                              index=["Management", "ReservationTeam", "ReservationHead"].index(current_role) if current_role in ["Management", "ReservationTeam", "ReservationHead"] else 1, 
                                               key="modify_role")
                         
                         all_properties = [
@@ -259,7 +263,7 @@ def show_user_management():
                             default_properties = all_properties
                         mod_properties = st.multiselect("Visible Properties", all_properties, default=default_properties, key="modify_properties")
                         
-                        all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
+                        all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"]
                         current_screens = user_to_modify.get("screens", [])
                         # Filter out any screens that don't exist in all_screens to avoid the error
                         valid_current_screens = [screen for screen in current_screens if screen in all_screens]
@@ -308,116 +312,6 @@ def show_user_management():
                     if success:
                         log_activity(supabase, st.session_state.username, f"Deleted user {delete_username}")
                         st.rerun()
-                        
-def load_property_room_map():
-    return {
-        "Le Poshe Beach view": {
-            "Double Room": ["101", "102", "202", "203", "204"],
-            "Standard Room": ["201"],
-            "Deluex Double Room Seaview": ["301", "302", "303", "304"],
-            "Day Use": ["Day Use 1", "Day Use 2"],
-            "No Show": ["No Show"]
-        },
-        "La Millionaire Resort": {
-            "Double Room": ["101", "102", "103", "105"],
-            "Deluex Double Room with Balcony": ["205", "304", "305"],
-            "Deluex Triple Room with Balcony": ["201", "202", "203", "204", "301", "302", "303"],
-            "Deluex Family Room with Balcony": ["206", "207", "208", "306", "307", "308"],
-            "Deluex Triple Room": ["402"],
-            "Deluex Family Room": ["401"],
-            "Day Use": ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 5"],
-            "No Show": ["No Show"]
-        },
-        "Le Poshe Luxury": {
-            "2BHA Appartment": ["101&102", "101", "102"],
-            "2BHA Appartment with Balcony": ["201&202", "201", "202", "301&302", "301", "302", "401&402", "401", "402"],
-            "3BHA Appartment": ["203to205", "203", "204", "205", "303to305", "303", "304", "305", "403to405", "403", "404", "405"],
-            "Double Room with Private Terrace": ["501"],
-            "Day Use": ["Day Use 1", "Day Use 2"],
-            "No Show": ["No Show"]
-        },
-        "Le Poshe Suite": {
-            "2BHA Appartment": ["601&602", "601", "602", "603", "604", "703", "704"],
-            "2BHA Appartment with Balcony": ["701&702", "701", "702"],
-            "Double Room with Terrace": ["801"],
-            "Day Use": ["Day Use 1", "Day Use 2"],
-            "No Show": ["No Show"]
-        },
-        "La Paradise Residency": {
-            "Double Room": ["101", "102", "103", "301", "302", "304"],
-            "Family Room": ["201", "203"],
-            "Triple Room": ["202", "303"],
-            "Day Use": ["Day Use 1", "Day Use 2"],
-            "No Show": ["No Show"]
-        },
-        "La Paradise Luxury": {
-            "3BHA Appartment": ["101to103", "101", "102", "103", "201to203", "201", "202", "203"],
-            "Day Use": ["Day Use 1", "Day Use 2"],
-            "No Show": ["No Show"]
-        },
-        "La Villa Heritage": {
-            "Double Room": ["101", "102", "103"],
-            "4BHA Appartment": ["201to203&301", "201", "202", "203", "301"],
-            "Day Use": ["Day Use 1", "Day Use 2"],
-            "No Show": ["No Show"]
-        },
-        "Le Pondy Beach Side": {
-            "Villa": ["101to104", "101", "102", "103", "104"],
-            "Day Use": ["Day Use 1", "Day Use 2"],
-            "No Show": ["No Show"]
-        },
-        "Le Royce Villa": {
-            "Villa": ["101to102&201to202", "101", "102", "201", "202"],
-            "Day Use": ["Day Use 1", "Day Use 2"],
-            "No Show": ["No Show"]
-        },
-        "La Tamara Luxury": {
-            "3BHA": ["101to103", "101", "102", "103", "104to106", "104", "105", "106", "201to203", "201", "202", "203", "204to206", "204", "205", "206", "301to303", "301", "302", "303", "304to306", "304", "305", "306"],
-            "4BHA": ["401to404", "401", "402", "403", "404"],
-            "Day Use": ["Day Use 1", "Day Use 2"],
-            "No Show": ["No Show"]
-        },
-        "La Antilia Luxury": {
-            "Deluex Suite Room": ["101"],
-            "Deluex Double Room": ["203", "204", "303", "304"],
-            "Family Room": ["201", "202", "301", "302"],
-            "Deluex suite Room with Tarrace": ["404"],
-            "Day Use": ["Day Use 1", "Day Use 2"],
-            "No Show": ["No Show"]
-        },
-        "La Tamara Suite": {
-            "Two Bedroom apartment": ["101&102"],
-            "Deluxe Apartment": ["103&104"],
-            "Deluxe Double Room": ["203", "204", "205"],
-            "Deluxe Triple Room": ["201", "202"],
-            "Deluxe Family Room": ["206"],
-            "Day Use": ["Day Use 1", "Day Use 2"],
-            "No Show": ["No Show"]
-        },
-        "Le Park Resort": {
-            "Villa with Swimming Pool View": ["555&666", "555", "666"],
-            "Villa with Garden View": ["111&222", "111", "222"],
-            "Family Retreate Villa": ["333&444", "333", "444"],
-            "Day Use": ["Day Use 1", "Day Use 2"],
-            "No Show": ["No Show"]
-        },
-        "Villa Shakti": {
-            "2BHA Studio Room": ["101&102"],
-            "2BHA with Balcony": ["202&203", "302&303"],
-            "Family Suite": ["201"],
-            "Family Room": ["301"],
-            "Terrace Room": ["401"],
-            "Day Use": ["Day Use 1", "Day Use 2"],
-            "No Show": ["No Show"]
-        },
-        "Eden Beach Resort": {
-            "Double Room": ["101", "102"],
-            "Deluex Room": ["103", "202"],
-            "Triple Room": ["201"],
-            "Day Use": ["Day Use 1", "Day Use 2"],
-            "No Show": ["No Show"]
-        }
-    }
 
 def main():
     check_authentication()
@@ -431,7 +325,7 @@ def main():
     elif st.session_state.role == "Management":
         page_options = [
             "Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation",
-            "Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"
+            "Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"
         ]
         if edit_online_available:
             page_options.insert(page_options.index("Daily Status"), "Edit Online Reservations")
@@ -440,8 +334,8 @@ def main():
             "Direct Reservations", "View Reservations", "Edit Direct Reservation",
             "Online Reservations", "Daily Status", "Monthly Consolidation", "Summary Report"
         ]
-    if edit_online_available:
-        page_options.insert(page_options.index("Daily Status"), "Edit Online Reservations")
+        if edit_online_available:
+            page_options.insert(page_options.index("Daily Status"), "Edit Online Reservations")
     elif st.session_state.role == "ReservationTeam":
         page_options = [
             "Direct Reservations", "View Reservations", "Edit Direct Reservation",
@@ -544,6 +438,14 @@ def main():
     elif page == "Monthly Consolidation":
         show_monthly_consolidation()
         log_activity(supabase, st.session_state.username, "Accessed Monthly Consolidation")
+
+    elif page == "Summary Report":
+        if st.session_state.role not in ["Management", "ReservationHead", "Admin"]:
+            st.error("Access Denied: Summary Report is only available to Management and ReservationHead.")
+            log_activity(supabase, st.session_state.username, "Unauthorized Summary Report access attempt")
+        else:
+            show_summary_report()
+            log_activity(supabase, st.session_state.username, "Accessed Summary Report")
 
     # === Footer: User Info & Logout ===
     if st.session_state.authenticated:
