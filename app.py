@@ -14,6 +14,7 @@ from inventory import show_daily_status
 from dms import show_dms
 from monthlyconsolidation import show_monthly_consolidation
 from dashboard import show_dashboard
+from summary_report import show_summary_report
 import pandas as pd
 from log import show_log_report, log_activity
 from users import validate_user, create_user, update_user, delete_user, load_users
@@ -98,8 +99,7 @@ def check_authentication():
                         st.session_state.user_data = user_data
                         st.session_state.permissions = user_data.get("permissions", {"add": False, "edit": False, "delete": False})
                         
-                        valid_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
-                        
+                        valid_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"]
                         if st.session_state.role == "Admin":
                             valid_screens.append("User Management")
                         elif st.session_state.role == "Management":
@@ -133,8 +133,7 @@ def check_authentication():
         query_params = st.query_params
         query_page = query_params.get("page", [st.session_state.current_page])[0]
         
-        valid_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
-        
+        valid_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"]
         if st.session_state.role == "Admin":
             valid_screens = ["User Management"]
         elif st.session_state.role == "Management":
@@ -190,10 +189,16 @@ def show_user_management():
         ]
         new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties, key="create_properties")
         
-        all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation"]
-        default_screens = all_screens if new_role == "Management" else [s for s in all_screens if s not in ["Daily Management Status", "Analytics", "Inventory Dashboard"]]
-        new_screens = st.multiselect("Visible Screens", all_screens, default=default_screens, key="create_screens")
-        
+        all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"]
+
+        # Default screens based on role
+        if new_role == "Management":
+            default_screens = all_screens
+        elif new_role == "ReservationHead":
+            default_screens = ["Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Monthly Consolidation", "Summary Report"]
+        else:
+            default_screens = [s for s in all_screens if s not in ["Daily Management Status", "Analytics", "Inventory Dashboard", "Summary Report"]]new_screens = st.multiselect("Visible Screens", all_screens, default=default_screens, key="create_screens")
+                
         add_perm = st.checkbox("Add Permission", value=True, key="create_add_perm")
         edit_perm = st.checkbox("Edit Permission", value=True, key="create_edit_perm")
         delete_perm = st.checkbox("Delete Permission", value=False, key="create_delete_perm")
@@ -430,6 +435,13 @@ def main():
         ]
         if edit_online_available:
             page_options.insert(page_options.index("Daily Status"), "Edit Online Reservations")
+    elif st.session_state.role == "ReservationHead":
+        page_options = [
+            "Direct Reservations", "View Reservations", "Edit Direct Reservation",
+            "Online Reservations", "Daily Status", "Monthly Consolidation", "Summary Report"
+        ]
+    if edit_online_available:
+        page_options.insert(page_options.index("Daily Status"), "Edit Online Reservations")
     elif st.session_state.role == "ReservationTeam":
         page_options = [
             "Direct Reservations", "View Reservations", "Edit Direct Reservation",
