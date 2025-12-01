@@ -77,7 +77,7 @@ def check_authentication():
                 st.session_state.permissions = {"add": True, "edit": False, "delete": False}
             else:
                 try:
-                    users = supabase.table("users").select("*").eq("username", username).eq("password_hash", password).execute().data
+                    user_data = validate_user(supabase, username, password)
                     if users and len(users) == 1:
                         user_data = users[0]
                         st.session_state.authenticated = True
