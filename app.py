@@ -80,6 +80,13 @@ def check_authentication():
                 st.session_state.current_page = "Direct Reservations"
                 st.session_state.permissions = {"add": True, "edit": False, "delete": False}
                 st.session_state.user_data = None
+            elif username == "ReservationHead" and password == "TIE123":
+                st.session_state.authenticated = True
+                st.session_state.username = "ReservationHead"
+                st.session_state.role = "ReservationHead"
+                st.session_state.current_page = "Direct Reservations"
+                st.session_state.permissions = {"add": True, "edit": False, "delete": False}
+                st.session_state.user_data = None
             else:
                 # Try database authentication with proper password hashing
                 try:
