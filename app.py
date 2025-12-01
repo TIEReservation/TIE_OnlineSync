@@ -168,9 +168,18 @@ def load_users(supabase: Client) -> list:
 # ============================================================================
 
 def load_properties():
-    """Load available properties - placeholder function."""
-    # Replace this with actual property loading logic from your database
-    return ["Property A", "Property B", "Property C", "Property D"]
+    """Load available properties from database."""
+    try:
+        # Try to get unique properties from reservations table
+        response = supabase.table("reservations").select("property").execute()
+        if response.data:
+            properties = list(set([r["property"] for r in response.data if r.get("property")]))
+            return sorted(properties) if properties else ["Property A", "Property B", "Property C", "Property D"]
+        else:
+            return ["Property A", "Property B", "Property C", "Property D"]
+    except Exception as e:
+        st.warning(f"Could not load properties from database: {e}")
+        return ["Property A", "Property B", "Property C", "Property D"]
 
 def check_authentication():
     if 'authenticated' not in st.session_state:
@@ -288,8 +297,15 @@ def show_user_management():
                 modify_role = st.selectbox("Role", ["ReservationTeam", "Management"], 
                                           index=0 if current_user["role"] == "ReservationTeam" else 1, 
                                           key="modify_role")
-                modify_properties = st.multiselect("Properties", load_properties(), 
-                                                  default=current_user.get("properties", []), 
+                
+                # Load properties and filter current user's properties
+                available_properties = load_properties()
+                current_properties = current_user.get("properties", [])
+                # Filter to only include properties that exist in available_properties
+                filtered_properties = [p for p in current_properties if p in available_properties]
+                
+                modify_properties = st.multiselect("Properties", available_properties, 
+                                                  default=filtered_properties, 
                                                   key="modify_properties")
                 
                 # Available screens for non-admin users
