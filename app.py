@@ -168,18 +168,34 @@ def load_users(supabase: Client) -> list:
 # ============================================================================
 
 def load_properties():
-    """Load available properties from database."""
+    """Load available properties from TIE Hotels & Resorts."""
+    # Complete list of TIE Hotels & Resorts properties in Pondicherry
+    tie_properties = [
+        "Eden Beach Resort",
+        "Villa Shakti",
+        "La Villa Heritage",
+        "La Paradise Luxury",
+        "Le Poshe Luxury",
+        "La Paradise Residency",
+        "Le Pondy Beachside",
+        "Le Poshe Beachview",
+        "Le Park Resort",
+        "Le Teera Resort",
+        "La Tamara Suite"
+    ]
+    
     try:
-        # Try to get unique properties from reservations table
+        # Also get any additional properties from reservations table
         response = supabase.table("reservations").select("property").execute()
         if response.data:
-            properties = list(set([r["property"] for r in response.data if r.get("property")]))
-            return sorted(properties) if properties else ["Property A", "Property B", "Property C", "Property D"]
+            db_properties = list(set([r["property"] for r in response.data if r.get("property")]))
+            # Merge and remove duplicates
+            all_properties = list(set(tie_properties + db_properties))
+            return sorted(all_properties)
         else:
-            return ["Property A", "Property B", "Property C", "Property D"]
-    except Exception as e:
-        st.warning(f"Could not load properties from database: {e}")
-        return ["Property A", "Property B", "Property C", "Property D"]
+            return sorted(tie_properties)
+    except Exception:
+        return sorted(tie_properties)
 
 def check_authentication():
     if 'authenticated' not in st.session_state:
