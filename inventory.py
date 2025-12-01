@@ -462,27 +462,26 @@ def show_daily_status():
                 daily = filter_bookings_for_day(bookings, day)
                 st.markdown(f"### {day.strftime('%b %d, %Y')}")
 
+                assigned, over = assign_inventory_numbers(daily, prop)
+                df = create_inventory_table(assigned, over, prop, day)
+
+                stats = extract_stats_from_table(df, mob_types)
+                dtd = stats["dtd"]
+                mop_data = stats["mop"]
+
+                mtd_rooms += dtd["Total"]["rooms"]
+                mtd_value += dtd["Total"]["value"]
+                mtd_comm += dtd["Total"]["comm"]
+                mtd_gst += dtd["Total"]["gst"]
+                mtd_pax += dtd["Total"]["pax"]
+                for m in mob_types:
+                    mtd[m]["rooms"] += dtd[m]["rooms"]
+                    mtd[m]["value"] += dtd[m]["value"]
+                    mtd[m]["comm"] += dtd[m]["comm"]
+                    mtd[m]["gst"] += dtd[m]["gst"]
+                    mtd[m]["pax"] += dtd[m]["pax"]
+
                 if daily:
-                    assigned, over = assign_inventory_numbers(daily, prop)
-                    df = create_inventory_table(assigned, over, prop, day)
-
-                    stats = extract_stats_from_table(df, mob_types)
-                    dtd = stats["dtd"]
-                    mop_data = stats["mop"]
-
-                    if day <= today:
-                        mtd_rooms += dtd["Total"]["rooms"]
-                        mtd_value += dtd["Total"]["value"]
-                        mtd_comm += dtd["Total"]["comm"]
-                        mtd_gst += dtd["Total"]["gst"]
-                        mtd_pax += dtd["Total"]["pax"]
-                        for m in mob_types:
-                            mtd[m]["rooms"] += dtd[m]["rooms"]
-                            mtd[m]["value"] += dtd[m]["value"]
-                            mtd[m]["comm"] += dtd[m]["comm"]
-                            mtd[m]["gst"] += dtd[m]["gst"]
-                            mtd[m]["pax"] += dtd[m]["pax"]
-
                     st.markdown(f'<div class="custom-scrollable-table">{df.to_html(escape=False,index=False)}</div>', unsafe_allow_html=True)
 
                     # Tables
@@ -510,7 +509,7 @@ def show_daily_status():
 
                     total_inventory = len([i for i in PROPERTY_INVENTORY.get(prop,{}).get("all",[]) if not i.startswith(("Day Use","No Show"))])
                     occ_pct = (dtd["Total"]["rooms"] / total_inventory * 100) if total_inventory else 0.0
-                    mtd_occ_pct = (mtd_rooms / (total_inventory * min(today.day, day.day)) * 100) if total_inventory else 0.0
+                    mtd_occ_pct = (mtd_rooms / (total_inventory * day.day) * 100) if total_inventory and day.day > 0 else 0.0
 
                     summary = {
                         "Rooms Sold": dtd["Total"]["rooms"],
