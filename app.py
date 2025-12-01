@@ -280,7 +280,11 @@ def show_user_management():
         st.info("No users found.")
     else:
         df = pd.DataFrame(users)
-        st.dataframe(df[["username", "role", "properties", "screens"]], use_container_width=True)
+        st.dataframe(
+            df[["username", "role", "properties", "screens"]],
+            width="stretch",           # ← FIXED: no more warnings
+            hide_index=True           # optional: looks cleaner
+    )
 
     # Create tabs for different operations
     tab1, tab2, tab3 = st.tabs(["➕ Create User", "✏️ Modify User", "🗑️ Delete User"])
