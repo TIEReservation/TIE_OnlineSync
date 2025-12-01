@@ -17,7 +17,7 @@ from dashboard import show_dashboard
 import pandas as pd
 from log import show_log_report, log_activity
 from summary_report import show_summary_report
-from users import load_users, create_user, validate_user
+import bcrypt
 
 # Page config
 st.set_page_config(
@@ -37,6 +37,93 @@ try:
 except Exception as e:
     st.error(f"Failed to initialize Supabase client: {e}")
     st.stop()
+
+# ============================================================================
+# USER MANAGEMENT FUNCTIONS (from users.py)
+# ============================================================================
+
+def hash_password(password: str) -> str:
+    """Hash a password using bcrypt."""
+    try:
+        return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    except Exception as e:
+        st.error(f"Error hashing password: {e}")
+        return None
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verify a password against its hash."""
+    try:
+        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+    except Exception as e:
+        st.error(f"Error verifying password: {e}")
+        return False
+
+def validate_user(supabase: Client, username: str, password: str) -> dict:
+    """Validate user by username and password, return user data if valid."""
+    try:
+        response = supabase.table("users").select("*").eq("username", username).execute()
+        if not response.data:
+            st.error(f"Debug: No user found with username '{username}'")
+            return None
+        if not response.data[0]["password"]:
+            st.error(f"Debug: User '{username}' has no password set")
+            return None
+        if verify_password(password, response.data[0]["password"]):
+            user = response.data[0]
+            return {
+                "username": user["username"],
+                "role": user["role"],
+                "properties": user["properties"] or [],
+                "screens": user["screens"] or []
+            }
+        else:
+            st.error(f"Debug: Password verification failed for username '{username}'")
+            return None
+    except Exception as e:
+        st.error(f"Error validating user '{username}': {e}")
+        return None
+
+def create_user(supabase: Client, username: str, password: str, role: str, properties: list, screens: list) -> bool:
+    """Create a new user in Supabase with hashed password."""
+    try:
+        hashed_password = hash_password(password)
+        if not hashed_password:
+            return False
+        user_data = {
+            "username": username,
+            "password": hashed_password,
+            "role": role,
+            "properties": properties,
+            "screens": screens
+        }
+        response = supabase.table("users").insert(user_data).execute()
+        if response.data:
+            st.write(f"Debug: Successfully created user '{username}'")
+            return True
+        else:
+            st.error(f"Debug: Failed to create user '{username}' - no data returned")
+            return False
+    except Exception as e:
+        st.error(f"Error creating user '{username}': {e}")
+        return False
+
+def load_users(supabase: Client) -> list:
+    """Load all users from Supabase."""
+    try:
+        response = supabase.table("users").select("*").execute()
+        if response.data:
+            st.write(f"Debug: Loaded {len(response.data)} users from Supabase")
+            return response.data
+        else:
+            st.info("Debug: No users found in Supabase")
+            return []
+    except Exception as e:
+        st.error(f"Error loading users: {e}")
+        return []
+
+# ============================================================================
+# END USER MANAGEMENT FUNCTIONS
+# ============================================================================
 
 def load_properties():
     """Load available properties - placeholder function."""
@@ -84,7 +171,7 @@ def check_authentication():
                 st.session_state.permissions = {"add": True, "edit": False, "delete": False}
             else:
                 try:
-                    # Use the validate_user function from users.py
+                    # Use the validate_user function
                     user_data = validate_user(supabase, username, password)
                     if user_data:
                         st.session_state.authenticated = True
