@@ -398,7 +398,7 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     # DTD
     dtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"pax":0} for m in mob_types}
     dtd_rooms = len(occupied)
-    dtd_value = occupied["Hotel Receivable"].sum()
+    dtd_value = occupied["Per Night"].sum()
     dtd_comm = occupied["Commission"].sum()
     dtd_gst = occupied["GST"].sum()
     dtd_pax = occupied["Total Pax"].sum()
@@ -407,7 +407,7 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
         mob_raw = sanitize_string(row["MOB"])
         mob = next((m for m, vs in mob_mapping.items() if mob_raw.upper() in [v.upper() for v in vs]), "Booking")
         dtd[mob]["rooms"] += 1
-        dtd[mob]["value"] += row["Hotel Receivable"]
+        dtd[mob]["value"] += row["Per Night"]
         dtd[mob]["comm"] += row["Commission"]
         dtd[mob]["gst"] += row["GST"]
         dtd[mob]["pax"] += row["Total Pax"]
