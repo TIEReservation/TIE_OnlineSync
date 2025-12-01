@@ -382,17 +382,30 @@ def show_summary_report():
         st.subheader(title)
         df = build_report(properties, month_dates, bookings, metric)
 
-        # Pretty-print monetary columns
+        # Pretty-print monetary columns with compact formatting
         if metric != "rooms_sold":
             monetary_cols = df.columns[1:]
             df[monetary_cols] = df[monetary_cols].applymap(
-                lambda x: f"{x:,.2f}" if isinstance(x, (int, float)) else x
+                lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) else x
             )
+
+        # Configure column widths - narrower columns for better fit
+        column_config = {}
+        # Date column narrower
+        column_config["Date"] = st.column_config.TextColumn("Date", width="small")
+        # Property columns - extra small
+        for col in df.columns[1:]:
+            column_config[col] = st.column_config.TextColumn(col, width="small")
 
         # Display full table without scrolling - calculate appropriate height
         # Height = header (38px) + rows (35px each) + padding
         table_height = 38 + (len(df) * 35) + 10
-        st.dataframe(df, use_container_width=True, height=table_height)
+        st.dataframe(
+            df, 
+            use_container_width=True, 
+            height=table_height,
+            column_config=column_config
+        )
         st.markdown("---")
 
 
