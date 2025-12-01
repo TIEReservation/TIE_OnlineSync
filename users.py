@@ -1,17 +1,25 @@
 # app.py
 import streamlit as st
 import os
-from supabase import create_client, Client
+import pandas as pd
 
-# === Fixed imports from users.py ===
-from users import (
-    load_users,
-    create_user,
-    validate_user,
-    load_properties
-)
+# ──────────────────────────────────────────────────────────────
+# 1. IMPORT USER FUNCTIONS FIRST – THIS FIXES THE NameError
+# ──────────────────────────────────────────────────────────────
+try:
+    from users import (
+        load_users,
+        create_user,
+        validate_user,
+        load_properties
+    )
+except ImportError as e:
+    st.error(f"Cannot find 'users.py' → {e}")
+    st.stop()
 
-# === Page modules ===
+# ──────────────────────────────────────────────────────────────
+# 2. OTHER PAGE MODULES
+# ──────────────────────────────────────────────────────────────
 from directreservation import (
     show_new_reservation_form,
     show_reservations,
@@ -32,13 +40,12 @@ try:
     from editOnline import show_edit_online_reservations
     edit_online_available = True
 except ImportError:
-    st.warning("'Edit Online Reservations' page disabled (editOnline.py not found).")
-    show_edit_online_reservations = None
     edit_online_available = False
+    show_edit_online_reservations = None
 
-# ================================
-# Page Config & Supabase Setup
-# ================================
+# ──────────────────────────────────────────────────────────────
+# 3. PAGE CONFIG & SUPABASE
+# ──────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="TIE Reservations",
     page_icon="https://github.com/TIEReservation/TIEReservation-System/raw/main/TIE_Logo_Icon.png",
@@ -46,15 +53,15 @@ st.set_page_config(
 )
 st.image("https://github.com/TIEReservation/TIEReservation-System/raw/main/TIE_Logo_Icon.png", width=100)
 
-# Supabase client
+from supabase import create_client, Client
 supabase: Client = create_client(
     "https://oxbrezracnmazucnnqox.supabase.co",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94YnJlenJhY25tYXp1Y25ucW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjUxMTgsImV4cCI6MjA2OTM0MTExOH0.nqBK2ZxntesLY9qYClpoFPVnXOW10KrzF-UI_DKjbKo"
 )
 
-# ================================
-# Authentication
-# ================================
+# ──────────────────────────────────────────────────────────────
+# 4. AUTHENTICATION
+# ──────────────────────────────────────────────────────────────
 def check_authentication():
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
@@ -68,7 +75,7 @@ def check_authentication():
         password = st.text_input("Password", type="password")
 
         if st.button("Login"):
-            # === Hardcoded fallback accounts (for emergency / demo) ===
+            # Hardcoded emergency accounts
             if username == "Admin" and password == "Admin2024":
                 st.session_state.authenticated = True
                 st.session_state.username = "Admin"
@@ -90,30 +97,32 @@ def check_authentication():
                 st.session_state.current_page = "Direct Reservations"
                 st.rerun()
 
-            # === Real Supabase users (hashed passwords) ===
-            user_data = validate_user(supabase, username, password)
-            if user_data:
+            # Real Supabase login (hashed passwords)
+            user = validate_user(supabase, username, password)
+            if user:
                 st.session_state.authenticated = True
                 st.session_state.username = username
-                st.session_state.role = user_data["role"]
-                st.session_state.current_page = "User Management" if user_data["role"] == "Admin" else "Inventory Dashboard" if user_data["role"] == "Management" else "Direct Reservations"
-                st.success(f"Welcome, {username}!")
+                st.session_state.role = user["role"]
+                st.session_state.current_page = "User Management" if user["role"] == "Admin" else "Inventory Dashboard"
+                st.success(f"Welcome {username}!")
                 st.rerun()
             else:
-                st.error("Invalid username or password")
+                st.error("Invalid credentials")
         st.stop()
 
-# ================================
-# User Management Page (Admin only)
-# ================================
+# ──────────────────────────────────────────────────────────────
+# 5. USER MANAGEMENT PAGE (Admin only)
+# ──────────────────────────────────────────────────────────────
 def show_user_management():
     if st.session_state.role != "Admin":
-        st.error("Access Denied – Admin only")
+        st.error("Access denied – Admin only")
         return
 
     st.title("User Management")
 
+    # THIS WILL NOW WORK – load_users is imported at the top
     users = load_users(supabase)
+
     if users:
         df = pd.DataFrame(users)[["username", "role", "properties", "screens"]]
         st.dataframe(df, use_container_width=True)
@@ -121,13 +130,13 @@ def show_user_management():
         st.info("No users in database yet.")
 
     st.subheader("Create New User")
-    col1, col2 = st.columns(2)
-    with col1:
-        new_username = st.text_input("Username")
-        new_password = st.text_input("Password", type="password")
-        new_role = st.selectbox("Role", ["ReservationTeam", "Management", "Admin"])
-    with col2:
-        new_properties = st.multiselect("Allowed Properties", load_properties(), default=load_properties())
+    c1, c2 = st.columns(2)
+    with c1:
+        new_username = st.text_input("Username", key="new_user")
+        new_password = st.text_input("Password", type="password", key="new_pass")
+        new_role = st.selectbox("Role", ["ReservationTeam", "Management", "Admin"], key="new_role")
+    with c2:
+        new_properties = st.multiselect("Properties", load_properties(), default=load_properties())
         new_screens = st.multiselect("Allowed Screens", [
             "Inventory Dashboard", "Direct Reservations", "View Reservations",
             "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations",
@@ -136,41 +145,39 @@ def show_user_management():
         ])
 
     if st.button("Create User"):
-        if not new_username or not new_password:
-            st.error("Username and password are required")
-        elif create_user(supabase, new_username, new_password, new_role, new_properties, new_screens):
+        if create_user(supabase, new_username, new_password, new_role, new_properties, new_screens):
+            st.success(f"User {new_username} created!")
             st.rerun()
 
-# ================================
-# Main App
-# ================================
+# ──────────────────────────────────────────────────────────────
+# 6. MAIN APP
+# ──────────────────────────────────────────────────────────────
 def main():
     check_authentication()
 
-    # Navigation options based on role
     pages = [
         "Inventory Dashboard", "Direct Reservations", "View Reservations",
         "Edit Direct Reservation", "Online Reservations", "Daily Status",
-        "Daily Management Status", "Analytics", "Monthly Consolidation",
-        "Summary Report"
+        "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"
     ]
     if edit_online_available:
         pages.insert(5, "Edit Online Reservations")
     if st.session_state.role == "Admin":
         pages += ["User Management", "Log Report"]
 
-    # Sidebar navigation
-    default_idx = pages.index(st.session_state.current_page) if st.session_state.current_page in pages else 0
-    page = st.sidebar.selectbox("Navigate", pages, index=default_idx)
+    page = st.sidebar.selectbox(
+        "Navigate",
+        pages,
+        index=pages.index(st.session_state.current_page) if st.session_state.current_page in pages else 0
+    )
     st.session_state.current_page = page
 
-    # Refresh button
     if st.sidebar.button("Refresh Data"):
         st.cache_data.clear()
-        st.success("Cache cleared – reload page if needed")
+        st.success("Cache cleared")
         st.rerun()
 
-    # Page routing
+    # ───── PAGE ROUTING ─────
     if page == "Inventory Dashboard":
         if st.session_state.role not in ["Admin", "Management"]:
             st.error("Access denied")
@@ -215,16 +222,15 @@ def main():
 
     elif page == "User Management":
         show_user_management()
+        log_activity(supabase, st.session_state.username, "Accessed User Management")
 
     elif page == "Log Report":
         show_log_report(supabase)
 
     # Footer
-    st.sidebar.write(f"**Logged in as:** {st.session_state.username} ({st.session_state.role})")
+    st.sidebar.markdown(f"**Logged in as:** {st.session_state.username} ({st.session_state.role})")
     if st.sidebar.button("Log Out"):
         log_activity(supabase, st.session_state.username, "Logged out")
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
         st.session_state.clear()
         st.rerun()
 
