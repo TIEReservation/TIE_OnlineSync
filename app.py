@@ -237,7 +237,7 @@ def show_user_management():
                         mod_password = st.text_input("New Password (leave blank to keep current)", type="password", key="modify_password")
                         
                         current_role = user_to_modify.get("role", "ReservationTeam")
-                        mod_role = st.selectbox("Role", ["Management", "ReservationTeam"], 
+                        mod_role = st.selectbox("Role", ["Management", "ReservationTeam", "ReservationHead"], 
                                               index=0 if current_role == "Management" else 1, 
                                               key="modify_role")
                         
