@@ -175,10 +175,11 @@ def show_user_management():
         new_role = st.selectbox("Role", ["Management", "ReservationTeam"], key="create_role")
         
         all_properties = [
-            "Le Poshe Beach view", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite",
+            "Le Poshe Beachview", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite",
             "La Paradise Residency", "La Paradise Luxury", "La Villa Heritage", "Le Pondy Beach Side",
-            "Le Royce Villa", "La Tamara Luxury", "Eden Beach Resort", "Le Poshe Beach", "La Millionaire",
-            "Le Poshe Deluxe", "La Paradise"
+            "Le Royce Villa", "La Tamara Luxury", "La Antilia Luxury", "La Tamara Suite",
+            "Le Park Resort", "Villa Shakti", "Eden Beach Resort", "La Coromandel Luxury",
+            "Le Terra", "Happymates Forest Retreat"
         ]
         new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties, key="create_properties")
         
@@ -234,10 +235,11 @@ def show_user_management():
                                               key="modify_role")
                         
                         all_properties = [
-                            "Le Poshe Beach view", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite",
+                            "Le Poshe Beachview", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite",
                             "La Paradise Residency", "La Paradise Luxury", "La Villa Heritage", "Le Pondy Beach Side",
-                            "Le Royce Villa", "La Tamara Luxury", "Eden Beach Resort", "Le Poshe Beach", "La Millionaire",
-                            "Le Poshe Deluxe", "La Paradise"
+                            "Le Royce Villa", "La Tamara Luxury", "La Antilia Luxury", "La Tamara Suite",
+                            "Le Park Resort", "Villa Shakti", "Eden Beach Resort", "La Coromandel Luxury",
+                            "Le Terra", "Happymates Forest Retreat"
                         ]
                         current_properties = user_to_modify.get("properties", [])
                         default_properties = [prop for prop in current_properties if prop in all_properties]
@@ -294,7 +296,7 @@ def show_user_management():
                     if success:
                         log_activity(supabase, st.session_state.username, f"Deleted user {delete_username}")
                         st.rerun()
-
+                        
 def load_property_room_map():
     return {
         "Le Poshe Beach view": {
