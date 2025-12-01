@@ -1,124 +1,232 @@
+# app.py
 import streamlit as st
-from supabase import Client
-import bcrypt
+import os
+from supabase import create_client, Client
 
-def hash_password(password: str) -> str:
-    """Hash a password using bcrypt."""
-    try:
-        return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    except Exception as e:
-        st.error(f"Error hashing password: {e}")
-        return None
+# === Fixed imports from users.py ===
+from users import (
+    load_users,
+    create_user,
+    validate_user,
+    load_properties
+)
 
-def verify_password(password: str, hashed: str) -> bool:
-    """Verify a password against its hash."""
-    try:
-        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
-    except Exception as e:
-        st.error(f"Error verifying password: {e}")
-        return False
+# === Page modules ===
+from directreservation import (
+    show_new_reservation_form,
+    show_reservations,
+    show_edit_reservations,
+    show_analytics,
+    load_reservations_from_supabase
+)
+from online_reservation import show_online_reservations, load_online_reservations_from_supabase
+from inventory import show_daily_status
+from dms import show_dms
+from monthlyconsolidation import show_monthly_consolidation
+from dashboard import show_dashboard
+from summary_report import show_summary_report
+from log import show_log_report, log_activity
 
-def validate_user(supabase: Client, username: str, password: str) -> dict:
-    """Validate user by username and password, return user data if valid."""
-    try:
-        response = supabase.table("users").select("*").eq("username", username).execute()
-        if not response.data:
-            st.error(f"Debug: No user found with username '{username}'")
-            return None
-        if not response.data[0]["password"]:
-            st.error(f"Debug: User '{username}' has no password set")
-            return None
-        if verify_password(password, response.data[0]["password"]):
-            user = response.data[0]
-            return {
-                "username": user["username"],
-                "role": user["role"],
-                "properties": user["properties"] or [],
-                "screens": user["screens"] or []
-            }
-        else:
-            st.error(f"Debug: Password verification failed for username '{username}'")
-            return None
-    except Exception as e:
-        st.error(f"Error validating user '{username}': {e}")
-        return None
+# Optional online edit module
+try:
+    from editOnline import show_edit_online_reservations
+    edit_online_available = True
+except ImportError:
+    st.warning("'Edit Online Reservations' page disabled (editOnline.py not found).")
+    show_edit_online_reservations = None
+    edit_online_available = False
 
-def create_user(supabase: Client, username: str, password: str, role: str, properties: list, screens: list) -> bool:
-    """Create a new user in Supabase with hashed password."""
-    try:
-        hashed_password = hash_password(password)
-        if not hashed_password:
-            return False
-        user_data = {
-            "username": username,
-            "password": hashed_password,
-            "role": role,
-            "properties": properties,
-            "screens": screens
-        }
-        response = supabase.table("users").insert(user_data).execute()
-        if response.data:
-            st.write(f"Debug: Successfully created user '{username}'")
-            return True
-        else:
-            st.error(f"Debug: Failed to create user '{username}' - no data returned")
-            return False
-    except Exception as e:
-        st.error(f"Error creating user '{username}': {e}")
-        return False
+# ================================
+# Page Config & Supabase Setup
+# ================================
+st.set_page_config(
+    page_title="TIE Reservations",
+    page_icon="https://github.com/TIEReservation/TIEReservation-System/raw/main/TIE_Logo_Icon.png",
+    layout="wide"
+)
+st.image("https://github.com/TIEReservation/TIEReservation-System/raw/main/TIE_Logo_Icon.png", width=100)
 
-def update_user(supabase: Client, username: str, password: str = None, role: str = None, properties: list = None, screens: list = None) -> bool:
-    """Update an existing user in Supabase."""
-    try:
-        update_data = {}
-        if password:
-            hashed_password = hash_password(password)
-            if not hashed_password:
-                return False
-            update_data["password"] = hashed_password
-        if role:
-            update_data["role"] = role
-        if properties is not None:
-            update_data["properties"] = properties
-        if screens is not None:
-            update_data["screens"] = screens
-        if update_data:
-            response = supabase.table("users").update(update_data).eq("username", username).execute()
-            if response.data:
-                st.write(f"Debug: Successfully updated user '{username}'")
-                return True
+# Supabase client
+supabase: Client = create_client(
+    "https://oxbrezracnmazucnnqox.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94YnJlenJhY25tYXp1Y25ucW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjUxMTgsImV4cCI6MjA2OTM0MTExOH0.nqBK2ZxntesLY9qYClpoFPVnXOW10KrzF-UI_DKjbKo"
+)
+
+# ================================
+# Authentication
+# ================================
+def check_authentication():
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+        st.session_state.username = None
+        st.session_state.role = None
+        st.session_state.current_page = "Direct Reservations"
+
+    if not st.session_state.authenticated:
+        st.title("TIE Reservations – Login")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+
+        if st.button("Login"):
+            # === Hardcoded fallback accounts (for emergency / demo) ===
+            if username == "Admin" and password == "Admin2024":
+                st.session_state.authenticated = True
+                st.session_state.username = "Admin"
+                st.session_state.role = "Admin"
+                st.session_state.current_page = "User Management"
+                st.rerun()
+
+            elif username == "Management" and password == "TIE2024":
+                st.session_state.authenticated = True
+                st.session_state.username = "Management"
+                st.session_state.role = "Management"
+                st.session_state.current_page = "Inventory Dashboard"
+                st.rerun()
+
+            elif username == "ReservationTeam" and password == "TIE123":
+                st.session_state.authenticated = True
+                st.session_state.username = "ReservationTeam"
+                st.session_state.role = "ReservationTeam"
+                st.session_state.current_page = "Direct Reservations"
+                st.rerun()
+
+            # === Real Supabase users (hashed passwords) ===
+            user_data = validate_user(supabase, username, password)
+            if user_data:
+                st.session_state.authenticated = True
+                st.session_state.username = username
+                st.session_state.role = user_data["role"]
+                st.session_state.current_page = "User Management" if user_data["role"] == "Admin" else "Inventory Dashboard" if user_data["role"] == "Management" else "Direct Reservations"
+                st.success(f"Welcome, {username}!")
+                st.rerun()
             else:
-                st.error(f"Debug: Failed to update user '{username}' - no data returned")
-                return False
-        return False
-    except Exception as e:
-        st.error(f"Error updating user '{username}': {e}")
-        return False
+                st.error("Invalid username or password")
+        st.stop()
 
-def delete_user(supabase: Client, username: str) -> bool:
-    """Delete a user from Supabase."""
-    try:
-        response = supabase.table("users").delete().eq("username", username).execute()
-        if response.data:
-            st.write(f"Debug: Successfully deleted user '{username}'")
-            return True
-        else:
-            st.error(f"Debug: Failed to delete user '{username}' - no data returned")
-            return False
-    except Exception as e:
-        st.error(f"Error deleting user '{username}': {e}")
-        return False
+# ================================
+# User Management Page (Admin only)
+# ================================
+def show_user_management():
+    if st.session_state.role != "Admin":
+        st.error("Access Denied – Admin only")
+        return
 
-def load_users(supabase: Client) -> list:
-    """Load all users from Supabase."""
-    try:
-        response = supabase.table("users").select("*").execute()
-        if response.data:
-            st.write(f"Debug: Loaded {len(response.data)} users from Supabase")
-            return response.data
+    st.title("User Management")
+
+    users = load_users(supabase)
+    if users:
+        df = pd.DataFrame(users)[["username", "role", "properties", "screens"]]
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.info("No users in database yet.")
+
+    st.subheader("Create New User")
+    col1, col2 = st.columns(2)
+    with col1:
+        new_username = st.text_input("Username")
+        new_password = st.text_input("Password", type="password")
+        new_role = st.selectbox("Role", ["ReservationTeam", "Management", "Admin"])
+    with col2:
+        new_properties = st.multiselect("Allowed Properties", load_properties(), default=load_properties())
+        new_screens = st.multiselect("Allowed Screens", [
+            "Inventory Dashboard", "Direct Reservations", "View Reservations",
+            "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations",
+            "Daily Status", "Daily Management Status", "Analytics",
+            "Monthly Consolidation", "Summary Report"
+        ])
+
+    if st.button("Create User"):
+        if not new_username or not new_password:
+            st.error("Username and password are required")
+        elif create_user(supabase, new_username, new_password, new_role, new_properties, new_screens):
+            st.rerun()
+
+# ================================
+# Main App
+# ================================
+def main():
+    check_authentication()
+
+    # Navigation options based on role
+    pages = [
+        "Inventory Dashboard", "Direct Reservations", "View Reservations",
+        "Edit Direct Reservation", "Online Reservations", "Daily Status",
+        "Daily Management Status", "Analytics", "Monthly Consolidation",
+        "Summary Report"
+    ]
+    if edit_online_available:
+        pages.insert(5, "Edit Online Reservations")
+    if st.session_state.role == "Admin":
+        pages += ["User Management", "Log Report"]
+
+    # Sidebar navigation
+    default_idx = pages.index(st.session_state.current_page) if st.session_state.current_page in pages else 0
+    page = st.sidebar.selectbox("Navigate", pages, index=default_idx)
+    st.session_state.current_page = page
+
+    # Refresh button
+    if st.sidebar.button("Refresh Data"):
+        st.cache_data.clear()
+        st.success("Cache cleared – reload page if needed")
+        st.rerun()
+
+    # Page routing
+    if page == "Inventory Dashboard":
+        if st.session_state.role not in ["Admin", "Management"]:
+            st.error("Access denied")
         else:
-            st.info("Debug: No users found in Supabase")
-            return []
-    except Exception as e:
-        st.error(f"Error loading users: {e}")
-        return []
+            show_dashboard()
+
+    elif page == "Direct Reservations":
+        show_new_reservation_form()
+
+    elif page == "View Reservations":
+        show_reservations()
+
+    elif page == "Edit Direct Reservation":
+        show_edit_reservations()
+
+    elif page == "Online Reservations":
+        show_online_reservations()
+
+    elif page == "Edit Online Reservations" and edit_online_available:
+        show_edit_online_reservations(st.session_state.get("selected_booking_id"))
+
+    elif page == "Daily Status":
+        show_daily_status()
+
+    elif page == "Daily Management Status":
+        show_dms()
+
+    elif page == "Analytics":
+        if st.session_state.role not in ["Admin", "Management"]:
+            st.error("Access denied")
+        else:
+            show_analytics()
+
+    elif page == "Monthly Consolidation":
+        show_monthly_consolidation()
+
+    elif page == "Summary Report":
+        if st.session_state.role not in ["Admin", "Management"]:
+            st.error("Access denied")
+        else:
+            show_summary_report()
+
+    elif page == "User Management":
+        show_user_management()
+
+    elif page == "Log Report":
+        show_log_report(supabase)
+
+    # Footer
+    st.sidebar.write(f"**Logged in as:** {st.session_state.username} ({st.session_state.role})")
+    if st.sidebar.button("Log Out"):
+        log_activity(supabase, st.session_state.username, "Logged out")
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.session_state.clear()
+        st.rerun()
+
+if __name__ == "__main__":
+    main()
