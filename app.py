@@ -291,12 +291,19 @@ def show_user_management():
                 modify_properties = st.multiselect("Properties", load_properties(), 
                                                   default=current_user.get("properties", []), 
                                                   key="modify_properties")
-                modify_screens = st.multiselect("Screens", 
-                                               ["Inventory Dashboard", "Direct Reservations", "View Reservations", 
-                                                "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", 
-                                                "Daily Status", "Daily Management Status", "Analytics", 
-                                                "Monthly Consolidation", "Summary Report"],
-                                               default=current_user.get("screens", []),
+                
+                # Available screens for non-admin users
+                available_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", 
+                                    "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", 
+                                    "Daily Status", "Daily Management Status", "Analytics", 
+                                    "Monthly Consolidation", "Summary Report"]
+                
+                # Filter current user's screens to only include available screens (exclude admin-only screens)
+                current_screens = current_user.get("screens", [])
+                filtered_screens = [s for s in current_screens if s in available_screens]
+                
+                modify_screens = st.multiselect("Screens", available_screens,
+                                               default=filtered_screens,
                                                key="modify_screens")
                 
                 if st.button("Update User", key="btn_modify"):
