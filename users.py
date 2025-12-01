@@ -34,7 +34,8 @@ def validate_user(supabase: Client, username: str, password: str) -> dict:
                 "username": user["username"],
                 "role": user["role"],
                 "properties": user["properties"] or [],
-                "screens": user["screens"] or []
+                "screens": user["screens"] or [],
+                "permissions": user.get("permissions", {"add": False, "edit": False, "delete": False})
             }
         else:
             st.error(f"Debug: Password verification failed for username '{username}'")
@@ -43,18 +44,24 @@ def validate_user(supabase: Client, username: str, password: str) -> dict:
         st.error(f"Error validating user '{username}': {e}")
         return None
 
-def create_user(supabase: Client, username: str, password: str, role: str, properties: list, screens: list) -> bool:
+def create_user(supabase: Client, username: str, password: str, role: str, properties: list, screens: list, permissions: dict = None) -> bool:
     """Create a new user in Supabase with hashed password."""
     try:
         hashed_password = hash_password(password)
         if not hashed_password:
             return False
+        
+        # Default permissions if not provided
+        if permissions is None:
+            permissions = {"add": False, "edit": False, "delete": False}
+        
         user_data = {
             "username": username,
             "password": hashed_password,
             "role": role,
             "properties": properties,
-            "screens": screens
+            "screens": screens,
+            "permissions": permissions
         }
         response = supabase.table("users").insert(user_data).execute()
         if response.data:
@@ -67,7 +74,7 @@ def create_user(supabase: Client, username: str, password: str, role: str, prope
         st.error(f"Error creating user '{username}': {e}")
         return False
 
-def update_user(supabase: Client, username: str, password: str = None, role: str = None, properties: list = None, screens: list = None) -> bool:
+def update_user(supabase: Client, username: str, password: str = None, role: str = None, properties: list = None, screens: list = None, permissions: dict = None) -> bool:
     """Update an existing user in Supabase."""
     try:
         update_data = {}
@@ -82,6 +89,9 @@ def update_user(supabase: Client, username: str, password: str = None, role: str
             update_data["properties"] = properties
         if screens is not None:
             update_data["screens"] = screens
+        if permissions is not None:
+            update_data["permissions"] = permissions
+        
         if update_data:
             response = supabase.table("users").update(update_data).eq("username", username).execute()
             if response.data:
