@@ -133,35 +133,72 @@ def filter_bookings_for_day(bookings: List[Dict], target: date) -> List[Dict]:
 
 def assign_inventory_numbers(daily: List[Dict], prop: str):
     """
+    FIXED: Now properly validates rooms against property inventory.
     Splits comma-separated room_no and creates separate entries per room.
-    Matches inventory.py logic exactly.
+    Returns (assigned, overbookings) - matching inventory.py logic exactly.
     """
+    # Get property inventory
+    PROPERTY_INVENTORY = {
+        "Le Poshe Beach view": {"all": ["101","102","201","202","203","204","301","302","303","304","Day Use 1","Day Use 2","No Show"]},
+        "La Millionaire Resort": {"all": ["101","102","103","105","201","202","203","204","205","206","207","208","301","302","303","304","305","306","307","308","401","402","Day Use 1","Day Use 2","Day Use 3","Day Use 4","Day Use 5","No Show"]},
+        "Le Poshe Luxury": {"all": ["101","102","201","202","203","204","205","301","302","303","304","305","401","402","403","404","405","501","Day Use 1","Day Use 2","No Show"]},
+        "Le Poshe Suite": {"all": ["601","602","603","604","701","702","703","704","801","Day Use 1","Day Use 2","No Show"]},
+        "La Paradise Residency": {"all": ["101","102","103","201","202","203","301","302","303","304","Day Use 1","Day Use 2","No Show"]},
+        "La Paradise Luxury": {"all": ["101","102","103","201","202","203","Day Use 1","Day Use 2","No Show"]},
+        "La Villa Heritage": {"all": ["101","102","103","201","202","203","301","Day Use 1","Day Use 2","No Show"]},
+        "Le Pondy Beachside": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"]},
+        "Le Royce Villa": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"]},
+        "La Tamara Luxury": {"all": ["101","102","103","104","105","106","201","202","203","204","205","206","301","302","303","304","305","306","401","402","403","404","Day Use 1","Day Use 2","No Show"]},
+        "La Antilia Luxury": {"all": ["101","201","202","202","203","204","301","302","303","304","401","Day Use 1","Day Use 2","No Show"]},
+        "La Tamara Suite": {"all": ["101","102","103","104","201","202","203","204","205","206","Day Use 1","Day Use 2","No Show"]},
+        "Le Park Resort": {"all": ["111","222","333","444","555","666","Day Use 1","Day Use 2","No Show"]},
+        "Villa Shakti": {"all": ["101","102","201","201A","202","203","301","301A","302","303","401","Day Use 1","Day Use 2","No Show"]},
+        "Eden Beach Resort": {"all": ["101","102","103","201","202","Day Use 1","Day Use 2","No Show"]},
+        "Le Terra": {"all": ["101","102","103","104","105","106","107","Day Use 1","Day Use 2","No Show"]},
+        "La Coromandel Luxury": {"all": ["101","102","103","201","202","203","204","205","206","301","Day Use 1","Day Use 2","No Show"]},
+        "Happymates Forest Retreat": {"all": ["101","102","Day Use 1","Day Use 2","No Show"]}
+    }
+    
+    inv = PROPERTY_INVENTORY.get(prop, {"all": []})["all"]
+    inv_lookup = {i.strip().lower(): i for i in inv}
+    
     assigned = []
+    over = []
     
     for b in daily:
         raw_room = str(b.get("room_no") or "").strip()
         if not raw_room:
-            # Fallback: treat as 1 room
-            new_b = b.copy()
-            new_b["assigned_room"] = "1"
-            new_b["is_primary"] = True
-            assigned.append(new_b)
+            # No room number = overbooking
+            over.append(b)
             continue
         
         # Split comma-separated rooms
-        rooms = [r.strip() for r in raw_room.split(",") if r.strip()]
-        if not rooms:
-            rooms = ["1"]
+        requested = [r.strip() for r in raw_room.split(",") if r.strip()]
+        assigned_rooms = []
         
-        # Create separate entry for each room
-        for idx, room in enumerate(rooms):
+        # Validate each requested room against inventory
+        for r in requested:
+            key = r.lower()
+            if key in inv_lookup:
+                assigned_rooms.append(inv_lookup[key])
+            else:
+                # Invalid room = overbooking
+                over.append(b)
+                assigned_rooms = []
+                break
+        
+        if not assigned_rooms:
+            continue
+        
+        # Create separate entry for each valid room
+        for idx, room in enumerate(assigned_rooms):
             new_b = b.copy()
             new_b["assigned_room"] = room
             new_b["room_no"] = room
             new_b["is_primary"] = (idx == 0)
             assigned.append(new_b)
     
-    return assigned, []
+    return assigned, over
 
 
 def safe_float(value, default=0.0):
@@ -175,18 +212,18 @@ def safe_float(value, default=0.0):
 def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     """
     FIXED: Calculates metrics matching Daily Status exactly.
-    - Rooms sold = count of occupied inventory slots on that day
+    - Rooms sold = count of VALID occupied inventory slots (excludes overbookings)
     - Financials only counted on check-in day for primary bookings
     """
     daily = filter_bookings_for_day(bookings, day)
-    assigned, _ = assign_inventory_numbers(daily, prop)
+    assigned, over = assign_inventory_numbers(daily, prop)  # Now using 'over' list
 
-    # Rooms sold = count of assigned inventory entries
+    # FIXED: Rooms sold = count of VALID assigned entries ONLY (excludes overbookings)
     rooms_sold = len(assigned)
 
     # Financial metrics: ONLY for bookings checking in today (primary only)
     check_in_primaries = [
-        b for b in assigned
+        b for b in assigned  # Only from valid assigned bookings
         if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day
     ]
 
