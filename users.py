@@ -25,10 +25,10 @@ def validate_user(supabase: Client, username: str, password: str) -> dict:
         if not response.data:
             st.error(f"Debug: No user found with username '{username}'")
             return None
-        if not response.data[0]["password"]:
+        if not response.data[0]["password_hash"]:
             st.error(f"Debug: User '{username}' has no password set")
             return None
-        if verify_password(password, response.data[0]["password"]):
+        if verify_password(password, response.data[0]["password_hash"]):
             user = response.data[0]
             return {
                 "username": user["username"],
@@ -57,7 +57,7 @@ def create_user(supabase: Client, username: str, password: str, role: str, prope
         
         user_data = {
             "username": username,
-            "password": hashed_password,
+            "password_hash": hashed_password,  # Changed from "password" to "password_hash"
             "role": role,
             "properties": properties,
             "screens": screens,
@@ -82,7 +82,7 @@ def update_user(supabase: Client, username: str, password: str = None, role: str
             hashed_password = hash_password(password)
             if not hashed_password:
                 return False
-            update_data["password"] = hashed_password
+            update_data["password_hash"] = hashed_password  # Changed from "password" to "password_hash"
         if role:
             update_data["role"] = role
         if properties is not None:
