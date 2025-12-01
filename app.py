@@ -180,8 +180,14 @@ def load_properties():
         "Le Pondy Beachside",
         "Le Poshe Beachview",
         "Le Park Resort",
-        "Le Teera Resort",
-        "La Tamara Suite"
+        "Le Terra Resort",
+        "La Tamara Suite",
+        "La Antilia Luxury",
+        "La Tamara Luxury",
+        "Le Royce Villa",
+        "La Millionaire Resort",
+        "Le Poshe Suite",
+        "La Coromandel Luxury"
     ]
     
     try:
