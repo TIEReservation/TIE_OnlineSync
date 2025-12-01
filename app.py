@@ -15,9 +15,9 @@ from dms import show_dms
 from monthlyconsolidation import show_monthly_consolidation
 from dashboard import show_dashboard
 import pandas as pd
-from users import load_users, create_user, validate_user
 from log import show_log_report, log_activity
 from summary_report import show_summary_report
+from users import load_users, create_user, validate_user
 
 # Page config
 st.set_page_config(
@@ -37,6 +37,11 @@ try:
 except Exception as e:
     st.error(f"Failed to initialize Supabase client: {e}")
     st.stop()
+
+def load_properties():
+    """Load available properties - placeholder function."""
+    # Replace this with actual property loading logic from your database
+    return ["Property A", "Property B", "Property C", "Property D"]
 
 def check_authentication():
     if 'authenticated' not in st.session_state:
@@ -79,9 +84,9 @@ def check_authentication():
                 st.session_state.permissions = {"add": True, "edit": False, "delete": False}
             else:
                 try:
-                    users = supabase.table("users").select("*").eq("username", username).eq("password_hash", password).execute().data
-                    if users and len(users) == 1:
-                        user_data = users[0]
+                    # Use the validate_user function from users.py
+                    user_data = validate_user(supabase, username, password)
+                    if user_data:
                         st.session_state.authenticated = True
                         st.session_state.username = username
                         st.session_state.role = user_data["role"]
