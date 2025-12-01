@@ -107,6 +107,48 @@ def create_user(supabase: Client, username: str, password: str, role: str, prope
         st.error(f"Error creating user '{username}': {e}")
         return False
 
+def update_user(supabase: Client, username: str, password: str = None, role: str = None, properties: list = None, screens: list = None) -> bool:
+    """Update an existing user in Supabase."""
+    try:
+        update_data = {}
+        if password:
+            hashed_password = hash_password(password)
+            if not hashed_password:
+                return False
+            update_data["password"] = hashed_password
+        if role:
+            update_data["role"] = role
+        if properties is not None:
+            update_data["properties"] = properties
+        if screens is not None:
+            update_data["screens"] = screens
+        if update_data:
+            response = supabase.table("users").update(update_data).eq("username", username).execute()
+            if response.data:
+                st.write(f"Debug: Successfully updated user '{username}'")
+                return True
+            else:
+                st.error(f"Debug: Failed to update user '{username}' - no data returned")
+                return False
+        return False
+    except Exception as e:
+        st.error(f"Error updating user '{username}': {e}")
+        return False
+
+def delete_user(supabase: Client, username: str) -> bool:
+    """Delete a user from Supabase."""
+    try:
+        response = supabase.table("users").delete().eq("username", username).execute()
+        if response.data:
+            st.write(f"Debug: Successfully deleted user '{username}'")
+            return True
+        else:
+            st.error(f"Debug: Failed to delete user '{username}' - no data returned")
+            return False
+    except Exception as e:
+        st.error(f"Error deleting user '{username}': {e}")
+        return False
+
 def load_users(supabase: Client) -> list:
     """Load all users from Supabase."""
     try:
@@ -200,24 +242,93 @@ def show_user_management():
         return
 
     st.title("👥 User Management")
+    
+    # Load and display users
     users = load_users(supabase)
     if not users:
         st.info("No users found.")
-        return
+    else:
+        df = pd.DataFrame(users)
+        st.dataframe(df[["username", "role", "properties", "screens"]], use_container_width=True)
 
-    df = pd.DataFrame(users)
-    st.dataframe(df[["username", "role", "properties", "screens"]], use_container_width=True)
-
-    st.subheader("Create New User")
-    new_username = st.text_input("New Username")
-    new_password = st.text_input("New Password", type="password")
-    new_role = st.selectbox("Role", ["ReservationTeam", "Management"])
-    new_properties = st.multiselect("Properties", load_properties())
-    new_screens = st.multiselect("Screens", ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"])
-    if st.button("Create User"):
-        if create_user(supabase, new_username, new_password, new_role, new_properties, new_screens):
-            st.success(f"User {new_username} created successfully!")
-            st.rerun()
+    # Create tabs for different operations
+    tab1, tab2, tab3 = st.tabs(["➕ Create User", "✏️ Modify User", "🗑️ Delete User"])
+    
+    # TAB 1: CREATE NEW USER
+    with tab1:
+        st.subheader("Create New User")
+        new_username = st.text_input("New Username", key="create_username")
+        new_password = st.text_input("New Password", type="password", key="create_password")
+        new_role = st.selectbox("Role", ["ReservationTeam", "Management"], key="create_role")
+        new_properties = st.multiselect("Properties", load_properties(), key="create_properties")
+        new_screens = st.multiselect("Screens", ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"], key="create_screens")
+        
+        if st.button("Create User", key="btn_create"):
+            if not new_username or not new_password:
+                st.error("Username and password are required!")
+            elif create_user(supabase, new_username, new_password, new_role, new_properties, new_screens):
+                st.success(f"User '{new_username}' created successfully!")
+                log_activity(supabase, st.session_state.username, f"Created user: {new_username}")
+                st.rerun()
+    
+    # TAB 2: MODIFY USER
+    with tab2:
+        st.subheader("Modify Existing User")
+        if users:
+            usernames = [u["username"] for u in users]
+            selected_user = st.selectbox("Select User to Modify", usernames, key="modify_select")
+            
+            # Get current user data
+            current_user = next((u for u in users if u["username"] == selected_user), None)
+            
+            if current_user:
+                st.info(f"Current Role: {current_user['role']}")
+                
+                modify_password = st.text_input("New Password (leave empty to keep current)", type="password", key="modify_password")
+                modify_role = st.selectbox("Role", ["ReservationTeam", "Management"], 
+                                          index=0 if current_user["role"] == "ReservationTeam" else 1, 
+                                          key="modify_role")
+                modify_properties = st.multiselect("Properties", load_properties(), 
+                                                  default=current_user.get("properties", []), 
+                                                  key="modify_properties")
+                modify_screens = st.multiselect("Screens", 
+                                               ["Inventory Dashboard", "Direct Reservations", "View Reservations", 
+                                                "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", 
+                                                "Daily Status", "Daily Management Status", "Analytics", 
+                                                "Monthly Consolidation", "Summary Report"],
+                                               default=current_user.get("screens", []),
+                                               key="modify_screens")
+                
+                if st.button("Update User", key="btn_modify"):
+                    update_pwd = modify_password if modify_password else None
+                    if update_user(supabase, selected_user, update_pwd, modify_role, modify_properties, modify_screens):
+                        st.success(f"User '{selected_user}' updated successfully!")
+                        log_activity(supabase, st.session_state.username, f"Modified user: {selected_user}")
+                        st.rerun()
+        else:
+            st.info("No users available to modify.")
+    
+    # TAB 3: DELETE USER
+    with tab3:
+        st.subheader("Delete User")
+        st.warning("⚠️ This action cannot be undone!")
+        
+        if users:
+            usernames = [u["username"] for u in users]
+            delete_username = st.selectbox("Select User to Delete", usernames, key="delete_select")
+            
+            confirm_delete = st.text_input("Type username to confirm deletion", key="delete_confirm")
+            
+            if st.button("Delete User", key="btn_delete", type="primary"):
+                if confirm_delete == delete_username:
+                    if delete_user(supabase, delete_username):
+                        st.success(f"User '{delete_username}' deleted successfully!")
+                        log_activity(supabase, st.session_state.username, f"Deleted user: {delete_username}")
+                        st.rerun()
+                else:
+                    st.error("Username confirmation does not match. Deletion cancelled.")
+        else:
+            st.info("No users available to delete.")
 
 def main():
     check_authentication()
