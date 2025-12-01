@@ -67,21 +67,21 @@ def check_authentication():
                 st.session_state.current_page = "User Management"
                 st.session_state.permissions = {"add": True, "edit": True, "delete": True}
                 st.session_state.user_data = None
-            elif username == "Management" and password == "TIE2024":
+            elif username == "Management" and password == "Admin2024":
                 st.session_state.authenticated = True
                 st.session_state.username = "Management"
                 st.session_state.role = "Management"
                 st.session_state.current_page = "Inventory Dashboard"
                 st.session_state.permissions = {"add": True, "edit": True, "delete": False}
                 st.session_state.user_data = None
-            elif username == "ReservationTeam" and password == "TIE123":
+            elif username == "ReservationTeam" and password == "Admin2024":
                 st.session_state.authenticated = True
                 st.session_state.username = "ReservationTeam"
                 st.session_state.role = "ReservationTeam"
                 st.session_state.current_page = "Direct Reservations"
                 st.session_state.permissions = {"add": True, "edit": False, "delete": False}
                 st.session_state.user_data = None
-            elif username == "ReservationHead" and password == "TIE123":
+            elif username == "ReservationHead" and password == "Admin2024":
                 st.session_state.authenticated = True
                 st.session_state.username = "ReservationHead"
                 st.session_state.role = "ReservationHead"
