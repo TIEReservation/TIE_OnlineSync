@@ -151,7 +151,7 @@ def check_authentication():
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         if st.button("Login"):
-            if username == "Admin" and password == "Admin2024":
+            if username == "Admin" and password == "TIE2024":
                 st.session_state.authenticated = True
                 st.session_state.username = "Admin"
                 st.session_state.role = "Admin"
