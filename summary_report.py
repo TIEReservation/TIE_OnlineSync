@@ -159,9 +159,9 @@ def filter_bookings_for_day(bookings: List[Dict], target: date) -> List[Dict]:
 
 def assign_inventory_numbers(daily: List[Dict], prop: str):
     """
-    FIXED: Now properly validates rooms against property inventory.
+    FIXED: Now matches inventory.py EXACTLY - detects duplicate room bookings.
     Splits comma-separated room_no and creates separate entries per room.
-    Returns (assigned, overbookings) - matching inventory.py logic exactly.
+    Returns (assigned, overbookings).
     """
     # Get property inventory
     PROPERTY_INVENTORY = {
@@ -187,6 +187,7 @@ def assign_inventory_numbers(daily: List[Dict], prop: str):
     
     inv = PROPERTY_INVENTORY.get(prop, {"all": []})["all"]
     inv_lookup = {i.strip().lower(): i for i in inv}
+    already_assigned = set()  # ← CRITICAL FIX: Track assigned rooms to detect duplicates
     
     assigned = []
     over = []
@@ -194,27 +195,40 @@ def assign_inventory_numbers(daily: List[Dict], prop: str):
     for b in daily:
         raw_room = str(b.get("room_no") or "").strip()
         if not raw_room:
-            # No room number = overbooking
             over.append(b)
             continue
         
         # Split comma-separated rooms
         requested = [r.strip() for r in raw_room.split(",") if r.strip()]
         assigned_rooms = []
+        is_overbooking = False
         
-        # Validate each requested room against inventory
+        # Validate each requested room
         for r in requested:
             key = r.lower()
-            if key in inv_lookup:
-                assigned_rooms.append(inv_lookup[key])
-            else:
-                # Invalid room = overbooking
-                over.append(b)
-                assigned_rooms = []
+            
+            # Check if room exists in inventory
+            if key not in inv_lookup:
+                is_overbooking = True
                 break
+            
+            room_name = inv_lookup[key]
+            
+            # ← CRITICAL FIX: Check if room is already assigned (duplicate booking)
+            if room_name in already_assigned:
+                is_overbooking = True
+                break
+            
+            assigned_rooms.append(room_name)
         
-        if not assigned_rooms:
+        # If any issue found, mark as overbooking
+        if is_overbooking or not assigned_rooms:
+            over.append(b)
             continue
+        
+        # ← CRITICAL FIX: Mark rooms as assigned
+        for room in assigned_rooms:
+            already_assigned.add(room)
         
         # Create separate entry for each valid room
         for idx, room in enumerate(assigned_rooms):
