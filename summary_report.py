@@ -263,31 +263,41 @@ def build_report(props: List[str], dates: List[date], bookings: Dict[str, List[D
 # -------------------------- Styling: Red Zeros + Green Weekends --------------------------
 def style_dataframe_with_highlights(df: pd.DataFrame) -> str:
     def is_zero(val):
+        if pd.isna(val):
+            return False
         try:
-            return abs(float(str(val).replace(",", "").replace(" ", ""))) < 0.01
+            return abs(float(str(val).replace(",", ""))) < 0.01
         except:
             return False
 
-    styles = pd.DataFrame("", index=df.index, columns=df.columns)
-
-    # Light green background for Saturday & Sunday
-    for idx in df.index:
-        if df.loc[idx, "Date"] != "Total":
+    # Highlight weekends and red zeros
+    def style_row(row):
+        attrs = []
+        if row["Date"] != "Total":
             try:
-                d = pd.to_datetime(df.loc[idx, "Date"]).date()
-                if d.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
-                    styles.loc[idx, :] = "background-color: #d4edda;"
+                d = pd.to_datetime(row["Date"]).date()
+                if d.weekday() >= 5:  # Sat or Sun
+                    attrs.append("background-color: #d4edda")  # Light green
             except:
                 pass
-
-    # Red bold text for zero values
-    for col in df.columns:
-        if col != "Date":
-            styles[col] = df[col].apply(lambda x: "color: red; font-weight: bold;" if is_zero(x) else "")
+        
+        # Red bold for zero values (except Date column)
+        cell_styles = []
+        for col, val in row.items():
+            if col != "Date" and is_zero(val):
+                cell_styles.append("color: red; font-weight: bold")
+            else:
+                cell_styles.append("")
+        # First attr is row-level (background), rest are per-cell
+        if attrs:
+            return [("; ".join(attrs)) if i == 0 else cell_styles[i-1] for i in range(len(row))]
+        else:
+            return [""] + cell_styles[1:]
 
     numeric_cols = [c for c in df.columns if c != "Date"]
+
     return (df.style
-            .apply(lambda _: styles, axis=None)
+            .apply(style_row, axis=1)
             .format({c: "{:,.0f}" for c in numeric_cols})
             .set_table_styles([
                 {"selector": "th", "props": "font-weight: bold; text-align: center; background-color: #f8f9fa;"},
