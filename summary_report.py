@@ -270,34 +270,35 @@ def style_dataframe_with_highlights(df: pd.DataFrame) -> str:
         except:
             return False
 
-    # Highlight weekends and red zeros
-    def style_row(row):
-        attrs = []
+    def highlight_row(row):
+        # Default style for all cells in the row
+        styles = [""] * len(row)
+        
+        # Check if it's a weekend (Sat=5, Sun=6)
         if row["Date"] != "Total":
             try:
                 d = pd.to_datetime(row["Date"]).date()
-                if d.weekday() >= 5:  # Sat or Sun
-                    attrs.append("background-color: #d4edda")  # Light green
+                if d.weekday() >= 5:  # Saturday or Sunday
+                    # Apply light green background to ALL cells in this row
+                    styles = ["background-color: #d4edda"] * len(row)
             except:
                 pass
-        
-        # Red bold for zero values (except Date column)
-        cell_styles = []
-        for col, val in row.items():
+
+        # Now overlay red bold text for zero values (except Date column)
+        for i, (col, val) in enumerate(row.items()):
             if col != "Date" and is_zero(val):
-                cell_styles.append("color: red; font-weight: bold")
-            else:
-                cell_styles.append("")
-        # First attr is row-level (background), rest are per-cell
-        if attrs:
-            return [("; ".join(attrs)) if i == 0 else cell_styles[i-1] for i in range(len(row))]
-        else:
-            return [""] + cell_styles[1:]
+                # Combine with existing background (important!)
+                if styles[i]:
+                    styles[i] += "; color: red; font-weight: bold"
+                else:
+                    styles[i] = "color: red; font-weight: bold"
+
+        return styles
 
     numeric_cols = [c for c in df.columns if c != "Date"]
 
     return (df.style
-            .apply(style_row, axis=1)
+            .apply(highlight_row, axis=1)        # This applies full-row + per-cell styles
             .format({c: "{:,.0f}" for c in numeric_cols})
             .set_table_styles([
                 {"selector": "th", "props": "font-weight: bold; text-align: center; background-color: #f8f9fa;"},
