@@ -6,7 +6,7 @@ from datetime import date, timedelta
 import calendar
 import pandas as pd
 from supabase import create_client, Client
-from typing import List, Dict, Optional
+from typing import List, Dict
 import os
 
 # -------------------------- Supabase --------------------------
@@ -64,87 +64,10 @@ reverse_mapping = {c: [] for c in set(PROPERTY_MAPPING.values())}
 for v, c in PROPERTY_MAPPING.items():
     reverse_mapping[c].append(v)
 
-def normalize_property(name: str) -> str:
-    return PROPERTY_MAPPING.get(name.strip(), name.strip())
-
-def sanitize_string(v, default: str = "") -> str:
-    return str(v).strip() if v is not None else default
-
-def safe_int(v, default: int = 0) -> int:
-    try:
-        return int(float(v)) if v not in [None, "", " "] else default
-    except:
-        return default
-
-def safe_float(v, default: float = 0.0) -> float:
-    try:
-        return float(v) if v not in [None, "", " "] else default
-    except:
-        return default
-
-def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
-    try:
-        bid = sanitize_string(row.get("booking_id") or row.get("id"))
-        status_field = "booking_status" if is_online else "plan_status"
-        status = sanitize_string(row.get(status_field, "")).title()
-        if status not in ["Confirmed", "Completed"]: return None
-        pay = sanitize_string(row.get("payment_status")).title()
-        if pay not in ["Fully Paid", "Partially Paid"]: return None
-        ci = date.fromisoformat(row["check_in"])
-        co = date.fromisoformat(row["check_out"])
-        if co <= ci: return None
-        days_field = "room_nights" if is_online else "no_of_days"
-        days = safe_int(row.get(days_field)) or (co - ci).days
-        if days <= 0: days = 1
-        p = normalize_property(row.get("property_name") if not is_online else row.get("property"))
-
-        # Raw values
-        if is_online:
-            total_amount = safe_float(row.get("booking_amount")) or 0.0
-            gst = safe_float(row.get("ota_tax")) or 0.0
-            commission = safe_float(row.get("ota_commission")) or 0.0
-            room_charges = total_amount - gst
-        else:
-            total_amount = safe_float(row.get("total_tariff")) or 0.0
-            gst = 0.0
-            commission = 0.0
-            room_charges = total_amount
-
-        # CORRECT: Hotel actually receives this
-        receivable = total_amount - gst - commission
-        if receivable < 0: receivable = 0.0
-
-        return {
-            "type": "online" if is_online else "direct",
-            "property": p,
-            "booking_id": bid,
-            "guest_name": sanitize_string(row.get("guest_name")),
-            "mobile_no": sanitize_string(row.get("guest_phone") if is_online else row.get("mobile_no")),
-            "total_pax": safe_int(row.get("total_pax")),
-            "check_in": str(ci),
-            "check_out": str(co),
-            "days": days,
-            "room_no": sanitize_string(row.get("room_no")).title(),
-            "mob": sanitize_string(row.get("mode_of_booking") if is_online else row.get("mob")),
-            "plan": sanitize_string(row.get("rate_plans") if is_online else row.get("breakfast")),
-            "room_charges": room_charges,
-            "gst": gst,
-            "total_amount": total_amount,
-            "commission": commission,
-            "receivable": receivable,
-            "advance": safe_float(row.get("total_payment_made") if is_online else row.get("advance_amount")),
-            "advance_mop": sanitize_string(row.get("advance_mop")),
-            "balance": safe_float(row.get("balance_due") if is_online else row.get("balance_amount")),
-            "balance_mop": sanitize_string(row.get("balance_mop")),
-            "booking_status": status,
-            "payment_status": pay,
-            "submitted_by": sanitize_string(row.get("submitted_by")),
-            "modified_by": sanitize_string(row.get("modified_by")),
-            "remarks": sanitize_string(row.get("remarks")),
-        }
-    except Exception as e:
-        st.warning(f"normalize failed ({row.get('booking_id')}): {e}")
-        return None
+def normalize_property_name(prop_name: str) -> str:
+    if not prop_name:
+        return prop_name
+    return PROPERTY_MAPPING.get(prop_name, prop_name)
 
 def get_short_name(prop_name: str) -> str:
     """Get short name for property, fallback to full name if not found"""
@@ -157,7 +80,7 @@ def load_properties() -> List[str]:
         online = supabase.table("online_reservations").select("property").execute().data or []
         
         props = {
-            normalize_property(r.get("property_name") or r.get("property", ""))
+            normalize_property_name(r.get("property_name") or r.get("property"))
             for r in direct + online
             if r.get("property_name") or r.get("property")
         }
@@ -171,11 +94,9 @@ def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
     """
     FIXED: Now uses EXACT same query logic as Daily Status (inventory.py).
     Fetches bookings that overlap with the date range, not just those starting in range.
-    Uses normalize_booking for consistency.
     """
-    normalized_prop = normalize_property(prop)
+    normalized_prop = normalize_property_name(prop)
     query_props = [normalized_prop] + reverse_mapping.get(normalized_prop, [])
-    combined: List[Dict] = []
     
     try:
         # FIXED: Use .lte("check_in") and .gte("check_out") like Daily Status
@@ -192,11 +113,6 @@ def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
             or []
         )
         
-        for r in direct:
-            norm = normalize_booking(r, is_online=False)
-            if norm and norm["property"] == normalized_prop:
-                combined.append(norm)
-        
         online = (
             supabase.table("online_reservations")
             .select("*")
@@ -210,12 +126,23 @@ def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
             or []
         )
         
-        for r in online:
-            norm = normalize_booking(r, is_online=True)
-            if norm and norm["property"] == normalized_prop:
-                combined.append(norm)
+        # Normalize all bookings
+        all_bookings = []
+        for booking in direct:
+            normalized = normalize_property_name(booking.get("property_name"))
+            if normalized == prop:
+                booking["property_name"] = normalized
+                booking["type"] = "direct"
+                all_bookings.append(booking)
         
-        return combined
+        for booking in online:
+            normalized = normalize_property_name(booking.get("property"))
+            if normalized == prop:
+                booking["property"] = normalized
+                booking["type"] = "online"
+                all_bookings.append(booking)
+        
+        return all_bookings
     except Exception as e:
         st.error(f"Error loading bookings for {prop}: {e}")
         return []
@@ -224,117 +151,101 @@ def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
 def filter_bookings_for_day(bookings: List[Dict], target: date) -> List[Dict]:
     """Keep only bookings that are active on *target*."""
     return [
-        b.copy() | {"target_date": target}
+        b
         for b in bookings
         if date.fromisoformat(b["check_in"]) <= target < date.fromisoformat(b["check_out"])
     ]
 
 
-def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
+def assign_inventory_numbers(daily: List[Dict], prop: str):
     """
-    FIXED: EXACT COPY from inventory.py – now 100% reliable for "No Show" and duplicate detection.
-    Uses already_assigned set to prevent counting overbooked duplicates as sold rooms.
-    Splits multi-room bookings correctly, prorate per_night.
-    Returns (assigned, overbookings)
+    FIXED: Now properly validates rooms against property inventory.
+    Splits comma-separated room_no and creates separate entries per room.
+    Returns (assigned, overbookings) - matching inventory.py logic exactly.
     """
-    assigned, over = [], []
-    inv = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
+    # Get property inventory
+    PROPERTY_INVENTORY = {
+        "Le Poshe Beach view": {"all": ["101","102","201","202","203","204","301","302","303","304","Day Use 1","Day Use 2","No Show"]},
+        "La Millionaire Resort": {"all": ["101","102","103","105","201","202","203","204","205","206","207","208","301","302","303","304","305","306","307","308","401","402","Day Use 1","Day Use 2","Day Use 3","Day Use 4","Day Use 5","No Show"]},
+        "Le Poshe Luxury": {"all": ["101","102","201","202","203","204","205","301","302","303","304","305","401","402","403","404","405","501","Day Use 1","Day Use 2","No Show"]},
+        "Le Poshe Suite": {"all": ["601","602","603","604","701","702","703","704","801","Day Use 1","Day Use 2","No Show"]},
+        "La Paradise Residency": {"all": ["101","102","103","201","202","203","301","302","303","304","Day Use 1","Day Use 2","No Show"]},
+        "La Paradise Luxury": {"all": ["101","102","103","201","202","203","Day Use 1","Day Use 2","No Show"]},
+        "La Villa Heritage": {"all": ["101","102","103","201","202","203","301","Day Use 1","Day Use 2","No Show"]},
+        "Le Pondy Beachside": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"]},
+        "Le Royce Villa": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"]},
+        "La Tamara Luxury": {"all": ["101","102","103","104","105","106","201","202","203","204","205","206","301","302","303","304","305","306","401","402","403","404","Day Use 1","Day Use 2","No Show"]},
+        "La Antilia Luxury": {"all": ["101","201","202","202","203","204","301","302","303","304","401","Day Use 1","Day Use 2","No Show"]},
+        "La Tamara Suite": {"all": ["101","102","103","104","201","202","203","204","205","206","Day Use 1","Day Use 2","No Show"]},
+        "Le Park Resort": {"all": ["111","222","333","444","555","666","Day Use 1","Day Use 2","No Show"]},
+        "Villa Shakti": {"all": ["101","102","201","201A","202","203","301","301A","302","303","401","Day Use 1","Day Use 2","No Show"]},
+        "Eden Beach Resort": {"all": ["101","102","103","201","202","Day Use 1","Day Use 2","No Show"]},
+        "Le Terra": {"all": ["101","102","103","104","105","106","107","Day Use 1","Day Use 2","No Show"]},
+        "La Coromandel Luxury": {"all": ["101","102","103","201","202","203","204","205","206","301","Day Use 1","Day Use 2","No Show"]},
+        "Happymates Forest Retreat": {"all": ["101","102","Day Use 1","Day Use 2","No Show"]}
+    }
+    
+    inv = PROPERTY_INVENTORY.get(prop, {"all": []})["all"]
     inv_lookup = {i.strip().lower(): i for i in inv}
-    already_assigned = set()  # Track which rooms are already assigned
-
-    for b in daily_bookings:
-        raw_room = str(b.get("room_no", "") or "").strip()
+    
+    assigned = []
+    over = []
+    
+    for b in daily:
+        raw_room = str(b.get("room_no") or "").strip()
         if not raw_room:
+            # No room number = overbooking
             over.append(b)
             continue
-
-        # Handle comma-separated rooms
+        
+        # Split comma-separated rooms
         requested = [r.strip() for r in raw_room.split(",") if r.strip()]
         assigned_rooms = []
-        is_overbooking = False
-
+        
+        # Validate each requested room against inventory
         for r in requested:
             key = r.lower()
-            
-            # Check if room exists in inventory
-            if key not in inv_lookup:
-                is_overbooking = True
+            if key in inv_lookup:
+                assigned_rooms.append(inv_lookup[key])
+            else:
+                # Invalid room = overbooking
+                over.append(b)
+                assigned_rooms = []
                 break
-            
-            room_name = inv_lookup[key]
-            
-            # Check if room is already assigned (duplicate booking)
-            if room_name in already_assigned:
-                is_overbooking = True
-                break
-            
-            assigned_rooms.append(room_name)
-
-        # If any issue found, mark as overbooking
-        if is_overbooking or not assigned_rooms:
-            over.append(b)
+        
+        if not assigned_rooms:
             continue
-
-        # Mark rooms as assigned
-        for room in assigned_rooms:
-            already_assigned.add(room)
-
-        # Calculate split values (matching inventory.py)
-        days = max(b.get("days", 1), 1)
-        receivable = b.get("receivable", 0.0)
-        num_rooms = len(assigned_rooms)
-        total_nights = days * num_rooms
-        per_night = receivable / total_nights if total_nights > 0 else 0.0
-        base_pax = b["total_pax"] // num_rooms if num_rooms else 0
-        rem = b["total_pax"] % num_rooms if num_rooms else 0
-
+        
+        # Create separate entry for each valid room
         for idx, room in enumerate(assigned_rooms):
-            nb = b.copy()
-            nb["assigned_room"] = room
-            nb["room_no"] = room
-            nb["total_pax"] = base_pax + (1 if idx < rem else 0)
-            nb["per_night"] = per_night
-            nb["is_primary"] = (idx == 0)
-            assigned.append(nb)
-
+            new_b = b.copy()
+            new_b["assigned_room"] = room
+            new_b["room_no"] = room
+            new_b["is_primary"] = (idx == 0)
+            assigned.append(new_b)
+    
     return assigned, over
 
 
-# -------------------------- Property Inventory (EXACT from inventory.py) --------------------------
-PROPERTY_INVENTORY = {
-    "Le Poshe Beach view": {"all": ["101","102","201","202","203","204","301","302","303","304","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204"]},
-    "La Millionaire Resort": {"all": ["101","102","103","105","201","202","203","204","205","206","207","208","301","302","303","304","305","306","307","308","401","402","Day Use 1","Day Use 2","Day Use 3","Day Use 4","Day Use 5","No Show"],"three_bedroom":["203","204","205"]},
-    "Le Poshe Luxury": {"all": ["101","102","201","202","203","204","205","301","302","303","304","305","401","402","403","404","405","501","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204","205"]},
-    "Le Poshe Suite": {"all": ["601","602","603","604","701","702","703","704","801","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "La Paradise Residency": {"all": ["101","102","103","201","202","203","301","302","303","304","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
-    "La Paradise Luxury": {"all": ["101","102","103","201","202","203","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
-    "La Villa Heritage": {"all": ["101","102","103","201","202","203","301","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
-    "Le Pondy Beachside": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "Le Royce Villa": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "La Tamara Luxury": {"all": ["101","102","103","104","105","106","201","202","203","204","205","206","301","302","303","304","305","306","401","402","403","404","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204","205","206"]},
-    "La Antilia Luxury": {"all": ["101","201","202","202","203","204","301","302","303","304","401","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204"]},
-    "La Tamara Suite": {"all": ["101","102","103","104","201","202","203","204","205","206","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204","205","206"]},
-    "Le Park Resort": {"all": ["111","222","333","444","555","666","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "Villa Shakti": {"all": ["101","102","201","201A","202","203","301","301A","302","303","401","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
-    "Eden Beach Resort": {"all": ["101","102","103","201","202","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "Le Terra": {"all": ["101","102","103","104","105","106","107","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "La Coromandel Luxury": {"all": ["101","102","103","201","202","203","204","205","206","301","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "Happymates Forest Retreat": {"all": ["101","102","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]}  
-}
+def safe_float(value, default=0.0):
+    """Safely convert to float."""
+    try:
+        return float(value) if value not in [None, "", " "] else default
+    except:
+        return default
 
 
 def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     """
     FIXED: Calculates metrics matching Daily Status exactly.
-    - Rooms sold = count of UNIQUE occupied inventory slots (after duplicate detection)
+    - Rooms sold = count of VALID occupied inventory slots (excludes overbookings)
     - Financials only counted on check-in day for primary bookings
-    Uses normalized bookings and full assign_inventory_numbers.
     """
     daily = filter_bookings_for_day(bookings, day)
-    assigned, over = assign_inventory_numbers(daily, prop)
+    assigned, over = assign_inventory_numbers(daily, prop)  # Now using 'over' list
 
-    # FIXED: Count unique assigned rooms (not entries) – matches inventory.py
-    rooms_sold = len(set(b.get("assigned_room") for b in assigned if b.get("assigned_room")))
+    # FIXED: Rooms sold = count of VALID assigned entries ONLY (excludes overbookings)
+    rooms_sold = len(assigned)
 
     # Financial metrics: ONLY for bookings checking in today (primary only)
     check_in_primaries = [
@@ -342,16 +253,23 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
         if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day
     ]
 
-    # Extract financial values – now from normalized fields
+    # Extract financial values
     room_charges = 0.0
     gst = 0.0
     commission = 0.0
     
     for b in check_in_primaries:
-        # Use normalized values directly
-        room_charges += b.get("room_charges", 0.0)
-        gst += b.get("gst", 0.0)
-        commission += b.get("commission", 0.0)
+        is_online = b.get("type") == "online"
+        
+        if is_online:
+            total_amount = safe_float(b.get("booking_amount"))
+            gst += safe_float(b.get("ota_tax"))
+            commission += safe_float(b.get("ota_commission"))
+            room_charges += total_amount - safe_float(b.get("ota_tax"))
+        else:
+            total_amount = safe_float(b.get("total_tariff"))
+            room_charges += total_amount
+            # Direct bookings: gst and commission already 0
 
     total = room_charges + gst
     receivable = total - commission
