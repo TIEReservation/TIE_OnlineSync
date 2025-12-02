@@ -1,7 +1,5 @@
-# summary_report.py - CORRECTLY FIXED VERSION with Short Property Names
-# Now uses the EXACT same booking query logic as Daily Status
-# FIXED: Prorated revenue metrics (room_charges, total, receivable) to match inventory.py's daily prorated hotel revenue
-# GST and commission remain full on check-in day to match inventory.py's dtd_gst and dtd_comm
+# summary_report.py - FIXED: Room charges only on check-in day (no splitting)
+# Matches Daily Status exactly - financials only counted once on check-in for primary booking
 
 import streamlit as st
 from datetime import date, timedelta
@@ -94,20 +92,20 @@ def load_properties() -> List[str]:
 
 def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
     """
-    FIXED: Now uses EXACT same query logic as Daily Status (inventory.py).
-    Fetches bookings that overlap with the date range, not just those starting in range.
+    Uses EXACT same query logic as Daily Status (inventory.py).
+    Fetches bookings that overlap with the date range.
     """
     normalized_prop = normalize_property_name(prop)
     query_props = [normalized_prop] + reverse_mapping.get(normalized_prop, [])
     
     try:
-        # FIXED: Use .lte("check_in") and .gte("check_out") like Daily Status
+        # Use .lte("check_in") and .gte("check_out") like Daily Status
         direct = (
             supabase.table("reservations")
             .select("*")
             .in_("property_name", query_props)
-            .lte("check_in", str(end))  # Check-in on or before end date
-            .gte("check_out", str(start))  # Check-out on or after start date
+            .lte("check_in", str(end))
+            .gte("check_out", str(start))
             .in_("plan_status", ["Confirmed", "Completed"])
             .in_("payment_status", ["Partially Paid", "Fully Paid"])
             .execute()
@@ -119,8 +117,8 @@ def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
             supabase.table("online_reservations")
             .select("*")
             .in_("property", query_props)
-            .lte("check_in", str(end))  # Check-in on or before end date
-            .gte("check_out", str(start))  # Check-out on or after start date
+            .lte("check_in", str(end))
+            .gte("check_out", str(start))
             .in_("booking_status", ["Confirmed", "Completed"])
             .in_("payment_status", ["Partially Paid", "Fully Paid"])
             .execute()
@@ -161,10 +159,9 @@ def filter_bookings_for_day(bookings: List[Dict], target: date) -> List[Dict]:
 
 def assign_inventory_numbers(daily: List[Dict], prop: str):
     """
-    FIXED: Now properly validates rooms against property inventory and detects overbookings (duplicates across bookings).
+    Validates rooms against property inventory and detects overbookings.
     Splits comma-separated room_no and creates separate entries per room.
-    Uses already_assigned set to skip duplicate room claims (overbookings).
-    Returns (assigned, overbookings) - matching inventory.py logic exactly.
+    Returns (assigned, overbookings).
     """
     # Get property inventory
     PROPERTY_INVENTORY = {
@@ -193,12 +190,11 @@ def assign_inventory_numbers(daily: List[Dict], prop: str):
     
     assigned = []
     over = []
-    already_assigned = set()  # Track assigned rooms to detect overbookings (duplicates)
+    already_assigned = set()
     
     for b in daily:
         raw_room = str(b.get("room_no") or "").strip()
         if not raw_room:
-            # No room number = overbooking
             over.append(b)
             continue
         
@@ -207,17 +203,15 @@ def assign_inventory_numbers(daily: List[Dict], prop: str):
         assigned_rooms = []
         is_over = False
         
-        # Validate each requested room against inventory and check for duplicates
+        # Validate each requested room
         for r in requested:
             key = r.lower()
             if key not in inv_lookup:
-                # Invalid room = overbooking
                 is_over = True
                 break
             
             room = inv_lookup[key]
             if room in already_assigned:
-                # Duplicate room claim = overbooking
                 is_over = True
                 break
             
@@ -250,88 +244,82 @@ def safe_float(value, default=0.0):
         return default
 
 
-def safe_int(value, default=0):
-    """Safely convert to int."""
-    try:
-        return int(float(value)) if value not in [None, "", " "] else default
-    except:
-        return default
-
-
 def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     """
-    FIXED: Calculates metrics matching Daily Status exactly.
-    - Rooms sold = count of UNIQUE occupied inventory slots (excludes overbookings/duplicates)
-    - Revenue metrics (room_charges, total, receivable) prorated over stay nights to match inventory.py's dtd_value (prorated hotel receivable)
-    - GST and commission counted full on check-in day to match inventory.py's dtd_gst and dtd_comm
+    FIXED: Matches Daily Status exactly.
+    - rooms_sold: count daily (all active bookings)
+    - room_charges, gst, total, commission, receivable: ONLY on check-in day
+    - receivable_per_night: daily prorated value (uses per_night from assigned bookings)
     """
     daily = filter_bookings_for_day(bookings, day)
-    assigned, over = assign_inventory_numbers(daily, prop)  # Now excludes overbookings
+    assigned, over = assign_inventory_numbers(daily, prop)
 
-    # FIXED: Rooms sold = count of UNIQUE assigned rooms (not entries, to exclude any remaining duplicates)
+    # Rooms sold = count of UNIQUE assigned rooms (daily count)
     rooms_sold = len(set(b.get("assigned_room") for b in assigned if b.get("assigned_room")))
 
-    # Prorated revenue metrics over valid active bookings (exclude overbookings)
-    prorated_room_charges = 0.0
-    prorated_total = 0.0
-    prorated_receivable = 0.0
-    valid_daily = [b for b in daily if b not in over]
-    for b in valid_daily:
-        is_online = b.get("type") == "online"
-        if is_online:
-            total_amount = safe_float(b.get("booking_amount", 0))
-            g = safe_float(b.get("ota_tax", 0))
-            c = safe_float(b.get("ota_commission", 0))
-            r_ch = total_amount - g
-        else:
-            total_amount = safe_float(b.get("total_tariff", 0))
-            g = 0.0
-            c = 0.0
-            r_ch = total_amount
-        rec = r_ch - c
-        # Compute days
-        try:
-            ci = date.fromisoformat(b["check_in"])
-            co = date.fromisoformat(b["check_out"])
-            days = (co - ci).days
-        except (ValueError, KeyError):
-            days_field = "room_nights" if is_online else "no_of_days"
-            days = safe_int(b.get(days_field, 1))
-        if days <= 0:
-            days = 1
-        prorated_room_charges += r_ch / days
-        prorated_total += total_amount / days
-        prorated_receivable += rec / days
-
-    # Financial metrics: ONLY for bookings checking in today (primary only) - full amounts for GST/Commission
+    # Financial metrics (check-in day only): room_charges, gst, total, commission, receivable
     check_in_primaries = [
-        b for b in assigned  # Only from valid assigned bookings
+        b for b in assigned
         if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day
     ]
 
-    # Extract financial values
+    room_charges = 0.0
     gst = 0.0
     commission = 0.0
     
     for b in check_in_primaries:
         is_online = b.get("type") == "online"
+        
         if is_online:
-            gst += safe_float(b.get("ota_tax", 0))
-            commission += safe_float(b.get("ota_commission", 0))
+            total_amount = safe_float(b.get("booking_amount"))
+            gst += safe_float(b.get("ota_tax"))
+            commission += safe_float(b.get("ota_commission"))
+            room_charges += total_amount - safe_float(b.get("ota_tax"))
+        else:
+            total_amount = safe_float(b.get("total_tariff"))
+            room_charges += total_amount
+            # Direct bookings: gst and commission already 0
 
-    receivable = prorated_receivable
+    total = room_charges + gst
+    receivable = total - commission
     tax_deduction = receivable * 0.003
-    per_night = receivable / rooms_sold if rooms_sold else 0.0
+
+    # receivable_per_night: Daily prorated value
+    # Calculate per_night for each assigned booking (multi-day/multi-room prorated)
+    daily_per_night_sum = 0.0
+    for b in assigned:
+        if b.get("is_primary", True):  # Only count primary to avoid duplication
+            # Get original booking values
+            is_online = b.get("type") == "online"
+            if is_online:
+                booking_total = safe_float(b.get("booking_amount"))
+                booking_gst = safe_float(b.get("ota_tax"))
+                booking_commission = safe_float(b.get("ota_commission"))
+            else:
+                booking_total = safe_float(b.get("total_tariff"))
+                booking_gst = 0.0
+                booking_commission = 0.0
+            
+            booking_receivable = booking_total - booking_gst - booking_commission
+            
+            # Prorate by days and rooms
+            days = max(b.get("days", 1), 1)
+            raw_room = str(b.get("room_no") or "").strip()
+            num_rooms = len([r.strip() for r in raw_room.split(",") if r.strip()]) if raw_room else 1
+            total_nights = days * num_rooms
+            
+            per_night = booking_receivable / total_nights if total_nights > 0 else 0.0
+            daily_per_night_sum += per_night
 
     return {
-        "rooms_sold": rooms_sold,
-        "room_charges": prorated_room_charges,
-        "gst": gst,
-        "total": prorated_total,
-        "commission": commission,
-        "tax_deduction": tax_deduction,
-        "receivable": receivable,
-        "receivable_per_night": per_night,
+        "rooms_sold": rooms_sold,                # Daily count
+        "room_charges": room_charges,            # Only on check-in
+        "gst": gst,                              # Only on check-in
+        "total": total,                          # Only on check-in
+        "commission": commission,                # Only on check-in
+        "tax_deduction": tax_deduction,          # Calculated from receivable
+        "receivable": receivable,                # Only on check-in
+        "receivable_per_night": daily_per_night_sum,  # Daily prorated
     }
 
 
@@ -436,12 +424,11 @@ def show_summary_report():
                 lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) else x
             )
 
-        # Display full table without scrolling - calculate appropriate height
-        # Height = header (38px) + rows (35px each) + padding
+        # Display full table without scrolling
         table_height = 38 + (len(df) * 35) + 10
         st.dataframe(
             df, 
-            use_container_width=False,  # Let columns auto-fit to content
+            use_container_width=False,
             height=table_height
         )
         st.markdown("---")
