@@ -48,7 +48,7 @@ PROPERTY_SHORT_NAMES = {
     "La Tamara Luxury": "LTL",
     "La Tamara Suite": "LTS",
     "La Villa Heritage": "LVH",
-    "Le Park Resort": "LPR",
+    "Le Park Resort": "LePR",
     "Le Pondy Beachside": "LPBs",
     "Le Poshe Beach view": "LPBv",
     "Le Poshe Luxury": "LePL",
