@@ -159,8 +159,9 @@ def filter_bookings_for_day(bookings: List[Dict], target: date) -> List[Dict]:
 
 def assign_inventory_numbers(daily: List[Dict], prop: str):
     """
-    FIXED: Now properly validates rooms against property inventory.
+    FIXED: Now properly validates rooms against property inventory and detects overbookings (duplicates across bookings).
     Splits comma-separated room_no and creates separate entries per room.
+    Uses already_assigned set to skip duplicate room claims (overbookings).
     Returns (assigned, overbookings) - matching inventory.py logic exactly.
     """
     # Get property inventory
@@ -190,6 +191,7 @@ def assign_inventory_numbers(daily: List[Dict], prop: str):
     
     assigned = []
     over = []
+    already_assigned = set()  # Track assigned rooms to detect overbookings (duplicates)
     
     for b in daily:
         raw_room = str(b.get("room_no") or "").strip()
@@ -201,20 +203,31 @@ def assign_inventory_numbers(daily: List[Dict], prop: str):
         # Split comma-separated rooms
         requested = [r.strip() for r in raw_room.split(",") if r.strip()]
         assigned_rooms = []
+        is_over = False
         
-        # Validate each requested room against inventory
+        # Validate each requested room against inventory and check for duplicates
         for r in requested:
             key = r.lower()
-            if key in inv_lookup:
-                assigned_rooms.append(inv_lookup[key])
-            else:
+            if key not in inv_lookup:
                 # Invalid room = overbooking
-                over.append(b)
-                assigned_rooms = []
+                is_over = True
                 break
+            
+            room = inv_lookup[key]
+            if room in already_assigned:
+                # Duplicate room claim = overbooking
+                is_over = True
+                break
+            
+            assigned_rooms.append(room)
         
-        if not assigned_rooms:
+        if is_over or not assigned_rooms:
+            over.append(b)
             continue
+        
+        # Mark rooms as assigned
+        for room in assigned_rooms:
+            already_assigned.add(room)
         
         # Create separate entry for each valid room
         for idx, room in enumerate(assigned_rooms):
@@ -238,14 +251,14 @@ def safe_float(value, default=0.0):
 def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     """
     FIXED: Calculates metrics matching Daily Status exactly.
-    - Rooms sold = count of VALID occupied inventory slots (excludes overbookings)
+    - Rooms sold = count of UNIQUE occupied inventory slots (excludes overbookings/duplicates)
     - Financials only counted on check-in day for primary bookings
     """
     daily = filter_bookings_for_day(bookings, day)
-    assigned, over = assign_inventory_numbers(daily, prop)  # Now using 'over' list
+    assigned, over = assign_inventory_numbers(daily, prop)  # Now excludes overbookings
 
-    # FIXED: Rooms sold = count of VALID assigned entries ONLY (excludes overbookings)
-    rooms_sold = len(assigned)
+    # FIXED: Rooms sold = count of UNIQUE assigned rooms (not entries, to exclude any remaining duplicates)
+    rooms_sold = len(set(b.get("assigned_room") for b in assigned if b.get("assigned_room")))
 
     # Financial metrics: ONLY for bookings checking in today (primary only)
     check_in_primaries = [
