@@ -24,7 +24,7 @@ property_mapping = {
     "Le Poshe Beach view": "Le Poshe Beach view",
     "Le Poshe Beach VIEW": "Le Poshe Beach view",
     "Le Poshe Beachview": "Le Poshe Beach view",
-    "Le Poshe Beachside": "Le Poshe Beach view",  # FIXED: New variant for Beachside
+    "Le Poshe Beachside": "Le Poshe Beach view",  # FIXED: Map Beachside to Beach view
     "Millionaire": "La Millionaire Resort",
     "Le Pondy Beach Side": "Le Pondy Beachside",
     "Le Teera": "Le Terra"
@@ -227,15 +227,94 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
             "remarks": sanitize_string(row.get("remarks")),
         }
     except Exception as e:
-        logging.warning(f"normalize failed ({row.get('...(truncated 4130 characters)...    row = {c: "" for c in cols}
+        logging.warning(f"normalize failed ({row.get('booking_id', 'unknown')}): {e}")
+        return None
+
+def filter_bookings_for_day(bookings: List[Dict], target: date) -> List[Dict]:
+    """Filter bookings active on the target date."""
+    return [
+        b for b in bookings
+        if date.fromisoformat(b["check_in"]) <= target < date.fromisoformat(b["check_out"])
+    ]
+
+def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
+    """Assign inventory numbers, detect overbookings/duplicates, split multi-room bookings."""
+    assigned, over = [], []
+    inv = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
+    inv_lookup = {i.strip().lower(): i for i in inv}
+    already_assigned = set()  # Track assigned rooms across bookings
+
+    for b in daily_bookings:
+        raw_room = str(b.get("room_no", "") or "").strip()
+        if not raw_room:
+            over.append(b)
+            continue
+
+        requested = [r.strip() for r in raw_room.split(",") if r.strip()]
+        assigned_rooms = []
+        is_overbooking = False
+
+        for r in requested:
+            key = r.lower()
+            if key not in inv_lookup:
+                is_overbooking = True
+                break
+
+            room = inv_lookup[key]
+            if room in already_assigned:
+                is_overbooking = True
+                break
+
+            assigned_rooms.append(room)
+
+        if is_overbooking or not assigned_rooms:
+            over.append(b)
+            continue
+
+        for room in assigned_rooms:
+            already_assigned.add(room)
+
+        # Prorate per room/night
+        days = max(b.get("days", 1), 1)
+        receivable = b.get("receivable", 0.0)
+        num_rooms = len(assigned_rooms)
+        total_nights = days * num_rooms
+        per_night = receivable / total_nights if total_nights > 0 else 0.0
+        base_pax = b["total_pax"] // num_rooms if num_rooms else 0
+        rem = b["total_pax"] % num_rooms if num_rooms else 0
+
+        for idx, room in enumerate(assigned_rooms):
+            nb = b.copy()
+            nb["assigned_room"] = room
+            nb["room_no"] = room
+            nb["total_pax"] = base_pax + (1 if idx < rem else 0)
+            nb["per_night"] = per_night
+            nb["is_primary"] = (idx == 0)
+            assigned.append(nb)
+
+    return assigned, over
+
+def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date) -> pd.DataFrame:
+    """Create the inventory table DataFrame with HTML links."""
+    inv = [i for i in PROPERTY_INVENTORY.get(prop, {"all": []})["all"] if not i.startswith(("Day Use", "No Show"))]
+    inv.sort(key=lambda x: (x.split()[0] if x.split()[0].isdigit() else "999", x))
+    cols = [
+        "Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No", "Total Pax",
+        "Check In", "Check Out", "Days", "MOB", "Per Night", "Room Charges", "GST", "Total",
+        "Commission", "Hotel Receivable", "Advance", "Advance Mop", "Balance", "Balance Mop",
+        "Plan", "Booking Status", "Payment Status", "Submitted by", "Modified by", "Remarks"
+    ]
+    rows = []
+
+    for inventory_no in inv:
+        row = {c: "" for c in cols}
         row["Inventory No"] = inventory_no
 
-        # FIXED: Match using the new "assigned_room" field (string)
         match = next(
             (a for a in assigned if str(a.get("assigned_room", "")).strip() == inventory_no.strip()),
             None
         )
-        
+
         if match:
             check_in_date = date.fromisoformat(match["check_in"])
             is_check_in_day = (target_date == check_in_date)
@@ -281,6 +360,7 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
         rows.append(over_row)
 
     return pd.DataFrame(rows, columns=cols)
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Extract Stats – uses "Per Night" for daily value, full for others
 # ──────────────────────────────────────────────────────────────────────────────
