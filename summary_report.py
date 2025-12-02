@@ -238,14 +238,14 @@ def safe_float(value, default=0.0):
 def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     """
     FIXED: Calculates metrics matching Daily Status exactly.
-    - Rooms sold = count of VALID occupied inventory slots (excludes overbookings)
+    - Rooms sold = count of UNIQUE occupied inventory slots
     - Financials only counted on check-in day for primary bookings
     """
     daily = filter_bookings_for_day(bookings, day)
-    assigned, over = assign_inventory_numbers(daily, prop)  # Now using 'over' list
+    assigned, over = assign_inventory_numbers(daily, prop)
 
-    # FIXED: Rooms sold = count of VALID assigned entries ONLY (excludes overbookings)
-    rooms_sold = len(assigned)
+    # FIXED: Count unique assigned rooms (not entries)
+    rooms_sold = len(set(b.get("assigned_room") for b in assigned if b.get("assigned_room")))
 
     # Financial metrics: ONLY for bookings checking in today (primary only)
     check_in_primaries = [
