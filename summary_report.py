@@ -126,17 +126,21 @@ def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
             or []
         )
         
-        # Normalize all bookings - FIX: Don't filter by normalized prop here
+        # Normalize all bookings
         all_bookings = []
         for booking in direct:
-            booking["property_name"] = normalize_property_name(booking.get("property_name", ""))
-            booking["type"] = "direct"
-            all_bookings.append(booking)
+            normalized = normalize_property_name(booking.get("property_name"))
+            if normalized == prop:
+                booking["property_name"] = normalized
+                booking["type"] = "direct"
+                all_bookings.append(booking)
         
         for booking in online:
-            booking["property"] = normalize_property_name(booking.get("property", ""))
-            booking["type"] = "online"
-            all_bookings.append(booking)
+            normalized = normalize_property_name(booking.get("property"))
+            if normalized == prop:
+                booking["property"] = normalized
+                booking["type"] = "online"
+                all_bookings.append(booking)
         
         return all_bookings
     except Exception as e:
@@ -248,30 +252,10 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     - receivable_per_night: daily prorated value (uses per_night from assigned bookings)
     """
     daily = filter_bookings_for_day(bookings, day)
-    
-    # DEBUG: Check if we have bookings
-    if not daily:
-        return {
-            "rooms_sold": 0,
-            "room_charges": 0.0,
-            "gst": 0.0,
-            "total": 0.0,
-            "commission": 0.0,
-            "tax_deduction": 0.0,
-            "receivable": 0.0,
-            "receivable_per_night": 0.0,
-        }
-    
     assigned, over = assign_inventory_numbers(daily, prop)
 
     # Rooms sold = count of UNIQUE assigned rooms (daily count)
-    unique_rooms = set()
-    for b in assigned:
-        room = b.get("assigned_room")
-        if room:
-            unique_rooms.add(room)
-    
-    rooms_sold = len(unique_rooms)
+    rooms_sold = len(set(b.get("assigned_room") for b in assigned if b.get("assigned_room")))
 
     # Financial metrics (check-in day only): room_charges, gst, total, commission, receivable
     check_in_primaries = [
@@ -356,10 +340,7 @@ def build_report(
     grand_total = 0.0
 
     for d in dates:
-        # Format date with day name for weekend highlighting
-        day_name = d.strftime("%a")  # Mon, Tue, Wed, etc.
-        date_str = d.strftime("%Y-%m-%d")
-        row = {"Date": date_str, "_date_obj": d, "_day_name": day_name}  # Store for styling
+        row = {"Date": d.strftime("%Y-%m-%d")}
         day_sum = 0.0
         for p in props:
             val = compute_daily_metrics(bookings.get(p, []), p, d).get(metric, 0.0)
@@ -373,16 +354,14 @@ def build_report(
         rows.append(row)
 
     # Month total row
-    total_row = {"Date": "Total", "_date_obj": None, "_day_name": ""}
+    total_row = {"Date": "Total"}
     for p in props:
         short_name = get_short_name(p)
         total_row[short_name] = prop_totals[p]
     total_row["Total"] = grand_total
     rows.append(total_row)
 
-    df = pd.DataFrame(rows)
-    # Remove helper columns before returning
-    return df.drop(columns=["_date_obj", "_day_name"], errors="ignore")
+    return pd.DataFrame(rows)
 
 
 # -------------------------- UI --------------------------
@@ -433,72 +412,22 @@ def show_summary_report():
         ),
     }
 
-    # Helper function to style dataframe
-    def style_dataframe(df, metric):
-        """Apply styling: highlight 0 as dark red, weekends as green"""
-        # Create a copy for processing
-        df_display = df.copy()
-        
-        # Store date info before formatting
-        date_weekend_map = {}
-        for idx, row in df_display.iterrows():
-            date_str = row["Date"]
-            if date_str != "Total":
-                try:
-                    d = date.fromisoformat(date_str)
-                    # Check if Saturday (5) or Sunday (6)
-                    date_weekend_map[idx] = d.weekday() in [5, 6]
-                except:
-                    date_weekend_map[idx] = False
-            else:
-                date_weekend_map[idx] = False
-        
-        # Format monetary columns
-        if metric != "rooms_sold":
-            monetary_cols = [col for col in df_display.columns if col != "Date"]
-            for col in monetary_cols:
-                df_display[col] = df_display[col].apply(
-                    lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) else x
-                )
-        
-        # Apply styling
-        def highlight_cells(row):
-            styles = [''] * len(row)
-            row_idx = row.name
-            
-            # Apply weekend highlighting to Date column
-            if date_weekend_map.get(row_idx, False):
-                styles[0] = 'background-color: #90EE90'  # Light green for weekends
-            
-            # Apply zero highlighting to value columns
-            for idx, (col, val) in enumerate(row.items()):
-                if col != "Date":
-                    # Check if value is 0 (handle both numeric and formatted string)
-                    is_zero = False
-                    if isinstance(val, (int, float)) and val == 0:
-                        is_zero = True
-                    elif isinstance(val, str) and val.replace(',', '').replace('.', '').strip('0') == '':
-                        is_zero = True
-                    
-                    if is_zero:
-                        styles[idx] = 'background-color: #8B0000; color: white'  # Dark red for zeros
-            
-            return styles
-        
-        return df_display.style.apply(highlight_cells, axis=1)
-
     # Render each section
     for key, (title, metric) in report_defs.items():
         st.subheader(title)
         df = build_report(properties, month_dates, bookings, metric)
-        
-        # Apply styling
-        styled_df = style_dataframe(df, metric)
-        
-        # Display styled table
+
+        # Pretty-print monetary columns with compact formatting
+        if metric != "rooms_sold":
+            monetary_cols = df.columns[1:]
+            df[monetary_cols] = df[monetary_cols].applymap(
+                lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) else x
+            )
+
+        # Display full table without scrolling
         table_height = 38 + (len(df) * 35) + 10
         st.dataframe(
-            styled_df,
+            df, 
             use_container_width=False,
             height=table_height
         )
