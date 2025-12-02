@@ -328,3 +328,8 @@ def show_summary_report():
 
 if __name__ == "__main__":
     show_summary_report()
+
+__all__ = ["show_daily_status"]
+
+if __name__ == "__main__":
+    show_daily_status()
