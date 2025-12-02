@@ -1,4 +1,4 @@
-# summary_report.py - CORRECTLY FIXED VERSION with Short Property Names
+# summary_report.py - CORRECTLY FIXED VERSION with Proper Duplicate Detection
 # Now uses the EXACT same booking query logic as Daily Status
 
 import streamlit as st
@@ -159,8 +159,9 @@ def filter_bookings_for_day(bookings: List[Dict], target: date) -> List[Dict]:
 
 def assign_inventory_numbers(daily: List[Dict], prop: str):
     """
-    FIXED: Now properly validates rooms against property inventory AND detects duplicates.
-    Matches inventory.py logic exactly - tracks already_assigned rooms.
+    FIXED: Now properly validates rooms against property inventory AND detects duplicate bookings.
+    Splits comma-separated room_no and creates separate entries per room.
+    Returns (assigned, overbookings) - matching inventory.py logic exactly.
     """
     # Get property inventory
     PROPERTY_INVENTORY = {
@@ -189,7 +190,7 @@ def assign_inventory_numbers(daily: List[Dict], prop: str):
     
     assigned = []
     over = []
-    already_assigned = set()  # CRITICAL: Track which rooms are already assigned on this day
+    already_assigned = set()  # CRITICAL FIX: Track which rooms are already assigned on this day
     
     for b in daily:
         raw_room = str(b.get("room_no") or "").strip()
@@ -214,7 +215,7 @@ def assign_inventory_numbers(daily: List[Dict], prop: str):
             
             room_name = inv_lookup[key]
             
-            # CRITICAL FIX: Check if room is already assigned (duplicate booking)
+            # CRITICAL FIX: Check if room is already assigned (duplicate booking on same day)
             if room_name in already_assigned:
                 is_overbooking = True
                 break
@@ -252,13 +253,13 @@ def safe_float(value, default=0.0):
 def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     """
     FIXED: Calculates metrics matching Daily Status exactly.
-    - Rooms sold = count of UNIQUE occupied inventory slots
+    - Rooms sold = count of UNIQUE occupied inventory slots (no duplicates)
     - Financials only counted on check-in day for primary bookings
     """
     daily = filter_bookings_for_day(bookings, day)
     assigned, over = assign_inventory_numbers(daily, prop)
 
-    # FIXED: Count unique assigned rooms (not entries)
+    # FIXED: Count unique assigned rooms (already_assigned set prevents duplicates)
     rooms_sold = len(set(b.get("assigned_room") for b in assigned if b.get("assigned_room")))
 
     # Financial metrics: ONLY for bookings checking in today (primary only)
