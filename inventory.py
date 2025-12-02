@@ -24,6 +24,7 @@ property_mapping = {
     "Le Poshe Beach view": "Le Poshe Beach view",
     "Le Poshe Beach VIEW": "Le Poshe Beach view",
     "Le Poshe Beachview": "Le Poshe Beach view",
+    "Le Poshe Beachside": "Le Poshe Beach view",  # FIXED: New variant for Beachside
     "Millionaire": "La Millionaire Resort",
     "Le Pondy Beach Side": "Le Pondy Beachside",
     "Le Teera": "Le Terra"
@@ -226,101 +227,7 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
             "remarks": sanitize_string(row.get("remarks")),
         }
     except Exception as e:
-        logging.warning(f"normalize failed ({row.get('booking_id')}): {e}")
-        return None
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Filter & Assign
-# ──────────────────────────────────────────────────────────────────────────────
-def filter_bookings_for_day(bookings: List[Dict], day: date) -> List[Dict]:
-    return [b.copy() | {"target_date": day} for b in bookings if date.fromisoformat(b["check_in"]) <= day < date.fromisoformat(b["check_out"])]
-
-# ──────────────────────────────────────────────────────────────────────────────
-# FINAL FIXED: assign_inventory_numbers – now 100% reliable for "No Show"
-# ──────────────────────────────────────────────────────────────────────────────
-def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
-    assigned, over = [], []
-    inv = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
-    inv_lookup = {i.strip().lower(): i for i in inv}
-    already_assigned = set()  # Track which rooms are already assigned
-
-    for b in daily_bookings:
-        raw_room = str(b.get("room_no", "") or "").strip()
-        if not raw_room:
-            over.append(b)
-            continue
-
-        # Handle comma-separated rooms
-        requested = [r.strip() for r in raw_room.split(",") if r.strip()]
-        assigned_rooms = []
-        is_overbooking = False
-
-        for r in requested:
-            key = r.lower()
-            
-            # Check if room exists in inventory
-            if key not in inv_lookup:
-                is_overbooking = True
-                break
-            
-            room_name = inv_lookup[key]
-            
-            # Check if room is already assigned (duplicate booking)
-            if room_name in already_assigned:
-                is_overbooking = True
-                break
-            
-            assigned_rooms.append(room_name)
-
-        # If any issue found, mark as overbooking
-        if is_overbooking or not assigned_rooms:
-            over.append(b)
-            continue
-
-        # Mark rooms as assigned
-        for room in assigned_rooms:
-            already_assigned.add(room)
-
-        # Calculate split values
-        days = max(b.get("days", 1), 1)
-        receivable = b.get("receivable", 0.0)
-        num_rooms = len(assigned_rooms)
-        total_nights = days * num_rooms
-        per_night = receivable / total_nights if total_nights > 0 else 0.0
-        base_pax = b["total_pax"] // num_rooms if num_rooms else 0
-        rem = b["total_pax"] % num_rooms if num_rooms else 0
-
-        for idx, room in enumerate(assigned_rooms):
-            nb = b.copy()
-            nb["assigned_room"] = room
-            nb["room_no"] = room
-            nb["total_pax"] = base_pax + (1 if idx < rem else 0)
-            nb["per_night"] = per_night
-            nb["is_primary"] = (idx == 0)
-            assigned.append(nb)
-
-    return assigned, over
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Build Table – Financials ONLY on Check-in Day
-# ──────────────────────────────────────────────────────────────────────────────
-# ──────────────────────────────────────────────────────────────────────────────
-# Build Table – Now correctly shows "No Show", "Day Use 1", etc. even with bad formatting
-# ──────────────────────────────────────────────────────────────────────────────
-# ──────────────────────────────────────────────────────────────────────────────
-# FINAL FIXED: create_inventory_table – now matches perfectly
-# ──────────────────────────────────────────────────────────────────────────────
-def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date) -> pd.DataFrame:
-    cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
-            "Check In","Check Out","Days","MOB","Room Charges","GST","Total","Commission",
-            "Hotel Receivable","Per Night","Advance","Advance Mop","Balance","Balance Mop",
-            "Plan","Booking Status","Payment Status","Submitted by","Modified by","Remarks"]
-    
-    all_inventory = PROPERTY_INVENTORY.get(prop, {}).get("all", [])
-    rows = []
-
-    for inventory_no in all_inventory:
-        row = {c: "" for c in cols}
+        logging.warning(f"normalize failed ({row.get('...(truncated 4130 characters)...    row = {c: "" for c in cols}
         row["Inventory No"] = inventory_no
 
         # FIXED: Match using the new "assigned_room" field (string)
