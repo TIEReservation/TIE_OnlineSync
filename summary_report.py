@@ -340,7 +340,10 @@ def build_report(
     grand_total = 0.0
 
     for d in dates:
-        row = {"Date": d.strftime("%Y-%m-%d")}
+        # Format date with day name for weekend highlighting
+        day_name = d.strftime("%a")  # Mon, Tue, Wed, etc.
+        date_str = d.strftime("%Y-%m-%d")
+        row = {"Date": date_str, "_date_obj": d, "_day_name": day_name}  # Store for styling
         day_sum = 0.0
         for p in props:
             val = compute_daily_metrics(bookings.get(p, []), p, d).get(metric, 0.0)
@@ -354,14 +357,16 @@ def build_report(
         rows.append(row)
 
     # Month total row
-    total_row = {"Date": "Total"}
+    total_row = {"Date": "Total", "_date_obj": None, "_day_name": ""}
     for p in props:
         short_name = get_short_name(p)
         total_row[short_name] = prop_totals[p]
     total_row["Total"] = grand_total
     rows.append(total_row)
 
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    # Remove helper columns before returning
+    return df.drop(columns=["_date_obj", "_day_name"], errors="ignore")
 
 
 # -------------------------- UI --------------------------
@@ -412,22 +417,72 @@ def show_summary_report():
         ),
     }
 
+    # Helper function to style dataframe
+    def style_dataframe(df, metric):
+        """Apply styling: highlight 0 as dark red, weekends as green"""
+        # Create a copy for processing
+        df_display = df.copy()
+        
+        # Store date info before formatting
+        date_weekend_map = {}
+        for idx, row in df_display.iterrows():
+            date_str = row["Date"]
+            if date_str != "Total":
+                try:
+                    d = date.fromisoformat(date_str)
+                    # Check if Saturday (5) or Sunday (6)
+                    date_weekend_map[idx] = d.weekday() in [5, 6]
+                except:
+                    date_weekend_map[idx] = False
+            else:
+                date_weekend_map[idx] = False
+        
+        # Format monetary columns
+        if metric != "rooms_sold":
+            monetary_cols = [col for col in df_display.columns if col != "Date"]
+            for col in monetary_cols:
+                df_display[col] = df_display[col].apply(
+                    lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) else x
+                )
+        
+        # Apply styling
+        def highlight_cells(row):
+            styles = [''] * len(row)
+            row_idx = row.name
+            
+            # Apply weekend highlighting to Date column
+            if date_weekend_map.get(row_idx, False):
+                styles[0] = 'background-color: #90EE90'  # Light green for weekends
+            
+            # Apply zero highlighting to value columns
+            for idx, (col, val) in enumerate(row.items()):
+                if col != "Date":
+                    # Check if value is 0 (handle both numeric and formatted string)
+                    is_zero = False
+                    if isinstance(val, (int, float)) and val == 0:
+                        is_zero = True
+                    elif isinstance(val, str) and val.replace(',', '').replace('.', '').strip('0') == '':
+                        is_zero = True
+                    
+                    if is_zero:
+                        styles[idx] = 'background-color: #8B0000; color: white'  # Dark red for zeros
+            
+            return styles
+        
+        return df_display.style.apply(highlight_cells, axis=1)
+
     # Render each section
     for key, (title, metric) in report_defs.items():
         st.subheader(title)
         df = build_report(properties, month_dates, bookings, metric)
-
-        # Pretty-print monetary columns with compact formatting
-        if metric != "rooms_sold":
-            monetary_cols = df.columns[1:]
-            df[monetary_cols] = df[monetary_cols].applymap(
-                lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) else x
-            )
-
-        # Display full table without scrolling
+        
+        # Apply styling
+        styled_df = style_dataframe(df, metric)
+        
+        # Display styled table
         table_height = 38 + (len(df) * 35) + 10
         st.dataframe(
-            df, 
+            styled_df,
             use_container_width=False,
             height=table_height
         )
