@@ -14,7 +14,7 @@ from inventory import show_daily_status
 from dms import show_dms
 from monthlyconsolidation import show_monthly_consolidation
 from dashboard import show_dashboard
-from summary_report import show_summary_report  # NEW IMPORT
+from summary_report import show_summary_report
 import pandas as pd
 from log import show_log_report, log_activity
 from users import validate_user, create_user, update_user, delete_user, load_users
@@ -59,7 +59,7 @@ def check_authentication():
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         if st.button("Login"):
-            # First check hardcoded credentials
+            # Only check Admin hardcoded credential as a bootstrap account
             if username == "Admin" and password == "Admin2024":
                 st.session_state.authenticated = True
                 st.session_state.username = "Admin"
@@ -67,29 +67,8 @@ def check_authentication():
                 st.session_state.current_page = "User Management"
                 st.session_state.permissions = {"add": True, "edit": True, "delete": True}
                 st.session_state.user_data = None
-            elif username == "Management" and password == "Admin2024":
-                st.session_state.authenticated = True
-                st.session_state.username = "Management"
-                st.session_state.role = "Management"
-                st.session_state.current_page = "Inventory Dashboard"
-                st.session_state.permissions = {"add": True, "edit": True, "delete": False}
-                st.session_state.user_data = None
-            elif username == "ReservationTeam" and password == "Admin2024":
-                st.session_state.authenticated = True
-                st.session_state.username = "ReservationTeam"
-                st.session_state.role = "ReservationTeam"
-                st.session_state.current_page = "Direct Reservations"
-                st.session_state.permissions = {"add": True, "edit": False, "delete": False}
-                st.session_state.user_data = None
-            elif username == "ReservationHead" and password == "Admin2024":
-                st.session_state.authenticated = True
-                st.session_state.username = "ReservationHead"
-                st.session_state.role = "ReservationHead"
-                st.session_state.current_page = "Direct Reservations"
-                st.session_state.permissions = {"add": True, "edit": False, "delete": False}
-                st.session_state.user_data = None
             else:
-                # Try database authentication with proper password hashing
+                # All other users authenticate through database
                 try:
                     user_data = validate_user(supabase, username, password)
                     if user_data:
@@ -99,15 +78,9 @@ def check_authentication():
                         st.session_state.user_data = user_data
                         st.session_state.permissions = user_data.get("permissions", {"add": False, "edit": False, "delete": False})
                         
-                        valid_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"]
-                        
-                        if st.session_state.role == "Admin":
-                            valid_screens.append("User Management")
-                        elif st.session_state.role == "Management":
-                            valid_screens = [s for s in valid_screens if s not in ["User Management"]]
-                        
+                        # Get user's allowed screens
                         user_screens = user_data.get("screens", ["Direct Reservations"])
-                        st.session_state.current_page = next((s for s in valid_screens if s in user_screens), "Direct Reservations")
+                        st.session_state.current_page = user_screens[0] if user_screens else "Direct Reservations"
                     else:
                         st.error("Invalid username or password.")
                 except Exception as e:
@@ -134,18 +107,24 @@ def check_authentication():
         query_params = st.query_params
         query_page = query_params.get("page", [st.session_state.current_page])[0]
         
-        valid_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"]
-        
+        # Define valid screens based on role
         if st.session_state.role == "Admin":
-            valid_screens = ["User Management"]
-        elif st.session_state.role == "Management":
-            valid_screens = [s for s in valid_screens if s not in ["User Management"]]
+            valid_screens = ["User Management", "Log Report"]
+        else:
+            valid_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"]
         
-        if st.session_state.user_data and query_page not in st.session_state.user_data.get("screens", valid_screens):
-            st.error(f"Access Denied: You do not have permission to view {query_page}.")
-            st.session_state.current_page = valid_screens[0] if valid_screens else "Direct Reservations"
-        elif query_page in valid_screens:
-            st.session_state.current_page = query_page
+        # Apply screen filtering for users with configured screens
+        if st.session_state.user_data:
+            user_screens = st.session_state.user_data.get("screens", [])
+            if query_page not in user_screens and query_page not in ["User Management", "Log Report"]:
+                st.error(f"Access Denied: You do not have permission to view {query_page}.")
+                st.session_state.current_page = user_screens[0] if user_screens else "Direct Reservations"
+            else:
+                st.session_state.current_page = query_page
+        else:
+            # For Admin without user_data
+            if query_page in valid_screens:
+                st.session_state.current_page = query_page
         
         query_booking_id = query_params.get("booking_id", [None])[0]
         if query_booking_id:
@@ -229,10 +208,10 @@ def show_user_management():
     # Modify existing user
     st.subheader("Modify Existing User")
     if users:
-        modifiable_users = [u["username"] for u in users if u["username"] not in ["Admin", "Management", "ReservationTeam"]]
+        modifiable_users = [u["username"] for u in users]
         
         if not modifiable_users:
-            st.info("No modifiable users found. Protected users (Admin, Management, ReservationTeam) cannot be modified.")
+            st.info("No modifiable users found.")
         else:
             modify_username = st.selectbox("Select User to Modify", modifiable_users, key="modify_username_select")
             
@@ -296,10 +275,10 @@ def show_user_management():
     # Delete user
     st.subheader("Delete User")
     if users:
-        deletable_users = [u["username"] for u in users if u["username"] not in ["Admin", "Management", "ReservationTeam"]]
+        deletable_users = [u["username"] for u in users]
         
         if not deletable_users:
-            st.info("No deletable users found. Protected users (Admin, Management, ReservationTeam) cannot be deleted.")
+            st.info("No deletable users found.")
         else:
             delete_username = st.selectbox("Select User to Delete", deletable_users, key="delete_username_select")
             
@@ -319,37 +298,17 @@ def main():
     st.markdown("---")
     st.sidebar.title("Navigation")
 
-    # === Build page options based on role ===
+    # === Build page options based on user configuration ===
+    # Admin gets special pages
     if st.session_state.role == "Admin":
         page_options = ["User Management", "Log Report"]
-    elif st.session_state.role == "Management":
-        page_options = [
-            "Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation",
-            "Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"
-        ]
-        if edit_online_available:
-            page_options.insert(page_options.index("Daily Status"), "Edit Online Reservations")
-    elif st.session_state.role == "ReservationHead":
-        page_options = [
-            "Direct Reservations", "View Reservations", "Edit Direct Reservation",
-            "Online Reservations", "Daily Status", "Monthly Consolidation", "Summary Report"
-        ]
-        if edit_online_available:
-            page_options.insert(page_options.index("Daily Status"), "Edit Online Reservations")
-    elif st.session_state.role == "ReservationTeam":
-        page_options = [
-            "Direct Reservations", "View Reservations", "Edit Direct Reservation",
-            "Online Reservations", "Daily Status", "Monthly Consolidation"
-        ]
-        if edit_online_available:
-            page_options.insert(page_options.index("Daily Status"), "Edit Online Reservations")
+    # All other users use their database configuration
+    elif st.session_state.user_data:
+        allowed_screens = st.session_state.user_data.get("screens", [])
+        page_options = allowed_screens if allowed_screens else ["Direct Reservations"]
     else:
-        # Custom user with specific screens
-        if st.session_state.user_data:
-            allowed_screens = st.session_state.user_data.get("screens", [])
-            page_options = allowed_screens
-        else:
-            page_options = ["Direct Reservations"]
+        # Fallback (should not happen)
+        page_options = ["Direct Reservations"]
 
     # === Backward compatibility for old URLs ===
     query_params = st.query_params
@@ -390,12 +349,8 @@ def main():
         log_activity(supabase, st.session_state.username, "Accessed Log Report")
 
     elif page == "Inventory Dashboard":
-        if st.session_state.role not in ["Management", "Admin"]:
-            st.error("Access Denied: Inventory Dashboard is only available to Management and Admin.")
-            log_activity(supabase, st.session_state.username, "Unauthorized Inventory Dashboard access attempt")
-        else:
-            show_dashboard()
-            log_activity(supabase, st.session_state.username, "Accessed Inventory Dashboard")
+        show_dashboard()
+        log_activity(supabase, st.session_state.username, "Accessed Inventory Dashboard")
 
     elif page == "Direct Reservations":
         show_new_reservation_form()
@@ -429,23 +384,16 @@ def main():
         log_activity(supabase, st.session_state.username, "Accessed Daily Management Status")
 
     elif page == "Analytics":
-        if st.session_state.role not in ["Management", "Admin"]:
-            st.error("Access Denied: Analytics is only for Management and Admin.")
-        else:
-            show_analytics()
-            log_activity(supabase, st.session_state.username, "Accessed Analytics")
+        show_analytics()
+        log_activity(supabase, st.session_state.username, "Accessed Analytics")
 
     elif page == "Monthly Consolidation":
         show_monthly_consolidation()
         log_activity(supabase, st.session_state.username, "Accessed Monthly Consolidation")
 
     elif page == "Summary Report":
-        if st.session_state.role not in ["Management", "ReservationHead", "Admin"]:
-            st.error("Access Denied: Summary Report is only available to Management and ReservationHead.")
-            log_activity(supabase, st.session_state.username, "Unauthorized Summary Report access attempt")
-        else:
-            show_summary_report()
-            log_activity(supabase, st.session_state.username, "Accessed Summary Report")
+        show_summary_report()
+        log_activity(supabase, st.session_state.username, "Accessed Summary Report")
 
     # === Footer: User Info & Logout ===
     if st.session_state.authenticated:
