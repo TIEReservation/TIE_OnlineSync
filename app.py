@@ -59,7 +59,9 @@ def check_authentication():
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         if st.button("Login"):
-            # Only check Admin hardcoded credential as a bootstrap account
+            authenticated = False
+            
+            # Check if Admin hardcoded credential (bootstrap account)
             if username == "Admin" and password == "Admin2024":
                 st.session_state.authenticated = True
                 st.session_state.username = "Admin"
@@ -67,8 +69,9 @@ def check_authentication():
                 st.session_state.current_page = "User Management"
                 st.session_state.permissions = {"add": True, "edit": True, "delete": True}
                 st.session_state.user_data = None
+                authenticated = True
             else:
-                # All other users authenticate through database
+                # All users (including Admin if in DB) authenticate through database with plain text password
                 try:
                     user_data = validate_user(supabase, username, password)
                     if user_data:
@@ -81,19 +84,20 @@ def check_authentication():
                         # Get user's allowed screens
                         user_screens = user_data.get("screens", ["Direct Reservations"])
                         st.session_state.current_page = user_screens[0] if user_screens else "Direct Reservations"
+                        authenticated = True
                     else:
                         st.error("Invalid username or password.")
                 except Exception as e:
                     st.error(f"Database authentication failed: {e}")
                     st.error("Invalid username or password.")
             
-            if st.session_state.authenticated:
+            if authenticated:
                 query_params = st.query_params
                 query_booking_id = query_params.get("booking_id", [None])[0]
                 if query_booking_id:
                     st.session_state.selected_booking_id = query_booking_id
                 try:
-                    if st.session_state.role != "Admin":
+                    if st.session_state.role != "Admin" or st.session_state.user_data is not None:
                         st.session_state.reservations = load_reservations_from_supabase()
                         st.session_state.online_reservations = load_online_reservations_from_supabase()
                     st.success(f"{username} login successful!")
@@ -108,8 +112,12 @@ def check_authentication():
         query_page = query_params.get("page", [st.session_state.current_page])[0]
         
         # Define valid screens based on role
-        if st.session_state.role == "Admin":
+        if st.session_state.role == "Admin" and st.session_state.user_data is None:
+            # Hardcoded Admin
             valid_screens = ["User Management", "Log Report"]
+        elif st.session_state.role == "Admin" and st.session_state.user_data is not None:
+            # Admin from database
+            valid_screens = st.session_state.user_data.get("screens", ["User Management", "Log Report"])
         else:
             valid_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"]
         
@@ -122,7 +130,7 @@ def check_authentication():
             else:
                 st.session_state.current_page = query_page
         else:
-            # For Admin without user_data
+            # For hardcoded Admin without user_data
             if query_page in valid_screens:
                 st.session_state.current_page = query_page
         
@@ -150,7 +158,10 @@ def show_user_management():
             display_columns.append("screens")
         if "permissions" in df.columns:
             display_columns.append("permissions")
-        st.dataframe(df[display_columns])
+        
+        # Display dataframe without password column for security
+        display_df = df[display_columns].copy()
+        st.dataframe(display_df)
 
     st.markdown("---")
 
@@ -159,7 +170,7 @@ def show_user_management():
     with st.form("create_user_form", clear_on_submit=False):
         new_username = st.text_input("Username", key="create_username")
         new_password = st.text_input("Password", type="password", key="create_password")
-        new_role = st.selectbox("Role", ["Management", "ReservationTeam", "ReservationHead"], key="create_role")
+        new_role = st.selectbox("Role", ["Management", "ReservationTeam", "ReservationHead", "Admin"], key="create_role")
         
         all_properties = [
             "Le Poshe Beachview", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite",
@@ -170,15 +181,17 @@ def show_user_management():
         ]
         new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties, key="create_properties")
         
-        all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"]
+        all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "User Management", "Log Report"]
         
         # Default screens based on role
-        if new_role == "Management":
-            default_screens = all_screens
+        if new_role == "Admin":
+            default_screens = ["User Management", "Log Report"]
+        elif new_role == "Management":
+            default_screens = [s for s in all_screens if s not in ["User Management", "Log Report"]]
         elif new_role == "ReservationHead":
             default_screens = ["Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Monthly Consolidation", "Summary Report"]
         else:
-            default_screens = [s for s in all_screens if s not in ["Daily Management Status", "Analytics", "Inventory Dashboard", "Summary Report"]]
+            default_screens = [s for s in all_screens if s not in ["Daily Management Status", "Analytics", "Inventory Dashboard", "Summary Report", "User Management", "Log Report"]]
         
         new_screens = st.multiselect("Visible Screens", all_screens, default=default_screens, key="create_screens")
         
@@ -198,6 +211,7 @@ def show_user_management():
                     st.error(f"Username '{new_username}' already exists.")
                 else:
                     new_permissions = {"add": add_perm, "edit": edit_perm, "delete": delete_perm}
+                    # Password is stored as plain text by create_user function
                     success = create_user(supabase, new_username, new_password, new_role, new_properties, new_screens, new_permissions)
                     if success:
                         log_activity(supabase, st.session_state.username, f"Created user {new_username}")
@@ -223,10 +237,11 @@ def show_user_management():
                         st.write(f"**Modifying User: {modify_username}**")
                         
                         mod_password = st.text_input("New Password (leave blank to keep current)", type="password", key="modify_password")
+                        st.caption("Password will be stored as plain text")
                         
                         current_role = user_to_modify.get("role", "ReservationTeam")
-                        mod_role = st.selectbox("Role", ["Management", "ReservationTeam", "ReservationHead"], 
-                                              index=["Management", "ReservationTeam", "ReservationHead"].index(current_role) if current_role in ["Management", "ReservationTeam", "ReservationHead"] else 1, 
+                        mod_role = st.selectbox("Role", ["Management", "ReservationTeam", "ReservationHead", "Admin"], 
+                                              index=["Management", "ReservationTeam", "ReservationHead", "Admin"].index(current_role) if current_role in ["Management", "ReservationTeam", "ReservationHead", "Admin"] else 1, 
                                               key="modify_role")
                         
                         all_properties = [
@@ -242,7 +257,7 @@ def show_user_management():
                             default_properties = all_properties
                         mod_properties = st.multiselect("Visible Properties", all_properties, default=default_properties, key="modify_properties")
                         
-                        all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"]
+                        all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "User Management", "Log Report"]
                         current_screens = user_to_modify.get("screens", [])
                         # Filter out any screens that don't exist in all_screens to avoid the error
                         valid_current_screens = [screen for screen in current_screens if screen in all_screens]
@@ -257,6 +272,7 @@ def show_user_management():
                         
                         if submit_modify:
                             mod_permissions = {"add": mod_add, "edit": mod_edit, "delete": mod_delete}
+                            # Password is stored as plain text by update_user function
                             success = update_user(
                                 supabase, 
                                 modify_username, 
@@ -300,10 +316,11 @@ def main():
 
     # === Build page options based on user configuration ===
     # Admin gets special pages
-    if st.session_state.role == "Admin":
+    if st.session_state.role == "Admin" and st.session_state.user_data is None:
+        # Hardcoded Admin
         page_options = ["User Management", "Log Report"]
-    # All other users use their database configuration
     elif st.session_state.user_data:
+        # All database users (including Admin if in DB)
         allowed_screens = st.session_state.user_data.get("screens", [])
         page_options = allowed_screens if allowed_screens else ["Direct Reservations"]
     else:
@@ -326,8 +343,8 @@ def main():
     page = st.sidebar.selectbox("Choose a page", page_options, index=default_index, key="page_select")
     st.session_state.current_page = page
 
-    # === Refresh Button (not for Admin) ===
-    if st.session_state.role != "Admin":
+    # === Refresh Button (not for hardcoded Admin) ===
+    if not (st.session_state.role == "Admin" and st.session_state.user_data is None):
         if st.sidebar.button("Refresh All Data"):
             st.cache_data.clear()
             try:
@@ -340,11 +357,11 @@ def main():
             st.rerun()
 
     # === Page Routing ===
-    if page == "User Management" and st.session_state.role == "Admin":
+    if page == "User Management":
         show_user_management()
         log_activity(supabase, st.session_state.username, "Accessed User Management")
 
-    elif page == "Log Report" and st.session_state.role == "Admin":
+    elif page == "Log Report":
         show_log_report(supabase)
         log_activity(supabase, st.session_state.username, "Accessed Log Report")
 
