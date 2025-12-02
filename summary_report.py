@@ -263,47 +263,82 @@ def build_report(props: List[str], dates: List[date], bookings: Dict[str, List[D
 # -------------------------- Styling: Red Zeros + Green Weekends --------------------------
 def style_dataframe_with_highlights(df: pd.DataFrame) -> str:
     def is_zero(val):
-        if pd.isna(val):
-            return False
         try:
-            return abs(float(str(val).replace(",", ""))) < 0.01
+            return abs(float(str(val).replace(",", "").replace(" ", ""))) < 0.01
         except:
             return False
 
-    # Highlight weekends and red zeros
-    def style_row(row):
-        attrs = []
-        if row["Date"] != "Total":
+    # Base styles DataFrame
+    styles = pd.DataFrame("", index=df.index, columns=df.columns)
+
+    # Apply light green background to entire row for Saturday & Sunday
+    for idx in df.index:
+        if df.loc[idx, "Date"] == "Total":
+            continue
+        try:
+            d = pd.to_datetime(df.loc[idx, "Date"]).date()
+            if d.weekday() >= 5:  # Saturday (5) or Sunday (6)
+                styles.loc[idx, :] = "background-color: #d4edda;"
+        except:
+            pass
+
+    # Apply red bold only to numeric zero cells (but preserve green background)
+    def apply_red_zeros(val, is_weekend_row):
+        if is_zero(val):
+            # Red text + bold, but keep background transparent so green shows through
+            return "color: red; font-weight: bold; background-color: transparent;"
+        return "background-color: transparent;"
+
+    # Create a helper to know which rows are weekends
+    is_weekend = pd.Series([False] * len(df), index=df.index)
+    for idx in df.index:
+        if df.loc[idx, "Date"] != "Total":
             try:
-                d = pd.to_datetime(row["Date"]).date()
-                if d.weekday() >= 5:  # Sat or Sun
-                    attrs.append("background-color: #d4edda")  # Light green
+                d = pd.to_datetime(df.loc[idx, "Date"]).date()
+                if d.weekday() >= 5:
+                    is_weekend[idx] = True
             except:
                 pass
-        
-        # Red bold for zero values (except Date column)
-        cell_styles = []
-        for col, val in row.items():
-            if col != "Date" and is_zero(val):
-                cell_styles.append("color: red; font-weight: bold")
-            else:
-                cell_styles.append("")
-        # First attr is row-level (background), rest are per-cell
-        if attrs:
-            return [("; ".join(attrs)) if i == 0 else cell_styles[i-1] for i in range(len(row))]
-        else:
-            return [""] + cell_styles[1:]
+
+    # Apply red zero styling per cell (without killing background)
+    for col in df.columns:
+        if col != "Date":
+            styles[col] = df[col].apply(
+                lambda x, c=col: apply_red_zeros(x, is_weekend[df.index.get_loc(df[df[col].notna()].index[0]) if col in df.columns else False])
+                if pd.notna(x) else "background-color: transparent;"
+            )
+
+    # Better: Use Styler.apply with row-wise logic
+    def highlight_weekends_and_zeros(s: pd.Series):
+        attrs = []
+        for i, val in enumerate(s):
+            attr = []
+            if df.loc[s.index[i], "Date"] != "Total":
+                try:
+                    d = pd.to_datetime(df.loc[s.index[i], "Date"]).date()
+                    if d.weekday() >= 5:
+                        attr.append("background-color: #d4edda")
+                except:
+                    pass
+            # Apply red text only to zero numeric values
+            if s.name != "Date" and is_zero(val):
+                attr.append("color: red")
+                attr.append("font-weight: bold")
+            attrs.append("; ".join(attr) if attr else "")
+        return attrs
 
     numeric_cols = [c for c in df.columns if c != "Date"]
 
     return (df.style
-            .apply(style_row, axis=1)
+            .apply(highlight_weekends_and_zeros, axis=0)
             .format({c: "{:,.0f}" for c in numeric_cols})
             .set_table_styles([
                 {"selector": "th", "props": "font-weight: bold; text-align: center; background-color: #f8f9fa;"},
                 {"selector": "td", "props": "text-align: right; padding: 8px;"},
                 {"selector": "td:first-child", "props": "text-align: left; font-weight: bold;"},
                 {"selector": "tr:hover", "props": "background-color: #f5f5f5;"},
+                # Ensure weekend background stays on top
+                {"selector": "td", "props": "background-color: inherit;"},
             ])
             .to_html())
 
