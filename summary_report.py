@@ -159,11 +159,13 @@ def filter_bookings_for_day(bookings: List[Dict], target: date) -> List[Dict]:
 
 def assign_inventory_numbers(daily: List[Dict], prop: str):
     """
-    FIXED: Now matches inventory.py EXACTLY - detects duplicate room bookings.
-    Splits comma-separated room_no and creates separate entries per room.
-    Returns (assigned, overbookings).
+    EXACTLY matches inventory.py logic:
+    - Detects duplicate room bookings on same day
+    - Validates rooms against property inventory
+    - Splits comma-separated rooms into separate entries
+    Returns (assigned, overbookings)
     """
-    # Get property inventory
+    # Property inventory definition
     PROPERTY_INVENTORY = {
         "Le Poshe Beach view": {"all": ["101","102","201","202","203","204","301","302","303","304","Day Use 1","Day Use 2","No Show"]},
         "La Millionaire Resort": {"all": ["101","102","103","105","201","202","203","204","205","206","207","208","301","302","303","304","305","306","307","308","401","402","Day Use 1","Day Use 2","Day Use 3","Day Use 4","Day Use 5","No Show"]},
@@ -187,7 +189,7 @@ def assign_inventory_numbers(daily: List[Dict], prop: str):
     
     inv = PROPERTY_INVENTORY.get(prop, {"all": []})["all"]
     inv_lookup = {i.strip().lower(): i for i in inv}
-    already_assigned = set()  # ← CRITICAL FIX: Track assigned rooms to detect duplicates
+    already_assigned = set()  # Track which rooms are already assigned
     
     assigned = []
     over = []
@@ -198,12 +200,11 @@ def assign_inventory_numbers(daily: List[Dict], prop: str):
             over.append(b)
             continue
         
-        # Split comma-separated rooms
+        # Handle comma-separated rooms
         requested = [r.strip() for r in raw_room.split(",") if r.strip()]
         assigned_rooms = []
         is_overbooking = False
         
-        # Validate each requested room
         for r in requested:
             key = r.lower()
             
@@ -214,7 +215,7 @@ def assign_inventory_numbers(daily: List[Dict], prop: str):
             
             room_name = inv_lookup[key]
             
-            # ← CRITICAL FIX: Check if room is already assigned (duplicate booking)
+            # Check if room is already assigned (duplicate booking)
             if room_name in already_assigned:
                 is_overbooking = True
                 break
@@ -226,80 +227,40 @@ def assign_inventory_numbers(daily: List[Dict], prop: str):
             over.append(b)
             continue
         
-        # ← CRITICAL FIX: Mark rooms as assigned
+        # Mark rooms as assigned
         for room in assigned_rooms:
             already_assigned.add(room)
         
-        # Create separate entry for each valid room
+        # Calculate per-night and per-room splits (matching inventory.py)
+        days = max(b.get("days", 1) or (date.fromisoformat(b["check_out"]) - date.fromisoformat(b["check_in"])).days, 1)
+        num_rooms = len(assigned_rooms)
+        
+        # Get receivable from booking
+        is_online = b.get("type") == "online"
+        if is_online:
+            total_amount = safe_float(b.get("booking_amount"))
+            gst = safe_float(b.get("ota_tax"))
+            commission = safe_float(b.get("ota_commission"))
+            receivable = total_amount - gst - commission
+        else:
+            total_amount = safe_float(b.get("total_tariff"))
+            receivable = total_amount
+        
+        # Calculate per-night value: receivable / (days * num_rooms)
+        total_nights = days * num_rooms
+        per_night = receivable / total_nights if total_nights > 0 else 0.0
+        
+        # Create separate entry for each room
         for idx, room in enumerate(assigned_rooms):
             new_b = b.copy()
             new_b["assigned_room"] = room
             new_b["room_no"] = room
             new_b["is_primary"] = (idx == 0)
+            new_b["per_night"] = per_night  # Store calculated per-night value
+            new_b["days"] = days  # Ensure days is set
             assigned.append(new_b)
     
     return assigned, over
-
-
-def safe_float(value, default=0.0):
-    """Safely convert to float."""
-    try:
-        return float(value) if value not in [None, "", " "] else default
-    except:
-        return default
-
-
-def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
-    """
-    FIXED: Calculates metrics matching Daily Status exactly.
-    - Rooms sold = count of VALID occupied inventory slots (excludes overbookings)
-    - Financials only counted on check-in day for primary bookings
-    """
-    daily = filter_bookings_for_day(bookings, day)
-    assigned, over = assign_inventory_numbers(daily, prop)  # Now using 'over' list
-
-    # FIXED: Rooms sold = count of VALID assigned entries ONLY (excludes overbookings)
-    rooms_sold = len(assigned)
-
-    # Financial metrics: ONLY for bookings checking in today (primary only)
-    check_in_primaries = [
-        b for b in assigned  # Only from valid assigned bookings
-        if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day
-    ]
-
-    # Extract financial values
-    room_charges = 0.0
-    gst = 0.0
-    commission = 0.0
-    
-    for b in check_in_primaries:
-        is_online = b.get("type") == "online"
-        
-        if is_online:
-            total_amount = safe_float(b.get("booking_amount"))
-            gst += safe_float(b.get("ota_tax"))
-            commission += safe_float(b.get("ota_commission"))
-            room_charges += total_amount - safe_float(b.get("ota_tax"))
-        else:
-            total_amount = safe_float(b.get("total_tariff"))
-            room_charges += total_amount
-            # Direct bookings: gst and commission already 0
-
-    total = room_charges + gst
-    receivable = total - commission
-    tax_deduction = receivable * 0.003
-    per_night = receivable / rooms_sold if rooms_sold else 0.0
-
-    return {
-        "rooms_sold": rooms_sold,
-        "room_charges": room_charges,
-        "gst": gst,
-        "total": total,
-        "commission": commission,
-        "tax_deduction": tax_deduction,
-        "receivable": receivable,
-        "receivable_per_night": per_night,
-    }
 
 
 # -------------------------- Report Builder --------------------------
