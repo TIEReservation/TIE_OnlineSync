@@ -126,21 +126,17 @@ def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
             or []
         )
         
-        # Normalize all bookings
+        # Normalize all bookings - FIX: Don't filter by normalized prop here
         all_bookings = []
         for booking in direct:
-            normalized = normalize_property_name(booking.get("property_name"))
-            if normalized == prop:
-                booking["property_name"] = normalized
-                booking["type"] = "direct"
-                all_bookings.append(booking)
+            booking["property_name"] = normalize_property_name(booking.get("property_name", ""))
+            booking["type"] = "direct"
+            all_bookings.append(booking)
         
         for booking in online:
-            normalized = normalize_property_name(booking.get("property"))
-            if normalized == prop:
-                booking["property"] = normalized
-                booking["type"] = "online"
-                all_bookings.append(booking)
+            booking["property"] = normalize_property_name(booking.get("property", ""))
+            booking["type"] = "online"
+            all_bookings.append(booking)
         
         return all_bookings
     except Exception as e:
@@ -252,10 +248,30 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     - receivable_per_night: daily prorated value (uses per_night from assigned bookings)
     """
     daily = filter_bookings_for_day(bookings, day)
+    
+    # DEBUG: Check if we have bookings
+    if not daily:
+        return {
+            "rooms_sold": 0,
+            "room_charges": 0.0,
+            "gst": 0.0,
+            "total": 0.0,
+            "commission": 0.0,
+            "tax_deduction": 0.0,
+            "receivable": 0.0,
+            "receivable_per_night": 0.0,
+        }
+    
     assigned, over = assign_inventory_numbers(daily, prop)
 
     # Rooms sold = count of UNIQUE assigned rooms (daily count)
-    rooms_sold = len(set(b.get("assigned_room") for b in assigned if b.get("assigned_room")))
+    unique_rooms = set()
+    for b in assigned:
+        room = b.get("assigned_room")
+        if room:
+            unique_rooms.add(room)
+    
+    rooms_sold = len(unique_rooms)
 
     # Financial metrics (check-in day only): room_charges, gst, total, commission, receivable
     check_in_primaries = [
