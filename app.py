@@ -15,6 +15,8 @@ from dms import show_dms
 from monthlyconsolidation import show_monthly_consolidation
 from dashboard import show_dashboard
 from summary_report import show_summary_report
+from inventory import show_daily_status
+from summary_report import show_summary_report
 import pandas as pd
 from log import show_log_report, log_activity
 from users import validate_user, create_user, update_user, delete_user, load_users
