@@ -318,8 +318,6 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
         if is_online:
             gst += safe_float(b.get("ota_tax", 0))
             commission += safe_float(b.get("ota_commission", 0))
-        else:
-            # Direct bookings: gst and commission already 0
 
     receivable = prorated_receivable
     tax_deduction = receivable * 0.003
