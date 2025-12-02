@@ -242,7 +242,6 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     assigned, over = [], []
     inv = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
     inv_lookup = {i.strip().lower(): i for i in inv}
-    already_assigned = set()  # Track which rooms are already assigned
 
     for b in daily_bookings:
         raw_room = str(b.get("room_no", "") or "").strip()
@@ -253,35 +252,19 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
         # Handle comma-separated rooms
         requested = [r.strip() for r in raw_room.split(",") if r.strip()]
         assigned_rooms = []
-        is_overbooking = False
 
         for r in requested:
             key = r.lower()
-            
-            # Check if room exists in inventory
-            if key not in inv_lookup:
-                is_overbooking = True
+            if key in inv_lookup:
+                assigned_rooms.append(inv_lookup[key])
+            else:
+                over.append(b)
+                assigned_rooms = []
                 break
-            
-            room_name = inv_lookup[key]
-            
-            # Check if room is already assigned (duplicate booking)
-            if room_name in already_assigned:
-                is_overbooking = True
-                break
-            
-            assigned_rooms.append(room_name)
 
-        # If any issue found, mark as overbooking
-        if is_overbooking or not assigned_rooms:
-            over.append(b)
+        if not assigned_rooms:
             continue
 
-        # Mark rooms as assigned
-        for room in assigned_rooms:
-            already_assigned.add(room)
-
-        # Calculate split values
         days = max(b.get("days", 1), 1)
         receivable = b.get("receivable", 0.0)
         num_rooms = len(assigned_rooms)
@@ -292,14 +275,15 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
 
         for idx, room in enumerate(assigned_rooms):
             nb = b.copy()
-            nb["assigned_room"] = room
-            nb["room_no"] = room
+            nb["assigned_room"] = room                    # ← NEW: single string
+            nb["room_no"] = room                           # ← display correct
             nb["total_pax"] = base_pax + (1 if idx < rem else 0)
             nb["per_night"] = per_night
             nb["is_primary"] = (idx == 0)
             assigned.append(nb)
 
     return assigned, over
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Build Table – Financials ONLY on Check-in Day
 # ──────────────────────────────────────────────────────────────────────────────
