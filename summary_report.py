@@ -1,5 +1,7 @@
 # summary_report.py - CORRECTLY FIXED VERSION with Short Property Names
 # Now uses the EXACT same booking query logic as Daily Status
+# FIXED: Prorated revenue metrics (room_charges, total, receivable) to match inventory.py's daily prorated hotel revenue
+# GST and commission remain full on check-in day to match inventory.py's dtd_gst and dtd_comm
 
 import streamlit as st
 from datetime import date, timedelta
@@ -248,11 +250,20 @@ def safe_float(value, default=0.0):
         return default
 
 
+def safe_int(value, default=0):
+    """Safely convert to int."""
+    try:
+        return int(float(value)) if value not in [None, "", " "] else default
+    except:
+        return default
+
+
 def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     """
     FIXED: Calculates metrics matching Daily Status exactly.
     - Rooms sold = count of UNIQUE occupied inventory slots (excludes overbookings/duplicates)
-    - Financials only counted on check-in day for primary bookings
+    - Revenue metrics (room_charges, total, receivable) prorated over stay nights to match inventory.py's dtd_value (prorated hotel receivable)
+    - GST and commission counted full on check-in day to match inventory.py's dtd_gst and dtd_comm
     """
     daily = filter_bookings_for_day(bookings, day)
     assigned, over = assign_inventory_numbers(daily, prop)  # Now excludes overbookings
@@ -260,14 +271,45 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     # FIXED: Rooms sold = count of UNIQUE assigned rooms (not entries, to exclude any remaining duplicates)
     rooms_sold = len(set(b.get("assigned_room") for b in assigned if b.get("assigned_room")))
 
-    # Financial metrics: ONLY for bookings checking in today (primary only)
+    # Prorated revenue metrics over valid active bookings (exclude overbookings)
+    prorated_room_charges = 0.0
+    prorated_total = 0.0
+    prorated_receivable = 0.0
+    valid_daily = [b for b in daily if b not in over]
+    for b in valid_daily:
+        is_online = b.get("type") == "online"
+        if is_online:
+            total_amount = safe_float(b.get("booking_amount", 0))
+            g = safe_float(b.get("ota_tax", 0))
+            c = safe_float(b.get("ota_commission", 0))
+            r_ch = total_amount - g
+        else:
+            total_amount = safe_float(b.get("total_tariff", 0))
+            g = 0.0
+            c = 0.0
+            r_ch = total_amount
+        rec = r_ch - c
+        # Compute days
+        try:
+            ci = date.fromisoformat(b["check_in"])
+            co = date.fromisoformat(b["check_out"])
+            days = (co - ci).days
+        except (ValueError, KeyError):
+            days_field = "room_nights" if is_online else "no_of_days"
+            days = safe_int(b.get(days_field, 1))
+        if days <= 0:
+            days = 1
+        prorated_room_charges += r_ch / days
+        prorated_total += total_amount / days
+        prorated_receivable += rec / days
+
+    # Financial metrics: ONLY for bookings checking in today (primary only) - full amounts for GST/Commission
     check_in_primaries = [
         b for b in assigned  # Only from valid assigned bookings
         if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day
     ]
 
     # Extract financial values
-    room_charges = 0.0
     gst = 0.0
     commission = 0.0
     
@@ -275,25 +317,20 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
         is_online = b.get("type") == "online"
         
         if is_online:
-            total_amount = safe_float(b.get("booking_amount"))
-            gst += safe_float(b.get("ota_tax"))
-            commission += safe_float(b.get("ota_commission"))
-            room_charges += total_amount - safe_float(b.get("ota_tax"))
+            gst += safe_float(b.get("ota_tax", 0))
+            commission += safe_float(b.get("ota_commission", 0))
         else:
-            total_amount = safe_float(b.get("total_tariff"))
-            room_charges += total_amount
             # Direct bookings: gst and commission already 0
 
-    total = room_charges + gst
-    receivable = total - commission
+    receivable = prorated_receivable
     tax_deduction = receivable * 0.003
     per_night = receivable / rooms_sold if rooms_sold else 0.0
 
     return {
         "rooms_sold": rooms_sold,
-        "room_charges": room_charges,
+        "room_charges": prorated_room_charges,
         "gst": gst,
-        "total": total,
+        "total": prorated_total,
         "commission": commission,
         "tax_deduction": tax_deduction,
         "receivable": receivable,
