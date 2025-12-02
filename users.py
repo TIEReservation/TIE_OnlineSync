@@ -1,134 +1,128 @@
 import streamlit as st
 from supabase import Client
-import bcrypt
 
-def hash_password(password: str) -> str:
-    """Hash a password using bcrypt."""
+def validate_user(supabase: Client, username: str, password: str):
+    """Validate user credentials against database with plain text password"""
     try:
-        return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    except Exception as e:
-        st.error(f"Error hashing password: {e}")
-        return None
-
-def verify_password(password: str, hashed: str) -> bool:
-    """Verify a password against its hash."""
-    try:
-        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
-    except Exception as e:
-        st.error(f"Error verifying password: {e}")
-        return False
-
-def validate_user(supabase: Client, username: str, password: str) -> dict:
-    """Validate user by username and password, return user data if valid."""
-    try:
+        # Fetch user from database
         response = supabase.table("users").select("*").eq("username", username).execute()
-        if not response.data:
-            st.error(f"Debug: No user found with username '{username}'")
+        
+        if not response.data or len(response.data) == 0:
+            print(f"Debug: User '{username}' not found in database")
             return None
-        if not response.data[0]["password_hash"]:
-            st.error(f"Debug: User '{username}' has no password set")
+        
+        user = response.data[0]
+        stored_password = user.get("password")
+        
+        if not stored_password:
+            print(f"Debug: No password found for user '{username}'")
             return None
-        if verify_password(password, response.data[0]["password_hash"]):
-            user = response.data[0]
-            return {
-                "username": user["username"],
-                "role": user["role"],
-                "properties": user["properties"] or [],
-                "screens": user["screens"] or [],
-                "permissions": user.get("permissions", {"add": False, "edit": False, "delete": False})
-            }
+        
+        # Direct plain text password comparison
+        if password == stored_password:
+            return user
         else:
-            st.error(f"Debug: Password verification failed for username '{username}'")
+            print(f"Debug: Password verification failed for username '{username}'")
             return None
+                
     except Exception as e:
-        st.error(f"Error validating user '{username}': {e}")
+        st.error(f"Database error during authentication: {e}")
+        print(f"Debug: Database error for user '{username}': {e}")
         return None
 
-def create_user(supabase: Client, username: str, password: str, role: str, properties: list, screens: list, permissions: dict = None) -> bool:
-    """Create a new user in Supabase with hashed password."""
+def create_user(supabase: Client, username: str, password: str, role: str, 
+                properties: list, screens: list, permissions: dict) -> bool:
+    """Create a new user in the database with plain text password"""
     try:
-        hashed_password = hash_password(password)
-        if not hashed_password:
-            return False
-        
-        # Default permissions if not provided
-        if permissions is None:
-            permissions = {"add": False, "edit": False, "delete": False}
-        
+        # Insert user into database with plain text password
         user_data = {
             "username": username,
-            "password_hash": hashed_password,  # Changed from "password" to "password_hash"
+            "password": password,  # Store as plain text
             "role": role,
             "properties": properties,
             "screens": screens,
             "permissions": permissions
         }
+        
         response = supabase.table("users").insert(user_data).execute()
+        
         if response.data:
-            st.write(f"Debug: Successfully created user '{username}'")
+            st.success(f"User '{username}' created successfully!")
             return True
         else:
-            st.error(f"Debug: Failed to create user '{username}' - no data returned")
+            st.error("Failed to create user")
             return False
+            
     except Exception as e:
-        st.error(f"Error creating user '{username}': {e}")
+        st.error(f"Error creating user: {e}")
+        print(f"Debug: Error creating user '{username}': {e}")
         return False
 
-def update_user(supabase: Client, username: str, password: str = None, role: str = None, properties: list = None, screens: list = None, permissions: dict = None) -> bool:
-    """Update an existing user in Supabase."""
+def update_user(supabase: Client, username: str, password: str = None, 
+                role: str = None, properties: list = None, 
+                screens: list = None, permissions: dict = None) -> bool:
+    """Update an existing user in the database"""
     try:
+        # Build update dictionary
         update_data = {}
+        
         if password:
-            hashed_password = hash_password(password)
-            if not hashed_password:
-                return False
-            update_data["password_hash"] = hashed_password  # Changed from "password" to "password_hash"
-        if role:
+            update_data["password"] = password  # Store as plain text
+        
+        if role is not None:
             update_data["role"] = role
+        
         if properties is not None:
             update_data["properties"] = properties
+        
         if screens is not None:
             update_data["screens"] = screens
+        
         if permissions is not None:
             update_data["permissions"] = permissions
         
-        if update_data:
-            response = supabase.table("users").update(update_data).eq("username", username).execute()
-            if response.data:
-                st.write(f"Debug: Successfully updated user '{username}'")
-                return True
-            else:
-                st.error(f"Debug: Failed to update user '{username}' - no data returned")
-                return False
-        return False
+        if not update_data:
+            st.warning("No changes to update")
+            return False
+        
+        # Update user in database
+        response = supabase.table("users").update(update_data).eq("username", username).execute()
+        
+        if response.data:
+            st.success(f"User '{username}' updated successfully!")
+            return True
+        else:
+            st.error("Failed to update user")
+            return False
+            
     except Exception as e:
-        st.error(f"Error updating user '{username}': {e}")
+        st.error(f"Error updating user: {e}")
+        print(f"Debug: Error updating user '{username}': {e}")
         return False
 
 def delete_user(supabase: Client, username: str) -> bool:
-    """Delete a user from Supabase."""
+    """Delete a user from the database"""
     try:
         response = supabase.table("users").delete().eq("username", username).execute()
+        
         if response.data:
-            st.write(f"Debug: Successfully deleted user '{username}'")
+            st.success(f"User '{username}' deleted successfully!")
             return True
         else:
-            st.error(f"Debug: Failed to delete user '{username}' - no data returned")
+            st.error("Failed to delete user")
             return False
+            
     except Exception as e:
-        st.error(f"Error deleting user '{username}': {e}")
+        st.error(f"Error deleting user: {e}")
+        print(f"Debug: Error deleting user '{username}': {e}")
         return False
 
 def load_users(supabase: Client) -> list:
-    """Load all users from Supabase."""
+    """Load all users from the database"""
     try:
         response = supabase.table("users").select("*").execute()
-        if response.data:
-            st.write(f"Debug: Loaded {len(response.data)} users from Supabase")
-            return response.data
-        else:
-            st.info("Debug: No users found in Supabase")
-            return []
+        return response.data if response.data else []
     except Exception as e:
         st.error(f"Error loading users: {e}")
+        print(f"Debug: Error loading users: {e}")
         return []
