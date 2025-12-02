@@ -315,7 +315,6 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     
     for b in check_in_primaries:
         is_online = b.get("type") == "online"
-        
         if is_online:
             gst += safe_float(b.get("ota_tax", 0))
             commission += safe_float(b.get("ota_commission", 0))
