@@ -282,12 +282,12 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
 # ──────────────────────────────────────────────────────────────────────────────
 # FINAL FIXED: create_inventory_table – now matches perfectly
 # ──────────────────────────────────────────────────────────────────────────────
-def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date) -> pd.DataFrame:
-    cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
+def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date):
+    visible_cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
             "Check In","Check Out","Days","MOB","Room Charges","GST","Total","Commission",
             "Hotel Receivable","Per Night","Advance","Advance Mop","Balance","Balance Mop",
             "Plan","Booking Status","Payment Status","Submitted by","Modified by","Remarks",
-            "Advance Remarks","Balance Remarks","Accounts Status"]  # ← NEW: Added at end
+            "Advance Remarks","Balance Remarks","Accounts Status"]
     
     # Hidden columns for editing (not in display cols, but in DF)
     hidden_cols = ["edit_type", "db_id", "booking_id_raw", "primary"]
@@ -296,7 +296,7 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
     rows = []
 
     for inventory_no in all_inventory:
-        row = {c: "" for c in cols + hidden_cols}  # Include hidden
+        row = {c: "" for c in visible_cols + hidden_cols}  # Include hidden
         row["Inventory No"] = inventory_no
 
         match = next(
@@ -357,13 +357,15 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
         rows.append(row)
 
     if over:
-        over_row = {c: "" for c in cols + hidden_cols}
+        over_row = {c: "" for c in visible_cols + hidden_cols}
         over_row["Inventory No"] = "Overbookings"
         over_row["Room No"] = ", ".join(f"{b.get('room_no','')} ({b.get('booking_id','')})" for b in over)
         rows.append(over_row)
 
-    df = pd.DataFrame(rows, columns=cols + hidden_cols)
-    return df  # ← Return full DF with hidden cols
+    df = pd.DataFrame(rows, columns=visible_cols + hidden_cols)
+    display_df = df[visible_cols].copy()
+    full_df = df
+    return display_df, full_df
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Extract Stats – uses "Per Night" for daily value, full for others
@@ -470,9 +472,9 @@ def show_daily_status():
                 st.markdown(f"### {day.strftime('%b %d, %Y')}")
 
                 assigned, over = assign_inventory_numbers(daily, prop)
-                df = create_inventory_table(assigned, over, prop, day)
+                display_df, full_df = create_inventory_table(assigned, over, prop, day)
 
-                stats = extract_stats_from_table(df, mob_types)
+                stats = extract_stats_from_table(display_df, mob_types)
                 dtd = stats["dtd"]
                 mop_data = stats["mop"]
 
@@ -505,10 +507,6 @@ def show_daily_status():
                             "Balance Remarks",
                             required=False
                         ),
-                        "edit_type": st.column_config.TextColumn("edit_type", hidden=True),
-                        "db_id": st.column_config.TextColumn("db_id", hidden=True),
-                        "booking_id_raw": st.column_config.TextColumn("booking_id_raw", hidden=True),
-                        "primary": st.column_config.CheckboxColumn("primary", hidden=True),
                         # Optional: Make other financial cols read-only if not editing them
                         "Room Charges": st.column_config.NumberColumn("Room Charges", disabled=True),
                         "GST": st.column_config.NumberColumn("GST", disabled=True),
@@ -520,21 +518,27 @@ def show_daily_status():
                     }
                     
                     # ← NEW: Interactive editor (hides index, full width)
-                    edited_df = st.data_editor(
-                        df,
+                    edited_display = st.data_editor(
+                        display_df,
                         column_config=col_config,
                         hide_index=True,
                         use_container_width=True,
                         disabled=["Inventory No"],  # Keep inventory fixed
-                        key=f"editor_{prop}_{day}"
+                        key=f"editor_{prop}_{str(day)}"
                     )
                     
                     st.info("Edit remarks/status in the primary room row (check-in day).")
                     
                     # ← NEW: Save button and logic
-                    if st.button(f"Save Changes ({len([r for _, r in edited_df.iterrows() if pd.notna(r.get('Booking ID'))])} bookings)"):
+                    if st.button(f"Save Changes ({len([r for _, r in edited_display.iterrows() if pd.notna(r.get('Booking ID'))])} bookings)"):
+                        # Merge edited visible with full
+                        edited_full = full_df.copy()
+                        editable_cols = ["Advance Remarks", "Balance Remarks", "Accounts Status"]
+                        for col in editable_cols:
+                            edited_full[col] = edited_display[col]
+                        
                         updated_bookings = {}
-                        for _, row in edited_df.iterrows():
+                        for _, row in edited_full.iterrows():
                             bid = row.get("Booking ID")
                             db_id = row.get("db_id")
                             if pd.isna(bid) or pd.isna(db_id): continue
