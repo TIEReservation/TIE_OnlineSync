@@ -524,13 +524,14 @@ def show_daily_status():
                         hide_index=True,
                         use_container_width=True,
                         disabled=["Inventory No"],  # Keep inventory fixed
-                        key=f"editor_{prop}_{str(day)}"
+                        key=f"editor_{prop}_{day.isoformat()}"
                     )
                     
                     st.info("Edit remarks/status in the primary room row (check-in day).")
                     
                     # ← NEW: Save button and logic
-                    if st.button(f"Save Changes ({len([r for _, r in edited_display.iterrows() if pd.notna(r.get('Booking ID'))])} bookings)"):
+                    # Unique key to prevent Streamlit ID duplication in date loop
+                    if st.button(f"Save Changes ({edited_display['Booking ID'].notna().sum()} bookings)", key=f"save_{prop}_{day.isoformat()}"):
                         # Merge edited visible with full
                         edited_full = full_df.copy()
                         editable_cols = ["Advance Remarks", "Balance Remarks", "Accounts Status"]
