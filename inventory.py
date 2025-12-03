@@ -336,8 +336,7 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
                     "Payment Status": match["payment_status"],
                     "Submitted by": match["submitted_by"],
                     "Modified by": match["modified_by"],
-                    "Remarks": match["remarks"],
-                    # ← NEW: Populate new fields
+                    "Remarks": match.get("remarks", ""),
                     "Advance Remarks": match.get("advance_remarks", ""),
                     "Balance Remarks": match.get("balance_remarks", ""),
                     "Accounts Status": match["accounts_status"],
@@ -485,6 +484,9 @@ def show_daily_status():
                     mtd[m]["pax"] += dtd[m]["pax"]
 
                 if daily:
+                    # Check if user is Accounts Team
+                    is_accounts_team = st.session_state.get('role', '') == "Accounts Team"
+
                     # Comprehensive column configuration - ONLY 3 fields editable
                     col_config = {
                         # Read-only columns (explicitly disabled)
@@ -515,25 +517,28 @@ def show_daily_status():
                         "Modified by": st.column_config.TextColumn("Modified by", disabled=True),
                         "Remarks": st.column_config.TextColumn("Remarks", disabled=True),
                         
-                        # EDITABLE columns (only these 3)
+                        # EDITABLE columns (only these 3, and only for Accounts Team)
                         "Advance Remarks": st.column_config.TextColumn(
                             "Advance Remarks",
                             help="Enter remarks for advance payment",
                             max_chars=500,
-                            required=False
+                            required=False,
+                            disabled=not is_accounts_team
                         ),
                         "Balance Remarks": st.column_config.TextColumn(
                             "Balance Remarks",
                             help="Enter remarks for balance payment",
                             max_chars=500,
-                            required=False
+                            required=False,
+                            disabled=not is_accounts_team
                         ),
                         "Accounts Status": st.column_config.SelectboxColumn(
                             "Accounts Status",
                             help="Select accounting status",
                             options=["Pending", "Completed"],
                             default="Pending",
-                            required=False
+                            required=False,
+                            disabled=not is_accounts_team
                         ),
                     }
                     
@@ -547,8 +552,8 @@ def show_daily_status():
                         key=f"editor_{prop}_{day.isoformat()}"
                     )
                                         
-                   # Save button with unique key
-                    if st.button(f"💾 Save Changes", key=f"save_{prop}_{day.isoformat()}"):
+                   # Save button with unique key (show only if editable)
+                    if is_accounts_team and st.button(f"💾 Save Changes", key=f"save_{prop}_{day.isoformat()}"):
                         # Merge edited visible with full
                         edited_full = full_df.copy()
                         editable_cols = ["Advance Remarks", "Balance Remarks", "Accounts Status"]
