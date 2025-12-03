@@ -170,7 +170,7 @@ def show_user_management():
     with st.form("create_user_form", clear_on_submit=False):
         new_username = st.text_input("Username", key="create_username")
         new_password = st.text_input("Password", type="password", key="create_password")
-        new_role = st.selectbox("Role", ["Management", "ReservationTeam", "ReservationHead", "Admin"], key="create_role")
+        new_role = st.selectbox("Role", ["Management", "ReservationTeam", "ReservationHead", "Accounts Team", "Admin"], key="create_role")
         
         all_properties = [
             "Le Poshe Beachview", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite",
