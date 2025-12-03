@@ -62,21 +62,6 @@ mob_mapping = {
     "Website": ["Stayflexi Booking Engine"],
 }
 
-# ────── CSS ──────
-TABLE_CSS = """
-<style>
-.custom-scrollable-table {overflow-x:auto;max-width:100%;min-width:800px;}
-.custom-scrollable-table table {table-layout:auto;border-collapse:collapse;width:100%;}
-.custom-scrollable-table td,.custom-scrollable-table th {
-    white-space:nowrap; overflow:visible; max-width:none; min-width:80px;
-    padding:8px; border:1px solid #ddd; text-align:left;
-}
-.custom-scrollable-table th:nth-child(3), .custom-scrollable-table td:nth-child(3) {min-width:180px;}
-.custom-scrollable-table a {color: #1E90FF; text-decoration: none;}
-.custom-scrollable-table a:hover {text-decoration: underline;}
-</style>
-"""
-
 # ────── Full inventory ──────
 PROPERTY_INVENTORY = {
     "Le Poshe Beach view": {"all": ["101","102","201","202","203","204","301","302","303","304","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204"]},
@@ -384,7 +369,7 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
 # Extract Stats – uses "Per Night" for daily value, full for others
 # ──────────────────────────────────────────────────────────────────────────────
 def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
-    occupied = df[df["Booking ID"].str.contains('<a', na=False)].copy()
+    occupied = df[df["Booking ID"].fillna("").str.strip() != ""].copy()
 
     def to_float(col):
         return pd.to_numeric(occupied[col].replace('', '0').str.replace(',', ''), errors='coerce').fillna(0.0)
@@ -469,7 +454,6 @@ def show_daily_status():
         st.info("No properties found.")
         return
 
-    st.markdown(TABLE_CSS, unsafe_allow_html=True)
     mob_types = ["Booking","Direct","Bkg-Direct","Agoda","Go-MMT","Walk-In","TIE Group","Stayflexi","Airbnb","Social Media","Expedia","Cleartrip","Website"]
 
     for prop in props:
@@ -515,12 +499,10 @@ def show_daily_status():
                         ),
                         "Advance Remarks": st.column_config.TextColumn(
                             "Advance Remarks",
-                            widget="text_area",
                             required=False
                         ),
                         "Balance Remarks": st.column_config.TextColumn(
                             "Balance Remarks",
-                            widget="text_area",
                             required=False
                         ),
                         "edit_type": st.column_config.TextColumn("edit_type", hidden=True),
