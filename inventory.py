@@ -443,95 +443,123 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
 # ──────────────────────────────────────────────────────────────────────────────
 def show_daily_status():
     st.title("Daily Status Dashboard")
+    
     if st.button("Refresh Data"):
         st.cache_data.clear()
         st.rerun()
-
+    
     today = date.today()
     year = st.selectbox("Year", list(range(today.year-5, today.year+6)), index=5)
     month = st.selectbox("Month", list(range(1,13)), index=today.month-1)
-
+    
     props = load_properties()
     if not props:
         st.info("No properties found.")
         return
-
+    
     mob_types = ["Booking","Direct","Bkg-Direct","Agoda","Go-MMT","Walk-In","TIE Group","Stayflexi","Airbnb","Social Media","Expedia","Cleartrip","Website"]
-
+    
     for prop in props:
         with st.expander(f"**{prop}**", expanded=False):
             month_dates = [date(year, month, d) for d in range(1, calendar.monthrange(year, month)[1]+1)]
             start, end = month_dates[0], month_dates[-1]
             bookings = load_combined_bookings(prop, start, end)
-
+            
             mtd_rooms = mtd_value = mtd_comm = mtd_gst = mtd_pax = 0
             mtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"pax":0} for m in mob_types}
-
+            
             for day in month_dates:
                 daily = filter_bookings_for_day(bookings, day)
                 st.markdown(f"### {day.strftime('%b %d, %Y')}")
-
+                
                 assigned, over = assign_inventory_numbers(daily, prop)
                 display_df, full_df = create_inventory_table(assigned, over, prop, day)
-
                 stats = extract_stats_from_table(display_df, mob_types)
+                
                 dtd = stats["dtd"]
                 mop_data = stats["mop"]
-
+                
                 mtd_rooms += dtd["Total"]["rooms"]
                 mtd_value += dtd["Total"]["value"]
                 mtd_comm += dtd["Total"]["comm"]
                 mtd_gst += dtd["Total"]["gst"]
                 mtd_pax += dtd["Total"]["pax"]
+                
                 for m in mob_types:
                     mtd[m]["rooms"] += dtd[m]["rooms"]
                     mtd[m]["value"] += dtd[m]["value"]
                     mtd[m]["comm"] += dtd[m]["comm"]
                     mtd[m]["gst"] += dtd[m]["gst"]
                     mtd[m]["pax"] += dtd[m]["pax"]
-
+                
                 if daily:
-                    # ← NEW: Column config for data_editor
+                    # ← ENHANCED: Comprehensive column config with all DB fields properly configured
                     col_config = {
+                        # Editable columns (from DB, but user can modify)
+                        "Advance Remarks": st.column_config.TextColumn(
+                            "Advance Remarks",
+                            required=False,
+                            width="medium"
+                        ),
+                        "Balance Remarks": st.column_config.TextColumn(
+                            "Balance Remarks",
+                            required=False,
+                            width="medium"
+                        ),
                         "Accounts Status": st.column_config.SelectboxColumn(
                             "Accounts Status",
                             options=["Pending", "Completed"],
                             default="Pending",
                             required=False
                         ),
-                        "Advance Remarks": st.column_config.TextColumn(
-                            "Advance Remarks",
-                            required=False
-                        ),
-                        "Balance Remarks": st.column_config.TextColumn(
-                            "Balance Remarks",
-                            required=False
-                        ),
-                        # Optional: Make other financial cols read-only if not editing them
+                        
+                        # Non-editable text columns (DB-fetched, read-only)
+                        "Inventory No": st.column_config.TextColumn("Inventory No", disabled=True),
+                        "Room No": st.column_config.TextColumn("Room No", disabled=True),
+                        "Booking ID": st.column_config.TextColumn("Booking ID", disabled=True),
+                        "Guest Name": st.column_config.TextColumn("Guest Name", disabled=True),
+                        "Mobile No": st.column_config.TextColumn("Mobile No", disabled=True),
+                        "MOB": st.column_config.TextColumn("MOB", disabled=True),
+                        "Plan": st.column_config.TextColumn("Plan", disabled=True),
+                        "Booking Status": st.column_config.TextColumn("Booking Status", disabled=True),
+                        "Payment Status": st.column_config.TextColumn("Payment Status", disabled=True),
+                        "Submitted by": st.column_config.TextColumn("Submitted by", disabled=True),
+                        "Modified by": st.column_config.TextColumn("Modified by", disabled=True),
+                        "Remarks": st.column_config.TextColumn("Remarks", disabled=True),
+                        
+                        # Non-editable number columns (DB-fetched, read-only)
+                        "Total Pax": st.column_config.NumberColumn("Total Pax", disabled=True, step=1),
+                        "Days": st.column_config.NumberColumn("Days", disabled=True, step=1),
                         "Room Charges": st.column_config.NumberColumn("Room Charges", disabled=True),
                         "GST": st.column_config.NumberColumn("GST", disabled=True),
                         "Total": st.column_config.NumberColumn("Total", disabled=True),
                         "Commission": st.column_config.NumberColumn("Commission", disabled=True),
                         "Hotel Receivable": st.column_config.NumberColumn("Hotel Receivable", disabled=True),
+                        "Per Night": st.column_config.NumberColumn("Per Night", disabled=True),
                         "Advance": st.column_config.NumberColumn("Advance", disabled=True),
                         "Balance": st.column_config.NumberColumn("Balance", disabled=True),
+                        "Advance Mop": st.column_config.TextColumn("Advance Mop", disabled=True),
+                        "Balance Mop": st.column_config.TextColumn("Balance Mop", disabled=True),
+                        
+                        # Non-editable date columns (DB-fetched, read-only)
+                        "Check In": st.column_config.DateColumn("Check In", disabled=True, format="YYYY-MM-DD"),
+                        "Check Out": st.column_config.DateColumn("Check Out", disabled=True, format="YYYY-MM-DD"),
                     }
                     
-                    # ← NEW: Interactive editor (hides index, full width)
+                    # Interactive editor with comprehensive column configuration
                     edited_display = st.data_editor(
                         display_df,
                         column_config=col_config,
                         hide_index=True,
                         use_container_width=True,
-                        disabled=["Inventory No"],  # Keep inventory fixed
                         key=f"editor_{prop}_{day.isoformat()}"
                     )
                     
                     st.info("Edit remarks/status in the primary room row (check-in day).")
                     
-                    # ← NEW: Save button and logic
-                    # Unique key to prevent Streamlit ID duplication in date loop
-                    if st.button(f"Save Changes ({edited_display['Booking ID'].notna().sum()} bookings)", key=f"save_{prop}_{day.isoformat()}"):
+                    # Save button and logic
+                    if st.button(f"Save Changes ({edited_display['Booking ID'].notna().sum()} bookings)", 
+                                key=f"save_{prop}_{day.isoformat()}"):
                         # Merge edited visible with full
                         edited_full = full_df.copy()
                         editable_cols = ["Advance Remarks", "Balance Remarks", "Accounts Status"]
@@ -542,15 +570,15 @@ def show_daily_status():
                         for _, row in edited_full.iterrows():
                             bid = row.get("Booking ID")
                             db_id = row.get("db_id")
-                            if pd.isna(bid) or pd.isna(db_id): continue
+                            if pd.isna(bid) or pd.isna(db_id):
+                                continue
                             if bid not in updated_bookings:
-                                # Take values (user should edit primary row consistently)
                                 updated_bookings[bid] = {
                                     "advance_remarks": row["Advance Remarks"],
                                     "balance_remarks": row["Balance Remarks"],
                                     "accounts_status": row["Accounts Status"],
                                     "type": row["edit_type"],
-                                    "db_id": db_id  # Temp for update
+                                    "db_id": db_id
                                 }
                         
                         success_count = 0
@@ -575,34 +603,36 @@ def show_daily_status():
                         st.success(f"Saved {success_count} bookings. Refresh to see changes.")
                         st.cache_data.clear()
                         st.rerun()
-
+                    
                     # Tables
                     dtd_df = pd.DataFrame([
-                        {"MOB": m, "D.T.D Rooms": d["rooms"], "D.T.D Value": f"₹{d['value']:,.2f}",
-                         "D.T.D ARR": f"₹{d['arr']:,.2f}", "D.T.D Comm": f"₹{d['comm']:,.2f}"} 
+                        {"MOB": m, "D.T.D Rooms": d["rooms"], "D.T.D Value": f"₹{d['value']:,.2f}", 
+                         "D.T.D ARR": f"₹{d['arr']:,.2f}", "D.T.D Comm": f"₹{d['comm']:,.2f}"}
                         for m, d in dtd.items() if m != "Total"
                     ] + [{"MOB": "Total", "D.T.D Rooms": dtd["Total"]["rooms"], 
-                          "D.T.D Value": f"₹{dtd['Total']['value']:,.2f}",
+                          "D.T.D Value": f"₹{dtd['Total']['value']:,.2f}", 
                           "D.T.D ARR": f"₹{dtd['Total']['arr']:,.2f}", 
-                          "D.T.D Comm": f"₹{dtd['Total']['comm']:,.2f}"}],
+                          "D.T.D Comm": f"₹{dtd['Total']['comm']:,.2f}"}], 
                         columns=["MOB","D.T.D Rooms","D.T.D Value","D.T.D ARR","D.T.D Comm"])
-
+                    
                     mop_df = pd.DataFrame([{"MOP": m, "Amount": f"₹{v:,.2f}"} for m, v in mop_data.items()], 
                                          columns=["MOP", "Amount"])
-
+                    
                     mtd_df = pd.DataFrame([
-                        {"MOB": m, "M.T.D Rooms": mtd[m]["rooms"], "M.T.D Value": f"₹{mtd[m]['value']:,.2f}",
-                         "M.T.D ARR": f"₹{mtd[m]['value']/mtd[m]['rooms']:,.2f}" if mtd[m]["rooms"] > 0 else "₹0.00",
-                         "M.T.D Comm": f"₹{mtd[m]['comm']:,.2f}"} for m in mob_types
-                    ] + [{"MOB": "Total", "M.T.D Rooms": mtd_rooms, "M.T.D Value": f"₹{mtd_value:,.2f}",
-                          "M.T.D ARR": f"₹{mtd_value/mtd_rooms:,.2f}" if mtd_rooms > 0 else "₹0.00",
+                        {"MOB": m, "M.T.D Rooms": mtd[m]["rooms"], "M.T.D Value": f"₹{mtd[m]['value']:,.2f}", 
+                         "M.T.D ARR": f"₹{mtd[m]['value']/mtd[m]['rooms']:,.2f}" if mtd[m]["rooms"] > 0 else "₹0.00", 
+                         "M.T.D Comm": f"₹{mtd[m]['comm']:,.2f}"}
+                        for m in mob_types
+                    ] + [{"MOB": "Total", "M.T.D Rooms": mtd_rooms, "M.T.D Value": f"₹{mtd_value:,.2f}", 
+                          "M.T.D ARR": f"₹{mtd_value/mtd_rooms:,.2f}" if mtd_rooms > 0 else "₹0.00", 
                           "M.T.D Comm": f"₹{mtd_comm:,.2f}"}], 
                         columns=["MOB","M.T.D Rooms","M.T.D Value","M.T.D ARR","M.T.D Comm"])
-
-                    total_inventory = len([i for i in PROPERTY_INVENTORY.get(prop,{}).get("all",[]) if not i.startswith(("Day Use","No Show"))])
+                    
+                    total_inventory = len([i for i in PROPERTY_INVENTORY.get(prop,{}).get("all",[]) 
+                                          if not i.startswith(("Day Use","No Show"))])
                     occ_pct = (dtd["Total"]["rooms"] / total_inventory * 100) if total_inventory else 0.0
                     mtd_occ_pct = (mtd_rooms / (total_inventory * day.day) * 100) if total_inventory and day.day > 0 else 0.0
-
+                    
                     summary = {
                         "Rooms Sold": dtd["Total"]["rooms"],
                         "Hotel Revenue": f"₹{dtd['Total']['value']:,.2f}",
@@ -615,14 +645,21 @@ def show_daily_status():
                         "MTD Occupancy": f"{mtd_occ_pct:.1f}%",
                         "MTD Revenue": f"₹{mtd_value:,.2f}",
                     }
-
+                    
                     c1, c2, c3, c4 = st.columns(4)
-                    with c1: st.subheader("MOP"); st.dataframe(mop_df, use_container_width=True)
-                    with c2: st.subheader("Day Revenue"); st.dataframe(dtd_df, use_container_width=True)
-                    with c3: st.subheader("Month Revenue"); st.dataframe(mtd_df, use_container_width=True)
+                    with c1:
+                        st.subheader("MOP")
+                        st.dataframe(mop_df, use_container_width=True)
+                    with c2:
+                        st.subheader("Day Revenue")
+                        st.dataframe(dtd_df, use_container_width=True)
+                    with c3:
+                        st.subheader("Month Revenue")
+                        st.dataframe(mtd_df, use_container_width=True)
                     with c4:
                         st.subheader("Summary")
-                        st.dataframe(pd.DataFrame([{"Metric": k, "Value": v} for k, v in summary.items()]), use_container_width=True)
+                        st.dataframe(pd.DataFrame([{"Metric": k, "Value": v} for k, v in summary.items()]), 
+                                   use_container_width=True)
                 else:
                     st.info("No active bookings.")
 
