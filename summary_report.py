@@ -190,7 +190,7 @@ def safe_float(value, default=0.0):
 def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     daily = filter_bookings_for_day(bookings, day)
     assigned, _ = assign_inventory_numbers(daily, prop)
-    rooms_sold = len([b for b in assigned if b.get("assigned_room")])
+    rooms_sold = len(set(b.get("assigned_room") for b in assigned if b.get("assigned_room")))
     check_in_primaries = [b for b in assigned if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day]
 
     room_charges = gst = commission = 0.0
