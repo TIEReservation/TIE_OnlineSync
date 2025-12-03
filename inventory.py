@@ -224,6 +224,10 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
             "submitted_by": sanitize_string(row.get("submitted_by")),
             "modified_by": sanitize_string(row.get("modified_by")),
             "remarks": sanitize_string(row.get("remarks")),
+            "advance_remarks": sanitize_string(row.get("advance_remarks", "")),
+            "balance_remarks": sanitize_string(row.get("balance_remarks", "")),
+            "accounts_status": sanitize_string(row.get("accounts_status", "Pending")).title(),
+            "db_id": row.get("id"),
         }
     except Exception as e:
         logging.warning(f"normalize failed ({row.get('booking_id')}): {e}")
@@ -297,16 +301,19 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
     cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
             "Check In","Check Out","Days","MOB","Room Charges","GST","Total","Commission",
             "Hotel Receivable","Per Night","Advance","Advance Mop","Balance","Balance Mop",
-            "Plan","Booking Status","Payment Status","Submitted by","Modified by","Remarks"]
+            "Plan","Booking Status","Payment Status","Submitted by","Modified by","Remarks",
+            "Advance Remarks","Balance Remarks","Accounts Status"]  # ← NEW: Added at end
+    
+    # Hidden columns for editing (not in display cols, but in DF)
+    hidden_cols = ["edit_type", "db_id", "booking_id_raw", "primary"]
     
     all_inventory = PROPERTY_INVENTORY.get(prop, {}).get("all", [])
     rows = []
 
     for inventory_no in all_inventory:
-        row = {c: "" for c in cols}
+        row = {c: "" for c in cols + hidden_cols}  # Include hidden
         row["Inventory No"] = inventory_no
 
-        # FIXED: Match using the new "assigned_room" field (string)
         match = next(
             (a for a in assigned if str(a.get("assigned_room", "")).strip() == inventory_no.strip()),
             None
@@ -315,10 +322,11 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
         if match:
             check_in_date = date.fromisoformat(match["check_in"])
             is_check_in_day = (target_date == check_in_date)
+            is_primary = match.get("is_primary", False)
 
             row.update({
                 "Room No": match["room_no"],
-                "Booking ID": f'<a target="_blank" href="/?edit_type={match["type"]}&booking_id={match["booking_id"]}">{match["booking_id"]}</a>',
+                "Booking ID": match["booking_id"],  # ← Plain text for data_editor
                 "Guest Name": match["guest_name"],
                 "Mobile No": match["mobile_no"],
                 "Total Pax": match["total_pax"],
@@ -327,9 +335,13 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
                 "Days": match["days"],
                 "MOB": match["mob"],
                 "Per Night": f"{match.get('per_night', 0):.2f}",
+                "edit_type": match["type"],  # Hidden
+                "db_id": match["db_id"],  # Hidden
+                "booking_id_raw": match["booking_id"],  # Hidden (backup)
+                "primary": is_primary,  # Hidden (for logic if needed)
             })
 
-            if is_check_in_day and match.get("is_primary", False):
+            if is_check_in_day and is_primary:  # ← Only populate/edit on check-in primary
                 row.update({
                     "Room Charges": f"{match.get('room_charges', 0):.2f}",
                     "GST": f"{match.get('gst', 0):.2f}",
@@ -346,17 +358,28 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
                     "Submitted by": match["submitted_by"],
                     "Modified by": match["modified_by"],
                     "Remarks": match["remarks"],
+                    # ← NEW: Populate new fields
+                    "Advance Remarks": match.get("advance_remarks", ""),
+                    "Balance Remarks": match.get("balance_remarks", ""),
+                    "Accounts Status": match["accounts_status"],
                 })
+            else:
+                # For non-primary/non-checkin: Empty new fields to avoid confusion
+                row["Advance Remarks"] = ""
+                row["Balance Remarks"] = ""
+                row["Accounts Status"] = ""
 
         rows.append(row)
 
     if over:
-        over_row = {c: "" for c in cols}
+        over_row = {c: "" for c in cols + hidden_cols}
         over_row["Inventory No"] = "Overbookings"
         over_row["Room No"] = ", ".join(f"{b.get('room_no','')} ({b.get('booking_id','')})" for b in over)
         rows.append(over_row)
 
-    return pd.DataFrame(rows, columns=cols)
+    df = pd.DataFrame(rows, columns=cols + hidden_cols)
+    return df  # ← Return full DF with hidden cols
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Extract Stats – uses "Per Night" for daily value, full for others
 # ──────────────────────────────────────────────────────────────────────────────
@@ -482,7 +505,89 @@ def show_daily_status():
                     mtd[m]["pax"] += dtd[m]["pax"]
 
                 if daily:
-                    st.markdown(f'<div class="custom-scrollable-table">{df.to_html(escape=False,index=False)}</div>', unsafe_allow_html=True)
+                    # ← NEW: Column config for data_editor
+                    col_config = {
+                        "Accounts Status": st.column_config.SelectboxColumn(
+                            "Accounts Status",
+                            options=["Pending", "Completed"],
+                            default="Pending",
+                            required=False
+                        ),
+                        "Advance Remarks": st.column_config.TextColumn(
+                            "Advance Remarks",
+                            widget="text_area",
+                            required=False
+                        ),
+                        "Balance Remarks": st.column_config.TextColumn(
+                            "Balance Remarks",
+                            widget="text_area",
+                            required=False
+                        ),
+                        "edit_type": st.column_config.TextColumn("edit_type", hidden=True),
+                        "db_id": st.column_config.TextColumn("db_id", hidden=True),
+                        "booking_id_raw": st.column_config.TextColumn("booking_id_raw", hidden=True),
+                        "primary": st.column_config.CheckboxColumn("primary", hidden=True),
+                        # Optional: Make other financial cols read-only if not editing them
+                        "Room Charges": st.column_config.NumberColumn("Room Charges", disabled=True),
+                        "GST": st.column_config.NumberColumn("GST", disabled=True),
+                        "Total": st.column_config.NumberColumn("Total", disabled=True),
+                        "Commission": st.column_config.NumberColumn("Commission", disabled=True),
+                        "Hotel Receivable": st.column_config.NumberColumn("Hotel Receivable", disabled=True),
+                        "Advance": st.column_config.NumberColumn("Advance", disabled=True),
+                        "Balance": st.column_config.NumberColumn("Balance", disabled=True),
+                    }
+                    
+                    # ← NEW: Interactive editor (hides index, full width)
+                    edited_df = st.data_editor(
+                        df,
+                        column_config=col_config,
+                        hide_index=True,
+                        use_container_width=True,
+                        disabled=["Inventory No"],  # Keep inventory fixed
+                        key=f"editor_{prop}_{day}"
+                    )
+                    
+                    st.info("Edit remarks/status in the primary room row (check-in day).")
+                    
+                    # ← NEW: Save button and logic
+                    if st.button(f"Save Changes ({len([r for _, r in edited_df.iterrows() if pd.notna(r.get('Booking ID'))])} bookings)"):
+                        updated_bookings = {}
+                        for _, row in edited_df.iterrows():
+                            bid = row.get("Booking ID")
+                            db_id = row.get("db_id")
+                            if pd.isna(bid) or pd.isna(db_id): continue
+                            if bid not in updated_bookings:
+                                # Take values (user should edit primary row consistently)
+                                updated_bookings[bid] = {
+                                    "advance_remarks": row["Advance Remarks"],
+                                    "balance_remarks": row["Balance Remarks"],
+                                    "accounts_status": row["Accounts Status"],
+                                    "type": row["edit_type"],
+                                    "db_id": db_id  # Temp for update
+                                }
+                        
+                        success_count = 0
+                        for bid, data in updated_bookings.items():
+                            table_name = "online_reservations" if data["type"] == "online" else "reservations"
+                            update_data = {
+                                "advance_remarks": data["advance_remarks"],
+                                "balance_remarks": data["balance_remarks"],
+                                "accounts_status": data["accounts_status"]
+                            }
+                            try:
+                                res = supabase.table(table_name).update(update_data).eq("id", data["db_id"]).execute()
+                                if res.data:
+                                    success_count += 1
+                                    logging.info(f"Updated {table_name} id={data['db_id']}")
+                                else:
+                                    st.warning(f"No update for {bid} (no matching record)")
+                            except Exception as e:
+                                st.error(f"Update failed for {bid}: {e}")
+                                logging.error(f"Update error {bid}: {e}")
+                        
+                        st.success(f"Saved {success_count} bookings. Refresh to see changes.")
+                        st.cache_data.clear()
+                        st.rerun()
 
                     # Tables
                     dtd_df = pd.DataFrame([
