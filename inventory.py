@@ -546,11 +546,9 @@ def show_daily_status():
                         num_rows="fixed",  # Prevent adding/deleting rows
                         key=f"editor_{prop}_{day.isoformat()}"
                     )
-                    
-                    st.info("✏️ Edit remarks/status in the primary room row (check-in day). All other fields are read-only.")
-                    
-                    # Save button with unique key
-                    if st.button(f"💾 Save Changes ({edited_display['Booking ID'].notna().sum()} bookings)", key=f"save_{prop}_{day.isoformat()}"):
+                                        
+                   # Save button with unique key
+                    if st.button(f"💾 Save Changes", key=f"save_{prop}_{day.isoformat()}"):
                         # Merge edited visible with full
                         edited_full = full_df.copy()
                         editable_cols = ["Advance Remarks", "Balance Remarks", "Accounts Status"]
