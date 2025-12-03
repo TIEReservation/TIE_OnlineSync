@@ -261,6 +261,7 @@ def build_report(props: List[str], dates: List[date], bookings: Dict[str, List[D
     return pd.DataFrame(rows)
 
 # -------------------------- Styling: Red Zeros + Green Weekends --------------------------
+# -------------------------- Styling: Royal Blue Headers + Red Zeros + Green Weekends --------------------------
 def style_dataframe_with_highlights(df: pd.DataFrame) -> str:
     def is_zero(val):
         if pd.isna(val):
@@ -274,40 +275,53 @@ def style_dataframe_with_highlights(df: pd.DataFrame) -> str:
         # Default style for all cells in the row
         styles = [""] * len(row)
         
-        # Check if it's a weekend (Sat=5, Sun=6)
+        # Light green background for weekends
         if row["Date"] != "Total":
             try:
                 d = pd.to_datetime(row["Date"]).date()
                 if d.weekday() >= 5:  # Saturday or Sunday
-                    # Apply light green background to ALL cells in this row
                     styles = ["background-color: #d4edda"] * len(row)
             except:
                 pass
 
-        # Now overlay red bold text for zero values (except Date column)
+        # Overlay red bold text for zero values (except Date column)
         for i, (col, val) in enumerate(row.items()):
             if col != "Date" and is_zero(val):
-                # Combine with existing background (important!)
-                if styles[i]:
-                    styles[i] += "; color: red; font-weight: bold"
-                else:
-                    styles[i] = "color: red; font-weight: bold"
+                current = styles[i]
+                red_style = "color: red; font-weight: bold"
+                styles[i] = f"{current}; {red_style}".strip("; ") if current else red_style
 
         return styles
 
     numeric_cols = [c for c in df.columns if c != "Date"]
 
     return (df.style
-            .apply(highlight_row, axis=1)        # This applies full-row + per-cell styles
+            .apply(highlight_row, axis=1)
             .format({c: "{:,.0f}" for c in numeric_cols})
             .set_table_styles([
-                {"selector": "th", "props": "font-weight: bold; text-align: center; background-color: #f8f9fa;"},
-                {"selector": "td", "props": "text-align: right; padding: 8px;"},
-                {"selector": "td:first-child", "props": "text-align: left; font-weight: bold;"},
-                {"selector": "tr:hover", "props": "background-color: #f5f5f5;"},
+                # === ROYAL BLUE HEADER with WHITE TEXT ===
+                {"selector": "th", 
+                 "props": [
+                     ("background-color", "#4169E1"),   # Royal Blue
+                     ("color", "white"),
+                     ("font-weight", "bold"),
+                     ("text-align", "center"),
+                     ("padding", "10px")
+                 ]},
+                
+                # Data cells
+                {"selector": "td", 
+                 "props": "text-align: right; padding: 8px;"},
+                
+                # First column (Date) - left aligned & bold
+                {"selector": "td:first-child", 
+                 "props": "text-align: left; font-weight: bold;"},
+                
+                # Hover effect on rows
+                {"selector": "tr:hover", 
+                 "props": "background-color: #f5f5f5;"},
             ])
             .to_html())
-
 # -------------------------- UI --------------------------
 def show_summary_report():
     st.set_page_config(page_title="TIE Summary Report", layout="wide")
