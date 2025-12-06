@@ -232,11 +232,17 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     inv = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
     inv_lookup = {i.strip().lower(): i for i in inv}
     occupied_rooms = set()  # Track already assigned rooms
+    
+    # Sort bookings by booking_date to ensure first-come-first-served
+    sorted_bookings = sorted(daily_bookings, key=lambda x: (x.get("check_in", ""), x.get("booking_id", "")))
 
-    for b in daily_bookings:
+    for b in sorted_bookings:
         raw_room = str(b.get("room_no", "") or "").strip()
+        booking_id = b.get("booking_id", "Unknown")
+        
         if not raw_room:
             over.append(b)
+            logging.warning(f"Booking {booking_id} has no room number - moved to overbookings")
             continue
 
         # Handle comma-separated rooms
@@ -248,6 +254,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
             key = r.lower()
             if key not in inv_lookup:
                 # Invalid room number
+                logging.warning(f"Booking {booking_id}: Invalid room '{r}' not in inventory")
                 over.append(b)
                 assigned_rooms = []
                 is_overbooking = True
@@ -256,6 +263,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
             room_name = inv_lookup[key]
             if room_name in occupied_rooms:
                 # Room already assigned - this is an overbooking
+                logging.warning(f"Booking {booking_id}: Room '{room_name}' already occupied - OVERBOOKING detected")
                 over.append(b)
                 assigned_rooms = []
                 is_overbooking = True
@@ -269,6 +277,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
         # Mark rooms as occupied
         for room in assigned_rooms:
             occupied_rooms.add(room)
+            logging.info(f"Booking {booking_id}: Assigned room '{room}'")
 
         days = max(b.get("days", 1), 1)
         receivable = b.get("receivable", 0.0)
@@ -287,6 +296,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
             nb["is_primary"] = (idx == 0)
             assigned.append(nb)
 
+    logging.info(f"Property {property}: {len(assigned)} bookings assigned, {len(over)} overbookings detected")
     return assigned, over
 
 # ───────────────────────────────────────────────────────────────────────────
