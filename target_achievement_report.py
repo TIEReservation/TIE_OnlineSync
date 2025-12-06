@@ -1,4 +1,4 @@
-# target_achievement_report.py - Target vs Achievement Analysis
+# target_achievement_report (2).py
 import streamlit as st
 from datetime import date
 import calendar
@@ -6,6 +6,47 @@ import pandas as pd
 from supabase import create_client, Client
 from typing import List, Dict
 import os
+
+# =========================== FORCE COMPACT TABLE - NO SCROLL ===========================
+st.markdown("""
+<style>
+    /* Make the entire app container use full width but control table */
+    .main > div {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    
+    /* Compact table styling */
+    .dataframe-container {
+        overflow-x: auto;
+        max-width: 100vw;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+    }
+    
+    /* Force small font and tight padding */
+    th, td {
+        padding: 4px 6px !important;
+        font-size: 11.5px !important;
+        text-align: center !important;
+    }
+    
+    /* Allow property names to wrap */
+    td:nth-child(2), th:nth-child(2) {
+        max-width: 130px;
+        white-space: normal !important;
+        word-wrap: break-word;
+        line-height: 1.3;
+    }
+    
+    /* Header style */
+    th {
+        background-color: #4CAF50 !important;
+        color: white !important;
+        font-weight: bold !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # -------------------------- Supabase --------------------------
 try:
@@ -85,7 +126,6 @@ PROPERTY_INVENTORY = {
 }
 
 def get_total_rooms(prop: str) -> int:
-    """Get total bookable rooms (excluding Day Use and No Show)"""
     inv = PROPERTY_INVENTORY.get(prop, {"all": []})["all"]
     return len([r for r in inv if not r.startswith(("Day Use", "No Show"))])
 
@@ -232,15 +272,10 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     }
 
 def build_target_achievement_report(props: List[str], dates: List[date], bookings: Dict[str, List[Dict]], current_date: date) -> pd.DataFrame:
+    # ... [your existing build function - unchanged] ...
+    # (keeping your original function as-is for logic)
     rows = []
-    total_target = 0.0
-    total_achieved_so_far = 0.0
-    total_available_room_nights = 0
-    total_rooms_sold = 0
-    total_receivable = 0.0
-    total_per_night_sum = 0.0
-    total_rooms_all = 0
-    total_required_remaining = 0.0
+    total_target = total_achieved_so_far = total_available_room_nights = total_rooms_sold = total_receivable = total_per_night_sum = total_rooms_all = total_required_remaining = 0.0
     
     past_dates = [d for d in dates if d <= current_date]
     future_dates = [d for d in dates if d > current_date]
@@ -249,12 +284,7 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
     for prop in props:
         target = DECEMBER_2025_TARGETS.get(prop, 0)
         
-        # Calculate achieved so far (past dates)
-        achieved_so_far = 0.0
-        rooms_sold_so_far = 0
-        receivable_so_far = 0.0
-        per_night_sum_so_far = 0.0
-        
+        achieved_so_far = rooms_sold_so_far = receivable_so_far = per_night_sum_so_far = 0.0
         for d in past_dates:
             metrics = compute_daily_metrics(bookings.get(prop, []), prop, d)
             achieved_so_far += metrics.get("receivable", 0.0)
@@ -262,12 +292,7 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
             receivable_so_far += metrics.get("receivable", 0.0)
             per_night_sum_so_far += metrics.get("receivable_per_night", 0.0)
         
-        # Full month projections
-        achieved = 0.0
-        rooms_sold = 0
-        receivable = 0.0
-        per_night_sum = 0.0
-        
+        achieved = rooms_sold = receivable = per_night_sum = 0.0
         for d in dates:
             metrics = compute_daily_metrics(bookings.get(prop, []), prop, d)
             achieved += metrics.get("receivable", 0.0)
@@ -282,9 +307,7 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
         total_rooms = get_total_rooms(prop)
         total_available = total_rooms * len(dates)
         occupancy_pct = (rooms_sold / total_available * 100) if total_available > 0 else 0.0
-        
         arr = receivable / rooms_sold if rooms_sold > 0 else 0.0
-        
         arr_focused = per_day_needed / total_rooms if total_rooms > 0 else 0.0
         
         rows.append({
@@ -313,12 +336,10 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
         total_rooms_all += total_rooms
         total_required_remaining += required_remaining
     
-    # Add total row
     total_diff_so_far = total_achieved_so_far - total_target
-    total_target_pct_projected = (total_achieved_so_far + (total_receivable - total_achieved_so_far)) / total_target * 100 if total_target > 0 else 0.0  # Use projected
+    total_target_pct_projected = (total_receivable / total_target * 100) if total_target > 0 else 0.0
     total_occupancy_projected = (total_rooms_sold / total_available_room_nights * 100) if total_available_room_nights > 0 else 0.0
     total_arr_projected = total_receivable / total_rooms_sold if total_rooms_sold > 0 else 0.0
-    
     total_per_day_needed = total_required_remaining / balance_days if balance_days > 0 else 0.0
     total_arr_focused = total_per_day_needed / total_rooms_all if total_rooms_all > 0 else 0.0
     
@@ -326,7 +347,7 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
         "Property Name": "TOTAL",
         "Target": total_target,
         "Achieved So Far": total_achieved_so_far,
-        "Full Projected": total_receivable,  # Use receivable as projected total
+        "Full Projected": total_receivable,
         "Difference So Far": total_diff_so_far,
         "Target Achieved %": total_target_pct_projected,
         "Available Room Nights": total_available_room_nights,
@@ -340,96 +361,80 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
     })
     
     df = pd.DataFrame(rows)
-    
-    # Add S.No column
     df.insert(0, 'S.No', range(1, len(df) + 1))
-    
     return df
 
+# =========================== UPDATED STYLE FUNCTION (COMPACT) ===========================
 def style_dataframe(df):
-    # Function to color difference: green for positive, red for negative
-    def color_difference(val):
+    df_display = df.copy()
+    df_display.columns = [
+        'S.No', 'Property', 'Target', 'Achieved', 'Projected', 'Diff', '% Ach',
+        'Room Nights', 'Sold', 'Occ %', 'Revenue', 'ARR', 'Bal Days', 'Daily Need', 'Focus ARR'
+    ]
+
+    def color_diff(val):
         if isinstance(val, (int, float)):
-            color = 'green' if val > 0 else 'red' if val < 0 else 'black'
+            color = 'green' if val >= 0 else 'red'
             return f'color: {color}; font-weight: bold'
         return ''
-    
-    # Function for % columns: green if >70%, yellow if 50-70%, red if <50%
-    def color_percentage(val):
+
+    def color_pct(val):
         if isinstance(val, (int, float)):
-            if val > 70:
-                color = 'green'
-            elif val > 50:
-                color = 'orange'
-            else:
-                color = 'red'
+            color = 'green' if val >= 70 else 'orange' if val >= 50 else 'red'
             return f'color: {color}; font-weight: bold'
         return ''
-    
-    # Apply styles
-    styled = df.style \
-        .applymap(color_difference, subset=['Difference So Far']) \
-        .applymap(color_percentage, subset=['Target Achieved %', 'Occupancy %']) \
-        .set_properties(**{'text-align': 'center'}) \
-        .set_table_styles([{'selector': 'th', 'props': [('background-color', '#4CAF50'), ('color', 'white'), ('font-weight', 'bold')]}]) \
-        .format({
-            'Target': '{:,.0f}',
-            'Achieved So Far': '{:,.0f}',
-            'Full Projected': '{:,.0f}',
-            'Difference So Far': '{:,.0f}',
-            'Available Room Nights': '{:,.0f}',
-            'Rooms Sold': '{:,.0f}',
-            'Receivable': '{:,.0f}',
-            'ARR': '{:,.0f}',
-            'Balance Days': '{:,.0f}',
-            'Per Day Needed': '{:,.0f}',
-            'ARR Focused': '{:,.0f}',
-            'Target Achieved %': '{:.1f}%',
-            'Occupancy %': '{:.1f}%'
-        })
-    
-    return styled
+
+    return (df_display.style
+            .applymap(color_diff, subset=['Diff'])
+            .applymap(color_pct, subset=['% Ach', 'Occ %'])
+            .format({
+                'Target': '₹{:,.0f}', 'Achieved': '₹{:,.0f}', 'Projected': '₹{:,.0f}',
+                'Diff': '₹{:,.0f}', 'Revenue': '₹{:,.0f}', 'ARR': '₹{:,.0f}',
+                'Daily Need': '₹{:,.0f}', 'Focus ARR': '₹{:,.0f}',
+                '% Ach': '{:.1f}%', 'Occ %': '{:.1f}%',
+                'Room Nights': '{:,.0f}', 'Sold': '{:,.0f}', 'Bal Days': '{:.0f}'
+            })
+            .set_properties(**{'font-size': '11.5px', 'padding': '4px'}))
 
 # -------------------------- UI --------------------------
 def show_target_achievement_report():
-    st.title("🎯 Target vs Achievement Report - December 2025")
+    st.title("Target vs Achievement Report - December 2025")
 
     today = date.today()
     year = st.selectbox("Year", options=list(range(today.year-5, today.year+6)), index=5)
     month = st.selectbox("Month", options=list(range(1,13)), index=today.month-1)
 
     if year != 2025 or month != 12:
-        st.warning("Targets and balance calculations are optimized for December 2025.")
-        current_date = date(year, month, 1)  # Full month if not Dec
+        st.warning("Targets are set only for December 2025.")
+        current_date = date(year, month, 1)
     else:
-        current_date = date(2025, 12, 6)
+        current_date = date(2025, 12, 6)  # Update this date as needed
 
     properties = load_properties()
     if not properties:
-        st.info("No properties found in database.")
+        st.info("No properties found.")
         return
 
-    # Filter only properties with targets
     properties_with_targets = [p for p in properties if p in DECEMBER_2025_TARGETS]
-
     _, days_in_month = calendar.monthrange(year, month)
     month_dates = [date(year, month, d) for d in range(1, days_in_month + 1)]
 
-    with st.spinner("Loading booking data and calculating achievements..."):
+    with st.spinner("Loading data..."):
         bookings = {p: load_combined_bookings(p, month_dates[0], month_dates[-1]) for p in properties_with_targets}
 
-    st.subheader(f"Target vs Achievement Analysis - {calendar.month_name[month]} {year}")
-    
     df = build_target_achievement_report(properties_with_targets, month_dates, bookings, current_date)
-    
-    # Style and display the dataframe
     styled_df = style_dataframe(df)
-    st.dataframe(styled_df, use_container_width=True)
-    
-    # Summary metrics (using original df with numeric values)
+
+    st.subheader(f"Target vs Achievement - {calendar.month_name[month]} {year}")
+
+    # Compact table - no horizontal scroll
+    st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
+    st.dataframe(styled_df, use_container_width=True, hide_index=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Summary metrics
     st.markdown("---")
     total_row = df[df["Property Name"] == "TOTAL"].iloc[0]
-    
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         st.metric("Total Target", f"₹{total_row['Target']:,.0f}")
@@ -439,18 +444,12 @@ def show_target_achievement_report():
     with col3:
         st.metric("Achievement %", f"{total_row['Target Achieved %']:.1f}%")
     with col4:
-        st.metric("Overall Occupancy", f"{total_row['Occupancy %']:.1f}%")
+        st.metric("Occupancy", f"{total_row['Occupancy %']:.1f}%")
     with col5:
-        st.metric("Daily Needed (Remaining)", f"₹{total_row['Per Day Needed']:,.0f}")
-    
-    # Download button (using original df with numeric values)
+        st.metric("Daily Needed", f"₹{total_row['Per Day Needed']:,.0f}")
+
     csv = df.to_csv(index=False)
-    st.download_button(
-        label="📥 Download Report as CSV",
-        data=csv,
-        file_name=f"target_achievement_{calendar.month_name[month]}_{year}.csv",
-        mime="text/csv"
-    )
+    st.download_button("Download CSV", data=csv, file_name=f"Target_Achievement_{year}_{month}.csv", mime="text/csv")
 
 if __name__ == "__main__":
     show_target_achievement_report()
