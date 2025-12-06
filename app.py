@@ -292,22 +292,22 @@ def show_user_management():
                         mod_delete = st.checkbox("Delete Permission", value=current_perms.get("delete", False), key="modify_delete_perm")
                         
                         submit_modify = st.form_submit_button("Update User")
-                    
-                    # Handle form submission OUTSIDE the form context
-                    if submit_modify:
-                        mod_permissions = {"add": mod_add, "edit": mod_edit, "delete": mod_delete}
-                        success = update_user(
-                            supabase, 
-                            modify_username, 
-                            password=mod_password if mod_password else None,
-                            role=mod_role,
-                            properties=mod_properties,
-                            screens=mod_screens,
-                            permissions=mod_permissions
-                        )
-                        if success:
-                            log_activity(supabase, st.session_state.username, f"Modified user {modify_username}")
-                            st.rerun()
+                        
+                        # Handle form submission INSIDE the form context
+                        if submit_modify:
+                            mod_permissions = {"add": mod_add, "edit": mod_edit, "delete": mod_delete}
+                            success = update_user(
+                                supabase, 
+                                modify_username, 
+                                password=mod_password if mod_password else None,
+                                role=mod_role,
+                                properties=mod_properties,
+                                screens=mod_screens,
+                                permissions=mod_permissions
+                            )
+                            if success:
+                                log_activity(supabase, st.session_state.username, f"Modified user {modify_username}")
+                                st.rerun()
 
     st.markdown("---")
 
