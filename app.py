@@ -20,6 +20,15 @@ import json
 from log import show_log_report, log_activity
 from users import validate_user, create_user, update_user, delete_user, load_users
 
+# Try to import target achievement module
+try:
+    from target_achievement import show_target_achievement
+    target_achievement_available = True
+except Exception as e:
+    st.warning(f"Target Achievement module not found: {e}")
+    show_target_achievement = None
+    target_achievement_available = False
+
 # Page config
 st.set_page_config(
     page_title="TIE Reservations",
@@ -120,7 +129,7 @@ def check_authentication():
             # Admin from database
             valid_screens = st.session_state.user_data.get("screens", ["User Management", "Log Report"])
         else:
-            valid_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report"]
+            valid_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement"]
         
         # Apply screen filtering for users with configured screens
         if st.session_state.user_data:
@@ -194,7 +203,7 @@ def show_user_management():
         ]
         new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties, key="create_properties")
         
-        all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "User Management", "Log Report"]
+        all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement", "User Management", "Log Report"]
         
         # Default screens based on role
         if new_role == "Admin":
@@ -202,9 +211,9 @@ def show_user_management():
         elif new_role == "Management":
             default_screens = [s for s in all_screens if s not in ["User Management", "Log Report"]]
         elif new_role == "ReservationHead":
-            default_screens = ["Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Monthly Consolidation", "Summary Report"]
+            default_screens = ["Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Monthly Consolidation", "Summary Report", "Target Achievement"]
         else:
-            default_screens = [s for s in all_screens if s not in ["Daily Management Status", "Analytics", "Inventory Dashboard", "Summary Report", "User Management", "Log Report"]]
+            default_screens = [s for s in all_screens if s not in ["Daily Management Status", "Analytics", "Inventory Dashboard", "Summary Report", "Target Achievement", "User Management", "Log Report"]]
         
         new_screens = st.multiselect("Visible Screens", all_screens, default=default_screens, key="create_screens")
         
@@ -270,7 +279,7 @@ def show_user_management():
                             default_properties = all_properties
                         mod_properties = st.multiselect("Visible Properties", all_properties, default=default_properties, key="modify_properties")
                         
-                        all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "User Management", "Log Report"]
+                        all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement", "User Management", "Log Report"]
                         current_screens = user_to_modify.get("screens", [])
                         # Filter out any screens that don't exist in all_screens to avoid the error
                         valid_current_screens = [screen for screen in current_screens if screen in all_screens]
@@ -424,6 +433,10 @@ def main():
     elif page == "Summary Report":
         show_summary_report()
         log_activity(supabase, st.session_state.username, "Accessed Summary Report")
+
+    elif page == "Target Achievement" and target_achievement_available:
+        show_target_achievement()
+        log_activity(supabase, st.session_state.username, "Accessed Target Achievement")
 
     # === Footer: User Info & Logout ===
     if st.session_state.authenticated:
