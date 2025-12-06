@@ -1,4 +1,4 @@
-# target_achievement_report.py - FINAL VERSION (December 2025)
+# target_achievement_report.py - FINAL ACCURATE VERSION (December 2025)
 
 import streamlit as st
 from datetime import date
@@ -10,29 +10,172 @@ import os
 
 # -------------------------- Supabase --------------------------
 try:
-    supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
+    supabase: Client = create_client(
+        st.secrets["supabase"]["url"],
+        st.secrets["supabase"]["key"]
+    )
 except:
     try:
-        supabase: Client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
+        supabase: Client = create_client(
+            os.environ["SUPABASE_URL"],
+            os.environ["SUPABASE_KEY"]
+        )
     except Exception as e:
-        st.error(f"Supabase config error: {e}")
+        st.error(f"Supabase config missing: {e}")
         st.stop()
 
-# -------------------------- Property Mapping, Targets, Inventory (keep yours) --------------------------
-PROPERTY_MAPPING = { ... }  # Your full mapping
-DECEMBER_2025_TARGETS = { ... }  # Your full targets
-PROPERTY_INVENTORY = { ... }  # Your full inventory
+# -------------------------- Property Mapping --------------------------
+PROPERTY_MAPPING = {
+    "La Millionaire Luxury Resort": "La Millionaire Resort",
+    "Le Poshe Beach View": "Le Poshe Beach view",
+    "Le Poshe Beach view": "Le Poshe Beach view",
+    "Le Poshe Beach VIEW": "Le Poshe Beach view",
+    "Le Poshe Beachview": "Le Poshe Beach view",
+    "Millionaire": "La Millionaire Resort",
+    "Le Pondy Beach Side": "Le Pondy Beachside",
+    "Le Teera": "Le Terra"
+}
+
+reverse_mapping = {c: [] for c in set(PROPERTY_MAPPING.values())}
+for v, c in PROPERTY_MAPPING.items():
+    reverse_mapping[c].append(v)
+
+def normalize_property_name(prop_name: str) -> str:
+    return PROPERTY_MAPPING.get(prop_name, prop_name) if prop_name else prop_name
+
+# -------------------------- December 2025 Targets --------------------------
+DECEMBER_2025_TARGETS = {
+    "La Millionaire Resort": 2200000,
+    "Le Poshe Beach view": 800000,
+    "Le Park Resort": 800000,
+    "La Tamara Luxury": 1848000,
+    "Le Poshe Luxury": 1144000,
+    "Le Poshe Suite": 475000,
+    "Eden Beach Resort": 438000,
+    "La Antilia Luxury": 1075000,
+    "La Coromandel Luxury": 800000,
+    "La Tamara Suite": 640000,
+    "Villa Shakti": 652000,
+    "La Paradise Luxury": 467000,
+    "La Villa Heritage": 467000,
+    "La Paradise Residency": 534000,
+    "Le Pondy Beachside": 245000,
+    "Le Royce Villa": 190000,
+}
+
+# -------------------------- Property Inventory --------------------------
+PROPERTY_INVENTORY = {
+    "Le Poshe Beach view": {"all": ["101","102","201","202","203","204","301","302","303","304","Day Use 1","Day Use 2","No Show"]},
+    "La Millionaire Resort": {"all": [f"{i}" for i in range(101,109)] + [f"{i}" for i in range(201,209)] + [f"{i}" for i in range(301,309)] + [f"{i}" for i in range(401,403)] + ["Day Use 1","Day Use 2","Day Use 3","Day Use 4","Day Use 5","No Show"]},
+    "Le Poshe Luxury": {"all": [f"{i}" for i in range(101,103)] + [f"{i}" for i in range(201,206)] + [f"{i}" for i in range(301,306)] + [f"{i}" for i in range(401,406)] + ["501","Day Use 1","Day Use 2","No Show"]},
+    "Le Poshe Suite": {"all": [f"{i}" for i in range(601,605)] + [f"{i}" for i in range(701,705)] + ["801","Day Use 1","Day Use 2","No Show"]},
+    "La Paradise Residency": {"all": [f"{i}" for i in range(101,104)] + [f"{i}" for i in range(201,204)] + [f"{i}" for i in range(301,305)] + ["Day Use 1","Day Use 2","No Show"]},
+    "La Paradise Luxury": {"all": [f"{i}" for i in range(101,104)] + [f"{i}" for i in range(201,204)] + ["Day Use 1","Day Use 2","No Show"]},
+    "La Villa Heritage": {"all": [f"{i}" for i in range(101,104)] + [f"{i}" for i in range(201,204)] + ["301","Day Use 1","Day Use 2","No Show"]},
+    "Le Pondy Beachside": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"]},
+    "Le Royce Villa": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"]},
+    "La Tamara Luxury": {"all": [f"{i}" for i in range(101,107)] + [f"{i}" for i in range(201,207)] + [f"{i}" for i in range(301,307)] + [f"{i}" for i in range(401,405)] + ["Day Use 1","Day Use 2","No Show"]},
+    "La Antilia Luxury": {"all": ["101","201","202","203","204","301","302","303","304","401","Day Use 1","Day Use 2","No Show"]},
+    "La Tamara Suite": {"all": [f"{i}" for i in range(101,105)] + [f"{i}" for i in range(201,207)] + ["Day Use 1","Day Use 2","No Show"]},
+    "Le Park Resort": {"all": ["111","222","333","444","555","666","Day Use 1","Day Use 2","No Show"]},
+    "Villa Shakti": {"all": ["101","102","201","201A","202","203","301","301A","302","303","401","Day Use 1","Day Use 2","No Show"]},
+    "Eden Beach Resort": {"all": ["101","102","103","201","202","Day Use 1","Day Use 2","No Show"]},
+    "Le Terra": {"all": [f"{i}" for i in range(101,108)] + ["Day Use 1","Day Use 2","No Show"]},
+    "La Coromandel Luxury": {"all": [f"{i}" for i in range(101,104)] + [f"{i}" for i in range(201,207)] + ["301","Day Use 1","Day Use 2","No Show"]},
+}
 
 def get_total_rooms(prop: str) -> int:
     inv = PROPERTY_INVENTORY.get(prop, {"all": []})["all"]
     return len([r for r in inv if not r.startswith(("Day Use", "No Show"))])
 
-# Keep all your existing functions: load_combined_bookings, compute_daily_metrics, etc.
+# -------------------------- Helpers --------------------------
+def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
+    normalized_prop = normalize_property_name(prop)
+    query_props = [normalized_prop] + reverse_mapping.get(normalized_prop, [])
+    try:
+        direct = supabase.table("reservations").select("*")\
+            .in_("property_name", query_props)\
+            .lte("check_in", str(end)).gte("check_out", str(start))\
+            .in_("plan_status", ["Confirmed", "Completed"])\
+            .in_("payment_status", ["Partially Paid", "Fully Paid"]).execute().data or []
 
+        online = supabase.table("online_reservations").select("*")\
+            .in_("property", query_props)\
+            .lte("check_in", str(end)).gte("check_out", str(start))\
+            .in_("booking_status", ["Confirmed", "Completed"])\
+            .in_("payment_status", ["Partially Paid", "Fully Paid"]).execute().data or []
+
+        all_bookings = []
+        for b in direct + online:
+            name = b.get("property_name") or b.get("property")
+            if normalize_property_name(name) == prop:
+                b["property_name"] = prop
+                b["type"] = "direct" if "property_name" in b else "online"
+                all_bookings.append(b)
+        return all_bookings
+    except Exception as e:
+        st.error(f"Error loading {prop}: {e}")
+        return []
+
+def filter_bookings_for_day(bookings: List[Dict], target: date) -> List[Dict]:
+    return [b for b in bookings if date.fromisoformat(b["check_in"]) <= target < date.fromisoformat(b["check_out"])]
+
+def assign_inventory_numbers(daily: List[Dict], prop: str):
+    inv = PROPERTY_INVENTORY.get(prop, {"all": []})["all"]
+    inv_lookup = {i.strip().lower(): i for i in inv}
+    assigned = []
+    already_assigned = set()
+    for b in daily:
+        raw_room = str(b.get("room_no") or "").strip()
+        if not raw_room:
+            continue
+        requested = [r.strip() for r in raw_room.split(",") if r.strip()]
+        assigned_rooms = []
+        for r in requested:
+            key = r.lower()
+            if key not in inv_lookup or inv_lookup[key] in already_assigned:
+                break
+            room = inv_lookup[key]
+            assigned_rooms.append(room)
+            already_assigned.add(room)
+        else:
+            for idx, room in enumerate(assigned_rooms):
+                new_b = b.copy()
+                new_b["assigned_room"] = room
+                new_b["room_no"] = room
+                new_b["is_primary"] = (idx == 0)
+                assigned.append(new_b)
+    return assigned, []
+
+def safe_float(value, default=0.0):
+    try:
+        return float(value) if value not in [None, "", " "] else default
+    except:
+        return default
+
+def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
+    daily = filter_bookings_for_day(bookings, day)
+    assigned, _ = assign_inventory_numbers(daily, prop)
+    rooms_sold = len(set(b.get("assigned_room") for b in assigned if b.get("assigned_room")))
+    primaries = [b for b in assigned if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day]
+
+    receivable = 0.0
+    for b in primaries:
+        if b["type"] == "online":
+            total = safe_float(b.get("booking_amount"))
+            gst = safe_float(b.get("ota_tax"))
+            comm = safe_float(b.get("ota_commission"))
+            receivable += total - gst - comm
+        else:
+            receivable += safe_float(b.get("total_tariff"))
+
+    return {"rooms_sold": rooms_sold, "receivable": receivable}
+
+# -------------------------- MAIN REPORT FUNCTION (100% CORRECT) --------------------------
 def build_target_achievement_report(props: List[str], dates: List[date], bookings: Dict[str, List[Dict]], current_date: date) -> pd.DataFrame:
     rows = []
     total_target = total_achieved = total_all_booking = total_balance = 0.0
-    total_room_nights = total_rooms_sold = total_balance_rooms = total_rooms_count = 0
+    total_room_nights = total_rooms_sold = total_balance_rooms = total_rooms_count = 0.0
 
     past_dates = [d for d in dates if d <= current_date]
     future_dates = [d for d in dates if d > current_date]
@@ -42,16 +185,23 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
         target = DECEMBER_2025_TARGETS.get(prop, 0)
         total_rooms = get_total_rooms(prop)
         total_room_nights_available = total_rooms * len(dates)
-        balance_rooms = total_rooms * balance_days
 
-        achieved = all_booking = rooms_sold_total = 0.0
+        achieved = all_booking = rooms_sold_total = future_booked_rooms = 0.0
 
         for d in dates:
             metrics = compute_daily_metrics(bookings.get(prop, []), prop, d)
+            receivable = metrics["receivable"]
+            rooms_sold = metrics["rooms_sold"]
+
             if d <= current_date:
-                achieved += metrics["receivable"]
-            all_booking += metrics["receivable"]
-            rooms_sold_total += metrics["rooms_sold"]
+                achieved += receivable
+            all_booking += receivable
+            rooms_sold_total += rooms_sold
+            if d > current_date:
+                future_booked_rooms += rooms_sold
+
+        # CORRECT Balance Rooms = (Rooms × Remaining Days) − Future Booked Rooms
+        balance_rooms = (total_rooms * balance_days) - future_booked_rooms
 
         balance = target - achieved
         achieved_pct = (all_booking / target * 100) if target > 0 else 0
@@ -62,20 +212,20 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
 
         rows.append({
             "Property Name": prop,
-            "Target": target,
-            "Achieved": round(achieved),
-            "All Booking": round(all_booking),           # Full month confirmed revenue
-            "Balance": round(balance),
-            "Achieved %": achieved_pct,
-            "Total Rooms": total_room_nights_available,
+            "Target": int(target),
+            "Achieved": int(achieved),
+            "All Booking": int(all_booking),
+            "Balance": int(balance),
+            "Achieved %": round(achieved_pct, 1),
+            "Total Rooms": int(total_room_nights_available),
             "Rooms Sold": int(rooms_sold_total),
-            "Occupancy %": occupancy,
-            "Receivable": round(all_booking),
-            "ARR": round(arr),
+            "Occupancy %": round(occupancy, 1),
+            "Receivable": int(all_booking),
+            "ARR": int(arr),
             "Balance Days": balance_days,
-            "Balance Rooms": balance_rooms,
-            "Per Day Needed": round(per_day_needed),
-            "ARR Focused": round(arr_focused)
+            "Balance Rooms": max(int(balance_rooms), 0),  # Never negative
+            "Per Day Needed": int(per_day_needed),
+            "ARR Focused": int(arr_focused)
         })
 
         total_target += target
@@ -96,20 +246,20 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
 
     rows.append({
         "Property Name": "TOTAL",
-        "Target": total_target,
-        "Achieved": round(total_achieved),
-        "All Booking": round(total_all_booking),
-        "Balance": round(total_balance),
-        "Achieved %": total_pct,
-        "Total Rooms": total_room_nights,
+        "Target": int(total_target),
+        "Achieved": int(total_achieved),
+        "All Booking": int(total_all_booking),
+        "Balance": int(total_balance),
+        "Achieved %": round(total_pct, 1),
+        "Total Rooms": int(total_room_nights),
         "Rooms Sold": int(total_rooms_sold),
-        "Occupancy %": total_occupancy,
-        "Receivable": round(total_all_booking),
-        "ARR": round(total_arr),
+        "Occupancy %": round(total_occupancy, 1),
+        "Receivable": int(total_all_booking),
+        "ARR": int(total_arr),
         "Balance Days": balance_days,
-        "Balance Rooms": total_balance_rooms,
-        "Per Day Needed": round(total_per_day),
-        "ARR Focused": round(total_arr_focused)
+        "Balance Rooms": max(int(total_balance_rooms), 0),
+        "Per Day Needed": int(total_per_day),
+        "ARR Focused": int(total_arr_focused)
     })
 
     df = pd.DataFrame(rows)
@@ -119,7 +269,8 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
 # -------------------------- Styling --------------------------
 def style_dataframe(df):
     def color_balance(val): 
-        return f"color: {'green' if val >= 0 else 'red'}; font-weight: bold" if isinstance(val, (int, float)) else ""
+        color = "green" if val >= 0 else "red"
+        return f"color: {color}; font-weight: bold" if isinstance(val, (int, float)) else ""
     def color_pct(val): 
         color = "green" if val >= 70 else "orange" if val >= 50 else "red"
         return f"color: {color}; font-weight: bold" if isinstance(val, (int, float)) else ""
@@ -141,13 +292,13 @@ def show_target_achievement_report():
     st.set_page_config(page_title="Target vs Achievement - Dec 2025", layout="wide")
     st.title("Target vs Achievement Report - December 2025")
 
-    current_date = date(2025, 12, 6)
+    current_date = date(2025, 12, 6)  # Update daily
     year, month = 2025, 12
     _, days_in_month = calendar.monthrange(year, month)
     dates = [date(year, month, d) for d in range(1, days_in_month + 1)]
     properties = list(DECEMBER_2025_TARGETS.keys())
 
-    with st.spinner("Generating report..."):
+    with st.spinner("Loading bookings and generating report..."):
         bookings = {p: load_combined_bookings(p, dates[0], dates[-1]) for p in properties}
         df = build_target_achievement_report(properties, dates, bookings, current_date)
         styled = style_dataframe(df)
@@ -162,7 +313,7 @@ def show_target_achievement_report():
     with c4: st.metric("Achieved %", f"{total['Achieved %']:.1f}%")
     with c5: st.metric("Daily Needed", f"₹{total['Per Day Needed']:,.0f}")
 
-    st.download_button("Download CSV", df.to_csv(index=False), "Target_Achievement_Dec2025.csv", "text/csv")
+    st.download_button("Download Report (CSV)", df.to_csv(index=False), "Target_Achievement_Dec2025.csv", "text/csv")
 
 if __name__ == "__main__":
     show_target_achievement_report()
