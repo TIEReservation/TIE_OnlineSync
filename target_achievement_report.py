@@ -6,7 +6,6 @@ import pandas as pd
 from supabase import create_client, Client
 from typing import List, Dict
 import os
-import numpy as np
 
 # -------------------------- Supabase --------------------------
 try:
@@ -371,8 +370,6 @@ def style_dataframe(df):
     styled = df.style \
         .applymap(color_difference, subset=['Difference So Far']) \
         .applymap(color_percentage, subset=['Target Achieved %', 'Occupancy %']) \
-        .background_gradient(subset=['Target', 'Achieved So Far', 'Full Projected', 'Receivable'], cmap='Blues', low=0, high=1) \
-        .background_gradient(subset=['Per Day Needed', 'ARR Focused'], cmap='Reds', low=0, high=1) \
         .set_properties(**{'text-align': 'center'}) \
         .set_table_styles([{'selector': 'th', 'props': [('background-color', '#4CAF50'), ('color', 'white'), ('font-weight', 'bold')]}]) \
         .format({
