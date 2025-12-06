@@ -47,22 +47,22 @@ def normalize_property_name(prop_name: str) -> str:
 
 # -------------------------- December 2025 Targets --------------------------
 DECEMBER_2025_TARGETS = {
-    "La Millionaire Resort": 2200000,
-    "Le Poshe Beach view": 800000,
-    "Le Park Resort": 800000,
-    "La Tamara Luxury": 1848000,
-    "Le Poshe Luxury": 1144000,
-    "Le Poshe Suite": 475000,
-    "Eden Beach Resort": 438000,
-    "La Antilia Luxury": 1075000,
-    "La Coromandel Luxury": 800000,
-    "La Tamara Suite": 640000,
-    "Villa Shakti": 652000,
-    "La Paradise Luxury": 467000,
-    "La Villa Heritage": 467000,
-    "La Paradise Residency": 534000,
-    "Le Pondy Beachside": 245000,
-    "Le Royce Villa": 190000,
+    "La Millionaire Resort": 2009899,
+    "Le Poshe Beach view":   777120,
+    "Le Park Resort":        862113,
+    "La Tamara Luxury":     1784373,
+    "Le Poshe Luxury":      1100469,
+    "Le Poshe Suite":        545150,
+    "Eden Beach Resort":     413706,
+    "La Antilia Luxury":    1275000,
+    "La coramandel":         738878,
+    "La Tamara Suite":       657956,
+    "Villa Shakti":          947947,
+    "La Paradise Luxury":    591102,
+    "La Villa Heritage":     494469,
+    "La Paradise Residency": 450824,
+    "Le Pondy Beachside":    238796,
+    "Le Royce Villa":        214916,
 }
 
 # -------------------------- Property Inventory --------------------------
