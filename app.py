@@ -16,6 +16,7 @@ from monthlyconsolidation import show_monthly_consolidation
 from dashboard import show_dashboard
 from summary_report import show_summary_report
 import pandas as pd
+import json
 from log import show_log_report, log_activity
 from users import validate_user, create_user, update_user, delete_user, load_users
 
@@ -151,6 +152,18 @@ def show_user_management():
     else:
         st.subheader("Existing Users")
         df = pd.DataFrame(users)
+        
+        # Convert JSONB columns to strings BEFORE filtering columns
+        if 'properties' in df.columns:
+            df['properties'] = df['properties'].apply(lambda x: json.dumps(x) if x is not None else '[]')
+        
+        if 'screens' in df.columns:
+            df['screens'] = df['screens'].apply(lambda x: json.dumps(x) if x is not None else '[]')
+        
+        if 'permissions' in df.columns:
+            df['permissions'] = df['permissions'].apply(lambda x: json.dumps(x) if x is not None else '{}')
+        
+        # Now filter columns for display (exclude password)
         display_columns = ["username", "role"]
         if "properties" in df.columns:
             display_columns.append("properties")
