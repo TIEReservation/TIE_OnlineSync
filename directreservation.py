@@ -75,7 +75,7 @@ def load_property_room_map():
             "No Show": ["No Show"],
             "Others": []
         },
-        "Le Pondy Beach Side": {
+        "Le Pondy Beachside": {
             "Villa": ["101", "102", "201", "202"],
             "Day Use": ["Day Use 1", "Day Use 2"],
             "No Show": ["No Show"],
