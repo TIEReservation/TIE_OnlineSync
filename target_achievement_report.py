@@ -6,6 +6,7 @@ import pandas as pd
 from supabase import create_client, Client
 from typing import List, Dict
 import os
+import numpy as np
 
 # -------------------------- Supabase --------------------------
 try:
@@ -339,7 +340,58 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
         "ARR Focused": total_arr_focused
     })
     
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    
+    # Add S.No column
+    df.insert(0, 'S.No', range(1, len(df) + 1))
+    
+    return df
+
+def style_dataframe(df):
+    # Function to color difference: green for positive, red for negative
+    def color_difference(val):
+        if isinstance(val, (int, float)):
+            color = 'green' if val > 0 else 'red' if val < 0 else 'black'
+            return f'color: {color}; font-weight: bold'
+        return ''
+    
+    # Function for % columns: green if >70%, yellow if 50-70%, red if <50%
+    def color_percentage(val):
+        if isinstance(val, (int, float)):
+            if val > 70:
+                color = 'green'
+            elif val > 50:
+                color = 'orange'
+            else:
+                color = 'red'
+            return f'color: {color}; font-weight: bold'
+        return ''
+    
+    # Apply styles
+    styled = df.style \
+        .applymap(color_difference, subset=['Difference So Far']) \
+        .applymap(color_percentage, subset=['Target Achieved %', 'Occupancy %']) \
+        .background_gradient(subset=['Target', 'Achieved So Far', 'Full Projected', 'Receivable'], cmap='Blues', low=0, high=1) \
+        .background_gradient(subset=['Per Day Needed', 'ARR Focused'], cmap='Reds', low=0, high=1) \
+        .set_properties(**{'text-align': 'center'}) \
+        .set_table_styles([{'selector': 'th', 'props': [('background-color', '#4CAF50'), ('color', 'white'), ('font-weight', 'bold')]}]) \
+        .format({
+            'Target': '{:,.0f}',
+            'Achieved So Far': '{:,.0f}',
+            'Full Projected': '{:,.0f}',
+            'Difference So Far': '{:,.0f}',
+            'Available Room Nights': '{:,.0f}',
+            'Rooms Sold': '{:,.0f}',
+            'Receivable': '{:,.0f}',
+            'ARR': '{:,.0f}',
+            'Balance Days': '{:,.0f}',
+            'Per Day Needed': '{:,.0f}',
+            'ARR Focused': '{:,.0f}',
+            'Target Achieved %': '{:.1f}%',
+            'Occupancy %': '{:.1f}%'
+        })
+    
+    return styled
 
 # -------------------------- UI --------------------------
 def show_target_achievement_report():
@@ -373,22 +425,9 @@ def show_target_achievement_report():
     
     df = build_target_achievement_report(properties_with_targets, month_dates, bookings, current_date)
     
-    # Display using st.dataframe with proper formatting
-    # Create a copy for display with formatted strings
-    display_df = df.copy()
-    
-    # Format currency and percentage columns as strings for display
-    currency_cols = ['Target', 'Achieved So Far', 'Full Projected', 'Difference So Far', 'Receivable', 'ARR', 'Per Day Needed', 'ARR Focused']
-    for col in currency_cols:
-        if col in display_df.columns:
-            display_df[col] = display_df[col].apply(lambda x: f"₹{x:,.0f}" if isinstance(x, (int, float)) else x)
-    
-    percentage_cols = ['Target Achieved %', 'Occupancy %']
-    for col in percentage_cols:
-        if col in display_df.columns:
-            display_df[col] = display_df[col].apply(lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) else x)
-    
-    st.dataframe(display_df, width='stretch', hide_index=True)
+    # Style and display the dataframe
+    styled_df = style_dataframe(df)
+    st.dataframe(styled_df, use_container_width=True)
     
     # Summary metrics (using original df with numeric values)
     st.markdown("---")
