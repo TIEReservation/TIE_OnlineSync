@@ -231,6 +231,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     assigned, over = [], []
     inv = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
     inv_lookup = {i.strip().lower(): i for i in inv}
+    occupied_rooms = set()  # Track already assigned rooms
 
     for b in daily_bookings:
         raw_room = str(b.get("room_no", "") or "").strip()
@@ -241,18 +242,33 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
         # Handle comma-separated rooms
         requested = [r.strip() for r in raw_room.split(",") if r.strip()]
         assigned_rooms = []
+        is_overbooking = False
 
         for r in requested:
             key = r.lower()
-            if key in inv_lookup:
-                assigned_rooms.append(inv_lookup[key])
-            else:
+            if key not in inv_lookup:
+                # Invalid room number
                 over.append(b)
                 assigned_rooms = []
+                is_overbooking = True
                 break
+            
+            room_name = inv_lookup[key]
+            if room_name in occupied_rooms:
+                # Room already assigned - this is an overbooking
+                over.append(b)
+                assigned_rooms = []
+                is_overbooking = True
+                break
+            
+            assigned_rooms.append(room_name)
 
-        if not assigned_rooms:
+        if is_overbooking or not assigned_rooms:
             continue
+
+        # Mark rooms as occupied
+        for room in assigned_rooms:
+            occupied_rooms.add(room)
 
         days = max(b.get("days", 1), 1)
         receivable = b.get("receivable", 0.0)
