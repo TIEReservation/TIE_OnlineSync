@@ -249,22 +249,24 @@ def show_user_management():
         if not modifiable_users:
             st.info("No modifiable users found.")
         else:
+            # Select user OUTSIDE the form
             modify_username = st.selectbox("Select User to Modify", modifiable_users, key="modify_username_select")
             
             if modify_username:
                 user_to_modify = next((u for u in users if u["username"] == modify_username), None)
                 
                 if user_to_modify:
-                    with st.form("modify_user_form", clear_on_submit=False):
+                    # Now create the form with all fields
+                    with st.form("modify_user_form"):
                         st.write(f"**Modifying User: {modify_username}**")
                         
                         mod_password = st.text_input("New Password (leave blank to keep current)", type="password", key="modify_password")
                         st.caption("Password will be stored as plain text")
                         
                         current_role = user_to_modify.get("role", "ReservationTeam")
-                        mod_role = st.selectbox("Role", ["Management", "ReservationTeam", "ReservationHead", "Admin"], 
-                                              index=["Management", "ReservationTeam", "ReservationHead", "Admin"].index(current_role) if current_role in ["Management", "ReservationTeam", "ReservationHead", "Admin"] else 1, 
-                                              key="modify_role")
+                        role_options = ["Management", "ReservationTeam", "ReservationHead", "Admin"]
+                        role_index = role_options.index(current_role) if current_role in role_options else 1
+                        mod_role = st.selectbox("Role", role_options, index=role_index, key="modify_role")
                         
                         all_properties = [
                             "Le Poshe Beachview", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite",
@@ -281,7 +283,6 @@ def show_user_management():
                         
                         all_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement", "User Management", "Log Report"]
                         current_screens = user_to_modify.get("screens", [])
-                        # Filter out any screens that don't exist in all_screens to avoid the error
                         valid_current_screens = [screen for screen in current_screens if screen in all_screens]
                         mod_screens = st.multiselect("Visible Screens", all_screens, default=valid_current_screens, key="modify_screens")
                         
@@ -291,22 +292,22 @@ def show_user_management():
                         mod_delete = st.checkbox("Delete Permission", value=current_perms.get("delete", False), key="modify_delete_perm")
                         
                         submit_modify = st.form_submit_button("Update User")
-                        
-                        if submit_modify:
-                            mod_permissions = {"add": mod_add, "edit": mod_edit, "delete": mod_delete}
-                            # Password is stored as plain text by update_user function
-                            success = update_user(
-                                supabase, 
-                                modify_username, 
-                                password=mod_password if mod_password else None,
-                                role=mod_role,
-                                properties=mod_properties,
-                                screens=mod_screens,
-                                permissions=mod_permissions
-                            )
-                            if success:
-                                log_activity(supabase, st.session_state.username, f"Modified user {modify_username}")
-                                st.rerun()
+                    
+                    # Handle form submission OUTSIDE the form context
+                    if submit_modify:
+                        mod_permissions = {"add": mod_add, "edit": mod_edit, "delete": mod_delete}
+                        success = update_user(
+                            supabase, 
+                            modify_username, 
+                            password=mod_password if mod_password else None,
+                            role=mod_role,
+                            properties=mod_properties,
+                            screens=mod_screens,
+                            permissions=mod_permissions
+                        )
+                        if success:
+                            log_activity(supabase, st.session_state.username, f"Modified user {modify_username}")
+                            st.rerun()
 
     st.markdown("---")
 
