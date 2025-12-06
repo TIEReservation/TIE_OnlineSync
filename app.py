@@ -243,33 +243,42 @@ def show_user_management():
                 user_to_modify = next((u for u in users if u["username"] == modify_username), None)
                
                 if user_to_modify:
-                    # Parse JSON fields if they are strings (fix for AttributeError)
+                    # Parse JSON fields if they are strings or None (fix for AttributeError)
                     current_properties_raw = user_to_modify.get("properties", [])
-                    if isinstance(current_properties_raw, str):
+                    current_properties = current_properties_raw
+                    if current_properties is None:
+                        current_properties = []
+                    elif isinstance(current_properties, str):
                         try:
                             current_properties = json.loads(current_properties_raw)
                         except (json.JSONDecodeError, TypeError):
                             current_properties = []
-                    else:
-                        current_properties = current_properties_raw
+                    if not isinstance(current_properties, list):
+                        current_properties = []
 
                     current_screens_raw = user_to_modify.get("screens", [])
-                    if isinstance(current_screens_raw, str):
+                    current_screens = current_screens_raw
+                    if current_screens is None:
+                        current_screens = []
+                    elif isinstance(current_screens, str):
                         try:
                             current_screens = json.loads(current_screens_raw)
                         except (json.JSONDecodeError, TypeError):
                             current_screens = []
-                    else:
-                        current_screens = current_screens_raw
+                    if not isinstance(current_screens, list):
+                        current_screens = []
 
                     current_perms_raw = user_to_modify.get("permissions", {"add": False, "edit": False, "delete": False})
-                    if isinstance(current_perms_raw, str):
+                    current_perms = current_perms_raw
+                    if current_perms is None:
+                        current_perms = {"add": False, "edit": False, "delete": False}
+                    elif isinstance(current_perms, str):
                         try:
                             current_perms = json.loads(current_perms_raw)
                         except (json.JSONDecodeError, TypeError):
                             current_perms = {"add": False, "edit": False, "delete": False}
-                    else:
-                        current_perms = current_perms_raw
+                    if not isinstance(current_perms, dict):
+                        current_perms = {"add": False, "edit": False, "delete": False}
                    
                     with st.form("modify_user_form", clear_on_submit=False):
                         st.write(f"**Modifying User: {modify_username}**")
