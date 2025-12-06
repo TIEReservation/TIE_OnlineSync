@@ -22,11 +22,11 @@ from users import validate_user, create_user, update_user, delete_user, load_use
 
 # Try to import target achievement module
 try:
-    from target_achievement import show_target_achievement
+    from target_achievement_report import show_target_achievement_report
     target_achievement_available = True
 except Exception as e:
     st.warning(f"Target Achievement module not found: {e}")
-    show_target_achievement = None
+    show_target_achievement_report = None
     target_achievement_available = False
 
 # Page config
@@ -436,7 +436,7 @@ def main():
         log_activity(supabase, st.session_state.username, "Accessed Summary Report")
 
     elif page == "Target Achievement" and target_achievement_available:
-        show_target_achievement()
+        show_target_achievement_report()
         log_activity(supabase, st.session_state.username, "Accessed Target Achievement")
 
     # === Footer: User Info & Logout ===
