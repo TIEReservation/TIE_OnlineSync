@@ -293,12 +293,12 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
             "Achieved So Far": achieved_so_far,
             "Full Projected": achieved,
             "Difference So Far": difference_so_far,
-            "Target Achieved % (Projected)": (achieved / target * 100) if target > 0 else 0.0,
+            "Target Achieved %": (achieved / target * 100) if target > 0 else 0.0,
             "Available Room Nights": total_available,
-            "Rooms Sold (Projected)": rooms_sold,
-            "Occupancy % (Projected)": occupancy_pct,
-            "Receivable (Projected)": receivable,
-            "ARR (Projected)": arr,
+            "Rooms Sold": rooms_sold,
+            "Occupancy %": occupancy_pct,
+            "Receivable": receivable,
+            "ARR": arr,
             "Balance Days": balance_days,
             "Per Day Needed": per_day_needed,
             "ARR Focused": arr_focused
@@ -328,12 +328,12 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
         "Achieved So Far": total_achieved_so_far,
         "Full Projected": total_receivable,  # Use receivable as projected total
         "Difference So Far": total_diff_so_far,
-        "Target Achieved % (Projected)": total_target_pct_projected,
+        "Target Achieved %": total_target_pct_projected,
         "Available Room Nights": total_available_room_nights,
-        "Rooms Sold (Projected)": total_rooms_sold,
-        "Occupancy % (Projected)": total_occupancy_projected,
-        "Receivable (Projected)": total_receivable,
-        "ARR (Projected)": total_arr_projected,
+        "Rooms Sold": total_rooms_sold,
+        "Occupancy %": total_occupancy_projected,
+        "Receivable": total_receivable,
+        "ARR": total_arr_projected,
         "Balance Days": balance_days,
         "Per Day Needed": total_per_day_needed,
         "ARR Focused": total_arr_focused
@@ -378,12 +378,12 @@ def show_target_achievement_report():
     display_df = df.copy()
     
     # Format currency and percentage columns as strings for display
-    currency_cols = ['Target', 'Achieved So Far', 'Full Projected', 'Difference So Far', 'Receivable (Projected)', 'ARR (Projected)', 'Per Day Needed', 'ARR Focused']
+    currency_cols = ['Target', 'Achieved So Far', 'Full Projected', 'Difference So Far', 'Receivable', 'ARR', 'Per Day Needed', 'ARR Focused']
     for col in currency_cols:
         if col in display_df.columns:
             display_df[col] = display_df[col].apply(lambda x: f"₹{x:,.0f}" if isinstance(x, (int, float)) else x)
     
-    percentage_cols = ['Target Achieved % (Projected)', 'Occupancy % (Projected)']
+    percentage_cols = ['Target Achieved %', 'Occupancy %']
     for col in percentage_cols:
         if col in display_df.columns:
             display_df[col] = display_df[col].apply(lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) else x)
@@ -401,9 +401,9 @@ def show_target_achievement_report():
         st.metric("Achieved So Far", f"₹{total_row['Achieved So Far']:,.0f}", 
                  delta=f"₹{total_row['Difference So Far']:,.0f}")
     with col3:
-        st.metric("Projected Achievement %", f"{total_row['Target Achieved % (Projected)']:.1f}%")
+        st.metric("Achievement %", f"{total_row['Target Achieved %']:.1f}%")
     with col4:
-        st.metric("Overall Occupancy (Projected)", f"{total_row['Occupancy % (Projected)']:.1f}%")
+        st.metric("Overall Occupancy", f"{total_row['Occupancy %']:.1f}%")
     with col5:
         st.metric("Daily Needed (Remaining)", f"₹{total_row['Per Day Needed']:,.0f}")
     
