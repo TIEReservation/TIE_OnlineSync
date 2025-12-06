@@ -284,7 +284,6 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
         occupancy_pct = (rooms_sold / total_available * 100) if total_available > 0 else 0.0
         
         arr = receivable / rooms_sold if rooms_sold > 0 else 0.0
-        per_day_revenue = per_night_sum / len(dates) if len(dates) > 0 else 0.0
         
         arr_focused = per_day_needed / total_rooms if total_rooms > 0 else 0.0
         
@@ -300,7 +299,6 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
             "Occupancy % (Projected)": occupancy_pct,
             "Receivable (Projected)": receivable,
             "ARR (Projected)": arr,
-            "Per Day Revenue (Projected)": per_day_revenue,
             "Balance Days": balance_days,
             "Per Day Needed": per_day_needed,
             "ARR Focused": arr_focused
@@ -320,7 +318,6 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
     total_target_pct_projected = (total_achieved_so_far + (total_receivable - total_achieved_so_far)) / total_target * 100 if total_target > 0 else 0.0  # Use projected
     total_occupancy_projected = (total_rooms_sold / total_available_room_nights * 100) if total_available_room_nights > 0 else 0.0
     total_arr_projected = total_receivable / total_rooms_sold if total_rooms_sold > 0 else 0.0
-    total_per_day_projected = total_per_night_sum / len(dates) if len(dates) > 0 else 0.0
     
     total_per_day_needed = total_required_remaining / balance_days if balance_days > 0 else 0.0
     total_arr_focused = total_per_day_needed / total_rooms_all if total_rooms_all > 0 else 0.0
@@ -337,7 +334,6 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
         "Occupancy % (Projected)": total_occupancy_projected,
         "Receivable (Projected)": total_receivable,
         "ARR (Projected)": total_arr_projected,
-        "Per Day Revenue (Projected)": total_per_day_projected,
         "Balance Days": balance_days,
         "Per Day Needed": total_per_day_needed,
         "ARR Focused": total_arr_focused
@@ -382,7 +378,7 @@ def show_target_achievement_report():
     display_df = df.copy()
     
     # Format currency and percentage columns as strings for display
-    currency_cols = ['Target', 'Achieved So Far', 'Full Projected', 'Difference So Far', 'Receivable (Projected)', 'ARR (Projected)', 'Per Day Revenue (Projected)', 'Per Day Needed', 'ARR Focused']
+    currency_cols = ['Target', 'Achieved So Far', 'Full Projected', 'Difference So Far', 'Receivable (Projected)', 'ARR (Projected)', 'Per Day Needed', 'ARR Focused']
     for col in currency_cols:
         if col in display_df.columns:
             display_df[col] = display_df[col].apply(lambda x: f"₹{x:,.0f}" if isinstance(x, (int, float)) else x)
