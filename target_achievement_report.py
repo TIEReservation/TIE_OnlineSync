@@ -306,75 +306,8 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
     
     return pd.DataFrame(rows)
 
-def style_target_report(df: pd.DataFrame) -> str:
-    def highlight_row(row):
-        styles = [""] * len(row)
-        
-        # Highlight total row
-        if row["Property Name"] == "TOTAL":
-            styles = ["background-color: #e3f2fd; font-weight: bold"] * len(row)
-        
-        # Color code Target Achieved %
-        if row["Property Name"] != "TOTAL":
-            try:
-                pct = float(row["Target Achieved %"])
-                idx = list(row.index).index("Target Achieved %")
-                if pct >= 100:
-                    styles[idx] = "background-color: #d4edda; color: #155724; font-weight: bold"
-                elif pct >= 80:
-                    styles[idx] = "background-color: #fff3cd; color: #856404"
-                else:
-                    styles[idx] = "background-color: #f8d7da; color: #721c24; font-weight: bold"
-            except:
-                pass
-        
-        # Color code Difference
-        try:
-            diff = float(str(row["Difference"]).replace(",", ""))
-            idx = list(row.index).index("Difference")
-            if diff >= 0:
-                styles[idx] = "color: green; font-weight: bold"
-            else:
-                styles[idx] = "color: red; font-weight: bold"
-        except:
-            pass
-        
-        return styles
-
-    return (df.style
-            .apply(highlight_row, axis=1)
-            .format({
-                "Target": "₹{:,.0f}",
-                "Achieved": "₹{:,.0f}",
-                "Difference": "₹{:,.0f}",
-                "Target Achieved %": "{:.1f}%",
-                "Rooms Sold": "{:,.0f}",
-                "Occupancy %": "{:.1f}%",
-                "Receivable": "₹{:,.0f}",
-                "ARR": "₹{:,.0f}",
-                "Per Day Revenue": "₹{:,.0f}"
-            })
-            .set_table_styles([
-                {"selector": "th", 
-                 "props": [
-                     ("background-color", "#4169E1"),
-                     ("color", "white"),
-                     ("font-weight", "bold"),
-                     ("text-align", "center"),
-                     ("padding", "10px")
-                 ]},
-                {"selector": "td", 
-                 "props": "text-align: right; padding: 8px;"},
-                {"selector": "td:first-child", 
-                 "props": "text-align: left; font-weight: bold;"},
-                {"selector": "tr:hover", 
-                 "props": "background-color: #f5f5f5;"},
-            ])
-            .to_html())
-
 # -------------------------- UI --------------------------
 def show_target_achievement_report():
-    st.set_page_config(page_title="Target vs Achievement Report", layout="wide")
     st.title("🎯 Target vs Achievement Report - December 2025")
 
     today = date.today()
@@ -398,10 +331,24 @@ def show_target_achievement_report():
     st.subheader(f"Target vs Achievement Analysis - {calendar.month_name[month]} {year}")
     
     df = build_target_achievement_report(properties_with_targets, month_dates, bookings)
-    html = style_target_report(df)
-    st.markdown(html, unsafe_allow_html=True)
     
-    # Summary metrics
+    # Display using st.dataframe with proper formatting
+    # Create a copy for display with formatted strings
+    display_df = df.copy()
+    
+    # Format currency and percentage columns as strings for display
+    display_df['Target'] = display_df['Target'].apply(lambda x: f"₹{x:,.0f}" if isinstance(x, (int, float)) else x)
+    display_df['Achieved'] = display_df['Achieved'].apply(lambda x: f"₹{x:,.0f}" if isinstance(x, (int, float)) else x)
+    display_df['Difference'] = display_df['Difference'].apply(lambda x: f"₹{x:,.0f}" if isinstance(x, (int, float)) else x)
+    display_df['Target Achieved %'] = display_df['Target Achieved %'].apply(lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) else x)
+    display_df['Occupancy %'] = display_df['Occupancy %'].apply(lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) else x)
+    display_df['Receivable'] = display_df['Receivable'].apply(lambda x: f"₹{x:,.0f}" if isinstance(x, (int, float)) else x)
+    display_df['ARR'] = display_df['ARR'].apply(lambda x: f"₹{x:,.0f}" if isinstance(x, (int, float)) else x)
+    display_df['Per Day Revenue'] = display_df['Per Day Revenue'].apply(lambda x: f"₹{x:,.0f}" if isinstance(x, (int, float)) else x)
+    
+    st.dataframe(display_df, width='stretch', hide_index=True)
+    
+    # Summary metrics (using original df with numeric values)
     st.markdown("---")
     total_row = df[df["Property Name"] == "TOTAL"].iloc[0]
     
@@ -416,7 +363,7 @@ def show_target_achievement_report():
     with col4:
         st.metric("Overall Occupancy", f"{total_row['Occupancy %']:.1f}%")
     
-    # Download button
+    # Download button (using original df with numeric values)
     csv = df.to_csv(index=False)
     st.download_button(
         label="📥 Download Report as CSV",
