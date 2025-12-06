@@ -235,7 +235,7 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
     rows = []
     total_target = 0.0
     total_achieved = 0.0
-    total_rooms_available = 0
+    total_available_room_nights = 0
     total_rooms_sold = 0
     total_receivable = 0.0
     
@@ -257,8 +257,8 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
         target_pct = (achieved / target * 100) if target > 0 else 0.0
         
         total_rooms = get_total_rooms(prop)
-        total_available_room_nights = total_rooms * len(dates)
-        occupancy_pct = (rooms_sold / total_available_room_nights * 100) if total_available_room_nights > 0 else 0.0
+        total_available = total_rooms * len(dates)
+        occupancy_pct = (rooms_sold / total_available * 100) if total_available > 0 else 0.0
         
         arr = receivable / rooms_sold if rooms_sold > 0 else 0.0
         per_day_revenue = receivable / len(dates) if len(dates) > 0 else 0.0
@@ -269,7 +269,7 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
             "Achieved": achieved,
             "Difference": difference,
             "Target Achieved %": target_pct,
-            "Total Rooms": total_rooms,
+            "Available Room Nights": total_available,
             "Rooms Sold": rooms_sold,
             "Occupancy %": occupancy_pct,
             "Receivable": receivable,
@@ -279,14 +279,14 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
         
         total_target += target
         total_achieved += achieved
-        total_rooms_available += total_available_room_nights
+        total_available_room_nights += total_available
         total_rooms_sold += rooms_sold
         total_receivable += receivable
     
     # Add total row
     total_diff = total_achieved - total_target
     total_target_pct = (total_achieved / total_target * 100) if total_target > 0 else 0.0
-    total_occupancy = (total_rooms_sold / total_rooms_available * 100) if total_rooms_available > 0 else 0.0
+    total_occupancy = (total_rooms_sold / total_available_room_nights * 100) if total_available_room_nights > 0 else 0.0
     total_arr = total_receivable / total_rooms_sold if total_rooms_sold > 0 else 0.0
     total_per_day = total_receivable / len(dates) if len(dates) > 0 else 0.0
     
@@ -296,7 +296,7 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
         "Achieved": total_achieved,
         "Difference": total_diff,
         "Target Achieved %": total_target_pct,
-        "Total Rooms": "-",
+        "Available Room Nights": total_available_room_nights,
         "Rooms Sold": total_rooms_sold,
         "Occupancy %": total_occupancy,
         "Receivable": total_receivable,
