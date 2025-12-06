@@ -298,7 +298,6 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
 
     logging.info(f"Property {property}: {len(assigned)} bookings assigned, {len(over)} overbookings detected")
     return assigned, over
-
 # ───────────────────────────────────────────────────────────────────────────
 # Build Table – Financials ONLY on Check-in Day
 # ───────────────────────────────────────────────────────────────────────────
