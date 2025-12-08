@@ -1,4 +1,5 @@
-# target_achievement_report.py - CORRECTED VERSION (December 2025)
+```python
+# target_achievement_report.py - CORRECTED VERSION (December 2025) - Aligned with Summary Report Receivable Calculation
 
 import streamlit as st
 from datetime import date
@@ -55,7 +56,7 @@ DECEMBER_2025_TARGETS = {
     "Le Poshe Suite":        545150,
     "Eden Beach Resort":     413706,
     "La Antilia Luxury":    1275000,
-    "La coramandel":         738878,
+    "La Coromandel Luxury":  738878,  # FIXED: Typo corrected from "La coramandel"
     "La Tamara Suite":       657956,
     "Villa Shakti":          947947,
     "La Paradise Luxury":    591102,
@@ -165,24 +166,20 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     # Get check-in bookings for the day (primary bookings only)
     primaries = [b for b in assigned if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day]
     
-    # Calculate net value and receivable for check-in bookings
+    # Calculate net value and receivable for check-in bookings (ALIGNED WITH SUMMARY REPORT)
     receivable = net_value = 0.0
     for b in primaries:
         if b["type"] == "online":
-            # Online booking: extract all components
+            # Online booking: Net Value = Total booking amount; Receivable = Total - Commission (matches Summary's Receivable Report)
             amt = safe_float(b.get("booking_amount"))
-            gst = safe_float(b.get("gst"))
-            tax = safe_float(b.get("ota_tax"))
             comm = safe_float(b.get("ota_commission"))
             
-            # Debug: Log values if they seem wrong
-            if amt > 0 and (gst == 0 and tax == 0 and comm == 0):
-                st.warning(f"Online booking {b.get('booking_id')} has amount ₹{amt} but GST/TAX/Comm are zero")
+            # Debug: Log if amount >0 but commission is zero (optional, but kept simplified)
+            if amt > 0 and comm == 0:
+                st.warning(f"Online booking {b.get('booking_id')} has amount ₹{amt} but commission is zero")
             
-            # Net Value = Total booking amount (includes everything)
             net_value += amt
-            # Actual Receivable = Total - GST - TAX - Commission (what hotel receives)
-            receivable += amt - gst - tax - comm
+            receivable += amt - comm
         else:
             # Direct booking: total_tariff is both net value and receivable
             total = safe_float(b.get("total_tariff"))
@@ -349,3 +346,4 @@ def show_target_achievement_report():
 
 if __name__ == "__main__":
     show_target_achievement_report()
+```
