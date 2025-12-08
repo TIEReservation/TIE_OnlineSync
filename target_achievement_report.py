@@ -1,4 +1,4 @@
-# target_achievement_report.py - FINAL 100% WORKING (December 2025)
+# target_achievement_report.py - CORRECTED VERSION (December 2025)
 
 import streamlit as st
 from datetime import date
@@ -161,21 +161,38 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     daily = filter_bookings_for_day(bookings, day)
     assigned, _ = assign_inventory_numbers(daily, prop)
     rooms_sold = len({b.get("assigned_room") for b in assigned if b.get("assigned_room")})
+    
+    # Get check-in bookings for the day (primary bookings only)
     primaries = [b for b in assigned if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day]
-    receivable = 0.0
+    
+    # Calculate receivable and net value for check-in bookings
+    receivable = net_value = 0.0
     for b in primaries:
         if b["type"] == "online":
             amt = safe_float(b.get("booking_amount"))
-            gst = safe_float(b.get("ota_tax"))
+            gst = safe_float(b.get("gst"))
+            tax = safe_float(b.get("ota_tax"))
             comm = safe_float(b.get("ota_commission"))
-            receivable += amt - gst - comm
+            # Net Value = Total - GST - TAX
+            net_value += amt - gst - tax
+            # Receivable = Total - GST - TAX - Commission
+            receivable += amt - gst - tax - comm
         else:
-            receivable += safe_float(b.get("total_tariff"))
-    return {"rooms_sold": rooms_sold, "receivable": receivable}
+            # For direct bookings, total_tariff is the receivable and net value
+            total = safe_float(b.get("total_tariff"))
+            receivable += total
+            net_value += total
+    
+    return {
+        "rooms_sold": rooms_sold, 
+        "receivable": receivable,
+        "net_value": net_value
+    }
 
-# -------------------------- MAIN REPORT --------------------------
+# -------------------------- MAIN REPORT (CORRECTED) --------------------------
 def build_target_achievement_report(props: List[str], dates: List[date], bookings_dict: Dict[str, List[Dict]], current_date: date) -> pd.DataFrame:
     rows = []
+    # FIXED: Balance Days = remaining days AFTER today (excluding today)
     balance_days = len([d for d in dates if d > current_date])
 
     for prop in props:
@@ -185,27 +202,48 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
             total_room_nights = total_rooms * len(dates)
 
             achieved = all_booking = rooms_sold = future_booked = 0.0
+            net_value_total = actual_receivable = 0.0
+            
             for d in dates:
                 m = compute_daily_metrics(bookings_dict.get(prop, []), prop, d)
                 if d <= current_date:
-                    achieved += m["receivable"]
-                all_booking += m["receivable"]
+                    achieved += m["receivable"]  # Only past + today
+                    actual_receivable += m["receivable"]  # Actual receivable from past
+                
+                all_booking += m["receivable"]  # All bookings (past + future)
+                net_value_total += m["net_value"]  # Net value from all bookings
                 rooms_sold += m["rooms_sold"]
+                
                 if d > current_date:
                     future_booked += m["rooms_sold"]
 
             balance_rooms = max((total_rooms * balance_days) - future_booked, 0)
-            balance = target - achieved
-            achieved_pct = (all_booking / target * 100) if target > 0 else 0
+            
+            # FIXED: Balance = Target - All Bookings (not Target - Achieved)
+            balance = target - all_booking
+            
+            # FIXED: Achieved % = Achieved / Target (not All Booking / Target)
+            achieved_pct = (achieved / target * 100) if target > 0 else 0
+            
+            # FIXED: Occupancy % = Rooms Sold / Total Rooms
             occupancy = (rooms_sold / total_room_nights * 100) if total_room_nights > 0 else 0
+            
             per_day_needed = max(balance, 0) / balance_days if balance_days > 0 else 0
 
             rows.append({
-                "Property Name": prop, "Target": int(target), "Achieved": int(achieved),
-                "All Booking": int(all_booking), "Balance": int(balance),
-                "Achieved %": round(achieved_pct, 1), "Total Rooms": int(total_room_nights),
-                "Rooms Sold": int(rooms_sold), "Occupancy %": round(occupancy, 1),
-                "Balance Days": balance_days, "Balance Rooms": int(balance_rooms),
+                "Property Name": prop, 
+                "Target": int(target), 
+                "Achieved": int(achieved),
+                "All Booking": int(all_booking), 
+                "Balance": int(balance),
+                "Achieved %": round(achieved_pct, 1), 
+                "Net Value": int(net_value_total),  # NEW COLUMN
+                "Actual Receivable": int(actual_receivable),  # NEW COLUMN
+                "Total Rooms": int(total_room_nights),
+                "Rooms Sold": int(rooms_sold), 
+                "Occupancy %": round(occupancy, 1),
+                "Balance Days": balance_days, 
+                "Balance Rooms": int(balance_rooms),
                 "Per Day Needed": int(per_day_needed)
             })
         except Exception as e:
@@ -213,9 +251,11 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
             continue
 
     if rows:
+        # Calculate totals row
         totals = {k: sum(r[k] for r in rows if k != "Property Name") for k in rows[0].keys() if k != "Property Name"}
         totals["Property Name"] = "TOTAL"
-        totals["Achieved %"] = round((totals["All Booking"] / totals["Target"] * 100) if totals["Target"] else 0, 1)
+        # FIXED: Achieved % = Achieved / Target (not All Booking / Target)
+        totals["Achieved %"] = round((totals["Achieved"] / totals["Target"] * 100) if totals["Target"] else 0, 1)
         totals["Occupancy %"] = round((totals["Rooms Sold"] / totals["Total Rooms"] * 100) if totals["Total Rooms"] else 0, 1)
         rows.append(totals)
 
@@ -245,7 +285,8 @@ def style_dataframe(df):
             .apply(color_balance, axis=1) \
             .applymap(color_pct, subset=["Achieved %", "Occupancy %"]) \
             .format({
-                "Target": "₹{:,.0f}", "Achieved": "₹{:,.0f}", "All Booking": "₹{:,.0f}", "Balance": "₹{:,.0f}",
+                "Target": "₹{:,.0f}", "Achieved": "₹{:,.0f}", "All Booking": "₹{:,.0f}", 
+                "Balance": "₹{:,.0f}", "Net Value": "₹{:,.0f}", "Actual Receivable": "₹{:,.0f}",
                 "Total Rooms": "{:,.0f}", "Rooms Sold": "{:,.0f}", "Balance Rooms": "{:,.0f}",
                 "Per Day Needed": "₹{:,.0f}", "Achieved %": "{:.1f}%", "Occupancy %": "{:.1f}%"
             }) \
@@ -259,10 +300,15 @@ def show_target_achievement_report():
     st.set_page_config(page_title="Target vs Achievement - Dec 2025", layout="wide")
     st.title("Target vs Achievement Report - December 2025")
 
-    current_date = date(2025, 12, 6)
+    # You can change this to date.today() for automatic daily updates
+    current_date = date(2025, 12, 8)  # Example: December 8, 2025
     year, month = 2025, 12
     _, days_in_month = calendar.monthrange(year, month)
     dates = [date(year, month, d) for d in range(1, days_in_month + 1)]
+    
+    # Display current date and balance days info
+    balance_days = len([d for d in dates if d > current_date])
+    st.info(f"📅 Current Date: {current_date.strftime('%B %d, %Y')} | ⏳ Balance Days: {balance_days}")
 
     db_props = load_properties()
     properties = [p for p in DECEMBER_2025_TARGETS.keys() if p in db_props]
@@ -285,12 +331,13 @@ def show_target_achievement_report():
 
     if not df.empty and "TOTAL" in df["Property Name"].values:
         total = df[df["Property Name"] == "TOTAL"].iloc[0]
-        c1, c2, c3, c4, c5 = st.columns(5)
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
         with c1: st.metric("Total Target", f"₹{total.Target:,.0f}")
-        with c2: st.metric("Achieved", f"₹{total.Achieved:,.0f}", delta=f"₹{total.Balance:,.0f}")
+        with c2: st.metric("Achieved", f"₹{total.Achieved:,.0f}", delta=f"{total['Achieved %']:.1f}%")
         with c3: st.metric("All Booking", f"₹{total['All Booking']:,.0f}")
-        with c4: st.metric("Achieved %", f"{total['Achieved %']:.1f}%")
-        with c5: st.metric("Daily Needed", f"₹{total['Per Day Needed']:,.0f}")
+        with c4: st.metric("Balance", f"₹{total.Balance:,.0f}", delta=f"{balance_days} days")
+        with c5: st.metric("Net Value", f"₹{total['Net Value']:,.0f}")
+        with c6: st.metric("Actual Receivable", f"₹{total['Actual Receivable']:,.0f}")
 
     st.download_button("Download Report (CSV)", df.to_csv(index=False), "Target_Achievement_Dec2025.csv", "text/csv")
 
