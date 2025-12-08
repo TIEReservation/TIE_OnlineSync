@@ -1,4 +1,3 @@
-```python
 # target_achievement_report.py - CORRECTED VERSION (December 2025) - Aligned with Summary Report Receivable Calculation
 
 import streamlit as st
@@ -311,7 +310,7 @@ def show_target_achievement_report():
     
     # Display current date and balance days info
     balance_days = len([d for d in dates if d > current_date])
-    st.info(f"📅 Current Date: {current_date.strftime('%B %d, %Y')} | ⏳ Balance Days: {balance_days}")
+    st.info(f"Current Date: {current_date.strftime('%B %d, %Y')} | Balance Days: {balance_days}")
 
     db_props = load_properties()
     properties = [p for p in DECEMBER_2025_TARGETS.keys() if p in db_props]
@@ -346,4 +345,3 @@ def show_target_achievement_report():
 
 if __name__ == "__main__":
     show_target_achievement_report()
-```
