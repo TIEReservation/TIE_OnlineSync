@@ -169,16 +169,22 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     receivable = net_value = 0.0
     for b in primaries:
         if b["type"] == "online":
+            # Online booking: extract all components
             amt = safe_float(b.get("booking_amount"))
             gst = safe_float(b.get("gst"))
             tax = safe_float(b.get("ota_tax"))
             comm = safe_float(b.get("ota_commission"))
+            
+            # Debug: Log values if they seem wrong
+            if amt > 0 and (gst == 0 and tax == 0 and comm == 0):
+                st.warning(f"Online booking {b.get('booking_id')} has amount ₹{amt} but GST/TAX/Comm are zero")
+            
             # Net Value = Total booking amount (includes everything)
             net_value += amt
             # Actual Receivable = Total - GST - TAX - Commission (what hotel receives)
             receivable += amt - gst - tax - comm
         else:
-            # For direct bookings, total_tariff is both net value and receivable
+            # Direct booking: total_tariff is both net value and receivable
             total = safe_float(b.get("total_tariff"))
             net_value += total
             receivable += total
