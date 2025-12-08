@@ -165,7 +165,7 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     # Get check-in bookings for the day (primary bookings only)
     primaries = [b for b in assigned if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day]
     
-    # Calculate receivable and net value for check-in bookings
+    # Calculate net value and receivable for check-in bookings
     receivable = net_value = 0.0
     for b in primaries:
         if b["type"] == "online":
@@ -173,15 +173,15 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
             gst = safe_float(b.get("gst"))
             tax = safe_float(b.get("ota_tax"))
             comm = safe_float(b.get("ota_commission"))
-            # Net Value = Total - GST - TAX
-            net_value += amt - gst - tax
-            # Receivable = Total - GST - TAX - Commission
+            # Net Value = Total booking amount (includes everything)
+            net_value += amt
+            # Actual Receivable = Total - GST - TAX - Commission (what hotel receives)
             receivable += amt - gst - tax - comm
         else:
-            # For direct bookings, total_tariff is the receivable and net value
+            # For direct bookings, total_tariff is both net value and receivable
             total = safe_float(b.get("total_tariff"))
-            receivable += total
             net_value += total
+            receivable += total
     
     return {
         "rooms_sold": rooms_sold, 
