@@ -237,14 +237,14 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
                 "All Booking": int(all_booking), 
                 "Balance": int(balance),
                 "Achieved %": round(achieved_pct, 1), 
-                "Net Value": int(net_value_total),  # NEW COLUMN
-                "Actual Receivable": int(actual_receivable),  # NEW COLUMN
                 "Total Rooms": int(total_room_nights),
                 "Rooms Sold": int(rooms_sold), 
                 "Occupancy %": round(occupancy, 1),
                 "Balance Days": balance_days, 
                 "Balance Rooms": int(balance_rooms),
-                "Per Day Needed": int(per_day_needed)
+                "Per Day Needed": int(per_day_needed),
+                "Net Value": int(net_value_total),  # MOVED TO END
+                "Actual Receivable": int(actual_receivable)  # MOVED TO END
             })
         except Exception as e:
             st.warning(f"Error processing {prop}: {e}")
