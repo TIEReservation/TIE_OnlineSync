@@ -457,7 +457,9 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
 def show_daily_status():
     st.title("Daily Status Dashboard")
     if st.button("Refresh Data"):
-        
+        st.cache_data.clear()
+        st.rerun()
+
     today = date.today()
     year = st.selectbox("Year", list(range(today.year-5, today.year+6)), index=5)
     month = st.selectbox("Month", list(range(1,13)), index=today.month-1)
