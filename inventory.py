@@ -515,8 +515,8 @@ def show_daily_status():
                         # PINNED/FROZEN COLUMNS (first 4 columns)
                         "Inventory No": st.column_config.TextColumn("Inventory No", disabled=True, pinned=True),
                         "Room No": st.column_config.TextColumn("Room No", disabled=True, pinned=True),
-                        "Booking ID": st.column_config.TextColumn("Booking ID", disabled=True, pinned=True),
-                        "Guest Name": st.column_config.TextColumn("Guest Name", disabled=True, pinned=True),
+                        "Booking ID": st.column_config.TextColumn("Booking ID", disabled=True, pinned=True, filterable=True),
+                        "Guest Name": st.column_config.TextColumn("Guest Name", disabled=True, pinned=True, filterable=True),
                         
                         # SCROLLABLE COLUMNS
                         "Mobile No": st.column_config.TextColumn("Mobile No", disabled=True),
