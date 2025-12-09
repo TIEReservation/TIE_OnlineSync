@@ -509,47 +509,7 @@ def show_daily_status():
                     is_accounts_team = st.session_state.get('role', '') == "Accounts Team"
 
                     # ═══════════════════════════════════════════════════════════
-                    # FILTERS for Guest Name & Booking ID
-                    # ═══════════════════════════════════════════════════════════
-                    st.markdown("#### 🔍 Filters")
-                    filter_col1, filter_col2 = st.columns(2)
-                    
-                    with filter_col1:
-                        # Get unique guest names (excluding empty)
-                        unique_guests = sorted(display_df[display_df["Guest Name"].str.strip() != ""]["Guest Name"].unique().tolist())
-                        guest_filter = st.multiselect(
-                            "Filter by Guest Name",
-                            options=["All"] + unique_guests,
-                            default=["All"],
-                            key=f"guest_filter_{prop}_{day.isoformat()}"
-                        )
-                    
-                    with filter_col2:
-                        # Get unique booking IDs (excluding empty)
-                        unique_bookings = sorted(display_df[display_df["Booking ID"].str.strip() != ""]["Booking ID"].unique().tolist())
-                        booking_filter = st.multiselect(
-                            "Filter by Booking ID",
-                            options=["All"] + unique_bookings,
-                            default=["All"],
-                            key=f"booking_filter_{prop}_{day.isoformat()}"
-                        )
-                    
-                    # Apply filters
-                    filtered_df = display_df.copy()
-                    filtered_full_df = full_df.copy()
-                    
-                    if "All" not in guest_filter and guest_filter:
-                        mask = filtered_df["Guest Name"].isin(guest_filter)
-                        filtered_df = filtered_df[mask]
-                        filtered_full_df = filtered_full_df[mask]
-                    
-                    if "All" not in booking_filter and booking_filter:
-                        mask = filtered_df["Booking ID"].isin(booking_filter)
-                        filtered_df = filtered_df[mask]
-                        filtered_full_df = filtered_full_df[mask]
-
-                    # ═══════════════════════════════════════════════════════════
-                    # COLUMN CONFIG with PINNED columns
+                    # COLUMN CONFIG with PINNED columns and FILTERS
                     # ═══════════════════════════════════════════════════════════
                     col_config = {
                         # PINNED/FROZEN COLUMNS (first 4 columns)
@@ -610,7 +570,7 @@ def show_daily_status():
                     
                     # Display editable table with frozen columns
                     edited_display = st.data_editor(
-                        filtered_df,
+                        display_df,
                         column_config=col_config,
                         hide_index=True,
                         use_container_width=True,
@@ -621,7 +581,7 @@ def show_daily_status():
                     # Save button (show only if editable)
                     if is_accounts_team and st.button(f"💾 Save Changes", key=f"save_{prop}_{day.isoformat()}"):
                         # Merge edited visible with full
-                        edited_full = filtered_full_df.copy()
+                        edited_full = full_df.copy()
                         editable_cols = ["Advance Remarks", "Balance Remarks", "Accounts Status"]
                         for col in editable_cols:
                             edited_full[col] = edited_display[col]
