@@ -1,4 +1,4 @@
-# inventory.py – UPDATED: Display TAX column and correct Hotel Receivable calculation
+# inventory.py – UPDATED: Display TAX column and correct Hotel Receivable calculation + Property name in dates
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date
@@ -84,9 +84,9 @@ PROPERTY_INVENTORY = {
     "Happymates Forest Retreat": {"all": ["101","102","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]}  
 }
 
-# ────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 # Helpers
-# ────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 def normalize_property(name: str) -> str:
     return property_mapping.get(name.strip(), name.strip())
 
@@ -105,9 +105,9 @@ def safe_float(v: Any, default: float = 0.0) -> float:
     except:
         return default
 
-# ────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 # Load Properties & Bookings
-# ────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 @st.cache_data(ttl=3600)
 def load_properties() -> List[str]:
     try:
@@ -147,10 +147,10 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
 
     return combined
 
-# ────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 # UPDATED: Now TAX (ota_tax) is separate from GST and deducted from receivable
 # Hotel Receivable = Total - GST - TAX - Commission
-# ────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
     try:
         bid = sanitize_string(row.get("booking_id") or row.get("id"))
@@ -222,15 +222,15 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
         logging.warning(f"normalize failed ({row.get('booking_id')}): {e}")
         return None
 
-# ────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 # Filter & Assign
-# ────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 def filter_bookings_for_day(bookings: List[Dict], day: date) -> List[Dict]:
     return [b.copy() | {"target_date": day} for b in bookings if date.fromisoformat(b["check_in"]) <= day < date.fromisoformat(b["check_out"])]
 
-# ────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 # Assign Inventory
-# ────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     assigned, over = [], []
     inv = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
@@ -298,9 +298,9 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     logging.info(f"Property {property}: {len(assigned)} bookings assigned, {len(over)} overbookings detected")
     return assigned, over
 
-# ────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 # Build Table – UPDATED: Added TAX column
-# ────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date):
     visible_cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
             "Check In","Check Out","Days","MOB","Room Charges","GST","TAX","Total","Commission",
@@ -384,9 +384,9 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
     full_df = df
     return display_df, full_df
 
-# ────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 # Extract Stats – UPDATED: Include TAX in calculations
-# ────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     occupied = df[df["Booking ID"].fillna("").str.strip() != ""].copy()
 
@@ -459,9 +459,9 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
 
     return {"mop": mop_data, "dtd": dtd}
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 # UI – Dashboard
-# ──────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 def show_daily_status():
     st.title("Daily Status Dashboard")
     if st.button("Refresh Data"):
@@ -490,7 +490,7 @@ def show_daily_status():
 
             for day in month_dates:
                 daily = filter_bookings_for_day(bookings, day)
-                st.markdown(f"### {day.strftime('%b %d, %Y')}")
+                st.markdown(f"### {prop} - {day.strftime('%b %d, %Y')}")
 
                 assigned, over = assign_inventory_numbers(daily, prop)
                 display_df, full_df = create_inventory_table(assigned, over, prop, day)
