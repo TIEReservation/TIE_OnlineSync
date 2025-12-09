@@ -1,4 +1,4 @@
-# inventory.py – UPDATED: Display TAX column and correct Hotel Receivable calculation + Property name in dates
+# inventory.py – UPDATED: Frozen columns + filters for Guest Name & Booking ID
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date
@@ -84,9 +84,9 @@ PROPERTY_INVENTORY = {
     "Happymates Forest Retreat": {"all": ["101","102","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]}  
 }
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 # Helpers
-# ═══════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 def normalize_property(name: str) -> str:
     return property_mapping.get(name.strip(), name.strip())
 
@@ -105,9 +105,9 @@ def safe_float(v: Any, default: float = 0.0) -> float:
     except:
         return default
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 # Load Properties & Bookings
-# ═══════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 @st.cache_data(ttl=3600)
 def load_properties() -> List[str]:
     try:
@@ -147,10 +147,9 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
 
     return combined
 
-# ═══════════════════════════════════════════════════════════════════════════
-# UPDATED: Now TAX (ota_tax) is separate from GST and deducted from receivable
-# Hotel Receivable = Total - GST - TAX - Commission
-# ═══════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+# Normalize booking
+# ══════════════════════════════════════════════════════════════════════════════
 def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
     try:
         bid = sanitize_string(row.get("booking_id") or row.get("id"))
@@ -167,21 +166,19 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
         if days <= 0: days = 1
         p = normalize_property(row.get("property_name") if not is_online else row.get("property"))
 
-        # Raw values
         if is_online:
             total_amount = safe_float(row.get("booking_amount")) or 0.0
-            gst = safe_float(row.get("gst")) or 0.0  # GST from online bookings
-            tax = safe_float(row.get("ota_tax")) or 0.0  # TAX (ota_tax)
+            gst = safe_float(row.get("gst")) or 0.0
+            tax = safe_float(row.get("ota_tax")) or 0.0
             commission = safe_float(row.get("ota_commission")) or 0.0
             room_charges = total_amount - gst - tax
         else:
             total_amount = safe_float(row.get("total_tariff")) or 0.0
             gst = 0.0
-            tax = 0.0  # Direct bookings have no OTA tax
+            tax = 0.0
             commission = 0.0
             room_charges = total_amount
 
-        # UPDATED: Hotel receives Total - GST - TAX - Commission
         receivable = total_amount - gst - tax - commission
         if receivable < 0: receivable = 0.0
 
@@ -200,10 +197,10 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
             "plan": sanitize_string(row.get("rate_plans") if is_online else row.get("breakfast")),
             "room_charges": room_charges,
             "gst": gst,
-            "tax": tax,  # NEW: TAX field
+            "tax": tax,
             "total_amount": total_amount,
             "commission": commission,
-            "receivable": receivable,  # NOW CORRECT: Total - GST - TAX - Commission
+            "receivable": receivable,
             "advance": safe_float(row.get("total_payment_made") if is_online else row.get("advance_amount")),
             "advance_mop": sanitize_string(row.get("advance_mop")),
             "balance": safe_float(row.get("balance_due") if is_online else row.get("balance_amount")),
@@ -222,15 +219,12 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
         logging.warning(f"normalize failed ({row.get('booking_id')}): {e}")
         return None
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 # Filter & Assign
-# ═══════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 def filter_bookings_for_day(bookings: List[Dict], day: date) -> List[Dict]:
     return [b.copy() | {"target_date": day} for b in bookings if date.fromisoformat(b["check_in"]) <= day < date.fromisoformat(b["check_out"])]
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Assign Inventory
-# ═══════════════════════════════════════════════════════════════════════════
 def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     assigned, over = [], []
     inv = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
@@ -298,9 +292,9 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     logging.info(f"Property {property}: {len(assigned)} bookings assigned, {len(over)} overbookings detected")
     return assigned, over
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Build Table – UPDATED: Added TAX column
-# ═══════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+# Build Table
+# ══════════════════════════════════════════════════════════════════════════════
 def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date):
     visible_cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
             "Check In","Check Out","Days","MOB","Room Charges","GST","TAX","Total","Commission",
@@ -348,7 +342,7 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
                 row.update({
                     "Room Charges": f"{match.get('room_charges', 0):.2f}",
                     "GST": f"{match.get('gst', 0):.2f}",
-                    "TAX": f"{match.get('tax', 0):.2f}",  # NEW: TAX column
+                    "TAX": f"{match.get('tax', 0):.2f}",
                     "Total": f"{match.get('total_amount', 0):.2f}",
                     "Commission": f"{match.get('commission', 0):.2f}",
                     "Hotel Receivable": f"{match.get('receivable', 0):.2f}",
@@ -384,9 +378,9 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
     full_df = df
     return display_df, full_df
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Extract Stats – UPDATED: Include TAX in calculations
-# ═══════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+# Extract Stats
+# ══════════════════════════════════════════════════════════════════════════════
 def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     occupied = df[df["Booking ID"].fillna("").str.strip() != ""].copy()
 
@@ -399,13 +393,12 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     occupied["Per Night"] = to_float("Per Night")
     occupied["Hotel Receivable"] = to_float("Hotel Receivable")
     occupied["GST"] = to_float("GST")
-    occupied["TAX"] = to_float("TAX")  # NEW
+    occupied["TAX"] = to_float("TAX")
     occupied["Commission"] = to_float("Commission")
     occupied["Advance"] = to_float("Advance")
     occupied["Balance"] = to_float("Balance")
     occupied["Total Pax"] = to_int("Total Pax")
 
-    # MOP
     mop_data = {m: 0.0 for m in ["UPI","Cash","Go-MMT","Agoda","NOT PAID","Expenses","Bank Transfer","Stayflexi","Card Payment","Expedia","Cleartrip","Website"]}
     total_cash = total = 0.0
 
@@ -424,13 +417,12 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     mop_data["Total Cash"] = total_cash
     mop_data["Total"] = total
 
-    # DTD
     dtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"tax":0.0,"pax":0} for m in mob_types}
     dtd_rooms = len(occupied)
     dtd_value = occupied["Per Night"].sum()
     dtd_comm = occupied["Commission"].sum()
     dtd_gst = occupied["GST"].sum()
-    dtd_tax = occupied["TAX"].sum()  # NEW
+    dtd_tax = occupied["TAX"].sum()
     dtd_pax = occupied["Total Pax"].sum()
 
     for _, row in occupied.iterrows():
@@ -440,7 +432,7 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
         dtd[mob]["value"] += row["Per Night"]
         dtd[mob]["comm"] += row["Commission"]
         dtd[mob]["gst"] += row["GST"]
-        dtd[mob]["tax"] += row["TAX"]  # NEW
+        dtd[mob]["tax"] += row["TAX"]
         dtd[mob]["pax"] += row["Total Pax"]
 
     for m in mob_types:
@@ -453,15 +445,15 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
         "arr": dtd_value / dtd_rooms if dtd_rooms > 0 else 0.0,
         "comm": dtd_comm,
         "gst": dtd_gst,
-        "tax": dtd_tax,  # NEW
+        "tax": dtd_tax,
         "pax": dtd_pax
     }
 
     return {"mop": mop_data, "dtd": dtd}
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 # UI – Dashboard
-# ═══════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 def show_daily_status():
     st.title("Daily Status Dashboard")
     if st.button("Refresh Data"):
@@ -516,11 +508,57 @@ def show_daily_status():
                 if daily:
                     is_accounts_team = st.session_state.get('role', '') == "Accounts Team"
 
+                    # ═══════════════════════════════════════════════════════════
+                    # FILTERS for Guest Name & Booking ID
+                    # ═══════════════════════════════════════════════════════════
+                    st.markdown("#### 🔍 Filters")
+                    filter_col1, filter_col2 = st.columns(2)
+                    
+                    with filter_col1:
+                        # Get unique guest names (excluding empty)
+                        unique_guests = sorted(display_df[display_df["Guest Name"].str.strip() != ""]["Guest Name"].unique().tolist())
+                        guest_filter = st.multiselect(
+                            "Filter by Guest Name",
+                            options=["All"] + unique_guests,
+                            default=["All"],
+                            key=f"guest_filter_{prop}_{day.isoformat()}"
+                        )
+                    
+                    with filter_col2:
+                        # Get unique booking IDs (excluding empty)
+                        unique_bookings = sorted(display_df[display_df["Booking ID"].str.strip() != ""]["Booking ID"].unique().tolist())
+                        booking_filter = st.multiselect(
+                            "Filter by Booking ID",
+                            options=["All"] + unique_bookings,
+                            default=["All"],
+                            key=f"booking_filter_{prop}_{day.isoformat()}"
+                        )
+                    
+                    # Apply filters
+                    filtered_df = display_df.copy()
+                    filtered_full_df = full_df.copy()
+                    
+                    if "All" not in guest_filter and guest_filter:
+                        mask = filtered_df["Guest Name"].isin(guest_filter)
+                        filtered_df = filtered_df[mask]
+                        filtered_full_df = filtered_full_df[mask]
+                    
+                    if "All" not in booking_filter and booking_filter:
+                        mask = filtered_df["Booking ID"].isin(booking_filter)
+                        filtered_df = filtered_df[mask]
+                        filtered_full_df = filtered_full_df[mask]
+
+                    # ═══════════════════════════════════════════════════════════
+                    # COLUMN CONFIG with PINNED columns
+                    # ═══════════════════════════════════════════════════════════
                     col_config = {
-                        "Inventory No": st.column_config.TextColumn("Inventory No", disabled=True),
-                        "Room No": st.column_config.TextColumn("Room No", disabled=True),
-                        "Booking ID": st.column_config.TextColumn("Booking ID", disabled=True),
-                        "Guest Name": st.column_config.TextColumn("Guest Name", disabled=True),
+                        # PINNED/FROZEN COLUMNS (first 4 columns)
+                        "Inventory No": st.column_config.TextColumn("Inventory No", disabled=True, pinned=True),
+                        "Room No": st.column_config.TextColumn("Room No", disabled=True, pinned=True),
+                        "Booking ID": st.column_config.TextColumn("Booking ID", disabled=True, pinned=True),
+                        "Guest Name": st.column_config.TextColumn("Guest Name", disabled=True, pinned=True),
+                        
+                        # SCROLLABLE COLUMNS
                         "Mobile No": st.column_config.TextColumn("Mobile No", disabled=True),
                         "Total Pax": st.column_config.NumberColumn("Total Pax", disabled=True),
                         "Check In": st.column_config.TextColumn("Check In", disabled=True),
@@ -545,7 +583,7 @@ def show_daily_status():
                         "Modified by": st.column_config.TextColumn("Modified by", disabled=True),
                         "Remarks": st.column_config.TextColumn("Remarks", disabled=True),
                         
-                        # EDITABLE columns (only these 3, and only for Accounts Team)
+                        # EDITABLE columns (only for Accounts Team)
                         "Advance Remarks": st.column_config.TextColumn(
                             "Advance Remarks",
                             help="Enter remarks for advance payment",
@@ -570,9 +608,9 @@ def show_daily_status():
                         ),
                     }
                     
-                    # Interactive editor with comprehensive configuration
+                    # Display editable table with frozen columns
                     edited_display = st.data_editor(
-                        display_df,
+                        filtered_df,
                         column_config=col_config,
                         hide_index=True,
                         use_container_width=True,
@@ -580,10 +618,10 @@ def show_daily_status():
                         key=f"editor_{prop}_{day.isoformat()}"
                     )
                                         
-                                   # Save button with unique key (show only if editable)
+                    # Save button (show only if editable)
                     if is_accounts_team and st.button(f"💾 Save Changes", key=f"save_{prop}_{day.isoformat()}"):
                         # Merge edited visible with full
-                        edited_full = full_df.copy()
+                        edited_full = filtered_full_df.copy()
                         editable_cols = ["Advance Remarks", "Balance Remarks", "Accounts Status"]
                         for col in editable_cols:
                             edited_full[col] = edited_display[col]
@@ -679,8 +717,8 @@ def show_daily_status():
                 else:
                     st.info("No active bookings.")
 
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # Run
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     show_daily_status()
