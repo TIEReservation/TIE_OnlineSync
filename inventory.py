@@ -472,7 +472,7 @@ def show_daily_status():
     mob_types = ["Booking","Direct","Bkg-Direct","Agoda","Go-MMT","Walk-In","TIE Group","Stayflexi","Airbnb","Social Media","Expedia","Cleartrip","Website"]
 
     for prop in props:
-        with st.expander(f"**{prop}**", expanded=False):
+        if st.checkbox(f"**{prop}**", key=f"expand_{prop}"):
             month_dates = [date(year, month, d) for d in range(1, calendar.monthrange(year, month)[1]+1)]
             start, end = month_dates[0], month_dates[-1]
             bookings = load_combined_bookings(prop, start, end)
