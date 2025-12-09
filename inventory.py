@@ -628,10 +628,6 @@ def show_daily_status():
                         if error_count > 0:
                             st.warning(f"⚠️ {error_count} booking(s) could not be updated. Check logs for details.")
                         
-                        # Clear cache but don't rerun - let user continue editing
-                        st.cache_data.clear()
-                        st.rerun()
-
                     # Tables
                     dtd_df = pd.DataFrame([
                         {"MOB": m, "D.T.D Rooms": d["rooms"], "D.T.D Value": f"₹{d['value']:,.2f}",
