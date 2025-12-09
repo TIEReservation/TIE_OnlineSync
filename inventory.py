@@ -584,68 +584,75 @@ def show_daily_status():
                         if not filtered_display.empty and (booking_id_filter or guest_name_filter):
                             st.subheader("Filtered View")
                             st.dataframe(filtered_display, use_container_width=True, hide_index=True)
-                    else:
-                        booking_id_filter = ""
-                        guest_name_filter = ""
                     
                     # Display editable table with frozen columns (full data)
-                    edited_display = st.data_editor(
-                        display_df,
-                        column_config=col_config,
-                        hide_index=True,
-                        use_container_width=True,
-                        num_rows="fixed",
-                        key=f"editor_{prop}_{day.isoformat()}"
-                    )
-                                        
-                    # Save button (show only if editable)
-                    if is_accounts_team and st.button(f"💾 Save Changes", key=f"save_{prop}_{day.isoformat()}"):
-                        # Merge edited visible with full
-                        edited_full = full_df.copy()
-                        editable_cols = ["Advance Remarks", "Balance Remarks", "Accounts Status"]
-                        for col in editable_cols:
-                            edited_full[col] = edited_display[col]
-                        
-                        updated_bookings = {}
-                        for _, row in edited_full.iterrows():
-                            bid = row.get("Booking ID")
-                            db_id = row.get("db_id")
-                            if pd.isna(bid) or pd.isna(db_id): continue
-                            if bid not in updated_bookings:
-                                updated_bookings[bid] = {
-                                    "advance_remarks": row["Advance Remarks"],
-                                    "balance_remarks": row["Balance Remarks"],
-                                    "accounts_status": row["Accounts Status"],
-                                    "type": row["edit_type"],
-                                    "db_id": db_id
-                                }
-                        
-                        success_count = 0
-                        error_count = 0
-                        for bid, data in updated_bookings.items():
-                            table_name = "online_reservations" if data["type"] == "online" else "reservations"
-                            update_data = {
-                                "advance_remarks": data["advance_remarks"],
-                                "balance_remarks": data["balance_remarks"],
-                                "accounts_status": data["accounts_status"]
-                            }
-                            try:
-                                res = supabase.table(table_name).update(update_data).eq("id", data["db_id"]).execute()
-                                if res.data:
-                                    success_count += 1
-                                    logging.info(f"Updated {table_name} id={data['db_id']}")
-                                else:
-                                    error_count += 1
-                                    logging.warning(f"No update for {bid} (no matching record)")
-                            except Exception as e:
-                                error_count += 1
-                                logging.error(f"Update error {bid}: {e}")
-                        
-                        if success_count > 0:
-                            st.success(f"✅ Successfully saved {success_count} booking(s). Changes have been saved to database.")
-                        if error_count > 0:
-                            st.warning(f"⚠️ {error_count} booking(s) could not be updated. Check logs for details.")
-                        
+                    if is_accounts_team:
+                        with st.form(key=f"form_{prop}_{day.isoformat()}"):
+                            edited_display = st.data_editor(
+                                display_df,
+                                column_config=col_config,
+                                hide_index=True,
+                                use_container_width=True,
+                                num_rows="fixed",
+                            )
+                            submitted = st.form_submit_button("💾 Save Changes", key=f"save_{prop}_{day.isoformat()}")
+                            
+                            if submitted:
+                                # Merge edited visible with full
+                                edited_full = full_df.copy()
+                                editable_cols = ["Advance Remarks", "Balance Remarks", "Accounts Status"]
+                                for col in editable_cols:
+                                    edited_full[col] = edited_display[col]
+                                
+                                updated_bookings = {}
+                                for _, row in edited_full.iterrows():
+                                    bid = row.get("Booking ID")
+                                    db_id = row.get("db_id")
+                                    if pd.isna(bid) or pd.isna(db_id): continue
+                                    if bid not in updated_bookings:
+                                        updated_bookings[bid] = {
+                                            "advance_remarks": row["Advance Remarks"],
+                                            "balance_remarks": row["Balance Remarks"],
+                                            "accounts_status": row["Accounts Status"],
+                                            "type": row["edit_type"],
+                                            "db_id": db_id
+                                        }
+                                
+                                success_count = 0
+                                error_count = 0
+                                for bid, data in updated_bookings.items():
+                                    table_name = "online_reservations" if data["type"] == "online" else "reservations"
+                                    update_data = {
+                                        "advance_remarks": data["advance_remarks"],
+                                        "balance_remarks": data["balance_remarks"],
+                                        "accounts_status": data["accounts_status"]
+                                    }
+                                    try:
+                                        res = supabase.table(table_name).update(update_data).eq("id", data["db_id"]).execute()
+                                        if res.data:
+                                            success_count += 1
+                                            logging.info(f"Updated {table_name} id={data['db_id']}")
+                                        else:
+                                            error_count += 1
+                                            logging.warning(f"No update for {bid} (no matching record)")
+                                    except Exception as e:
+                                        error_count += 1
+                                        logging.error(f"Update error {bid}: {e}")
+                                
+                                if success_count > 0:
+                                    st.success(f"✅ Successfully saved {success_count} booking(s). Changes have been saved to database.")
+                                if error_count > 0:
+                                    st.warning(f"⚠️ {error_count} booking(s) could not be updated. Check logs for details.")
+                    else:
+                        edited_display = st.data_editor(
+                            display_df,
+                            column_config=col_config,
+                            hide_index=True,
+                            use_container_width=True,
+                            num_rows="fixed",
+                            key=f"editor_{prop}_{day.isoformat()}"
+                        )
+                    
                     # Tables
                     dtd_df = pd.DataFrame([
                         {"MOB": m, "D.T.D Rooms": d["rooms"], "D.T.D Value": f"₹{d['value']:,.2f}",
