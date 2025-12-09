@@ -509,7 +509,7 @@ def show_daily_status():
                     is_accounts_team = st.session_state.get('role', '') == "Accounts Team"
 
                     # ═══════════════════════════════════════════════════════════
-                    # COLUMN CONFIG with PINNED columns and FILTERS
+                    # COLUMN CONFIG with PINNED columns
                     # ═══════════════════════════════════════════════════════════
                     col_config = {
                         # PINNED/FROZEN COLUMNS (first 4 columns)
@@ -568,7 +568,27 @@ def show_daily_status():
                         ),
                     }
                     
-                    # Display editable table with frozen columns
+                    # Filters for Accounts Team
+                    if is_accounts_team:
+                        filter_col1, filter_col2 = st.columns(2)
+                        booking_id_filter = filter_col1.text_input("Filter by Booking ID", placeholder="Paste or type Booking ID", key=f"bid_filter_{prop}_{day.isoformat()}")
+                        guest_name_filter = filter_col2.text_input("Filter by Guest Name", placeholder="Paste or type Guest Name", key=f"guest_filter_{prop}_{day.isoformat()}")
+                        
+                        # Apply filters to create a filtered view
+                        filtered_display = display_df.copy()
+                        if booking_id_filter:
+                            filtered_display = filtered_display[filtered_display["Booking ID"].str.contains(booking_id_filter, case=False, na=False)]
+                        if guest_name_filter:
+                            filtered_display = filtered_display[filtered_display["Guest Name"].str.contains(guest_name_filter, case=False, na=False)]
+                        
+                        if not filtered_display.empty and (booking_id_filter or guest_name_filter):
+                            st.subheader("Filtered View")
+                            st.dataframe(filtered_display, use_container_width=True, hide_index=True)
+                    else:
+                        booking_id_filter = ""
+                        guest_name_filter = ""
+                    
+                    # Display editable table with frozen columns (full data)
                     edited_display = st.data_editor(
                         display_df,
                         column_config=col_config,
