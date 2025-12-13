@@ -528,7 +528,7 @@ def show_new_reservation_form():
                 room_no = st.text_input(
                     "Room No",
                     value="",
-                    placeholder="Enter or select room number",
+                    placeholder="Enter room number",
                     key=f"{form_key}_room_no",
                     help="Enter or edit the room number. You can type any custom value or use suggestions below."
                 )
@@ -541,16 +541,15 @@ def show_new_reservation_form():
         # Row 5: Total Tariff, Tariff (per day), Advance Amount, Advance MOP
         row5_col1, row5_col2, row5_col3, row5_col4 = st.columns(4)
         with row5_col1:
-            total_tariff = st.number_input("Total Tariff", min_value=0.0, value=0.0, step=100.0, key=f"{form_key}_total_tariff")
+            total_tariff = st.number_input("Total Tariff", min_value=0.0, step=100.0, key=f"{form_key}_total_tariff")
         with row5_col2:
             tariff = total_tariff / max(1, no_of_days)
             st.text_input("Tariff (per day)", value=f"₹{tariff:.2f}", disabled=True, key=f"{form_key}_tariff", help="Total Tariff ÷ No of Days")
         with row5_col3:
-            advance_amount = st.number_input("Advance Amount", min_value=0.0, value=0.0, step=100.0, key=f"{form_key}_advance")
+            advance_amount = st.number_input("Advance Amount", min_value=0.0, step=100.0, key=f"{form_key}_advance")
         with row5_col4:
-            advance_mop = st.selectbox("Advance MOP",
-                                       [" ", "Cash", "Card", "UPI", "Bank Transfer", "ClearTrip", "TIE Management", "Booking.com", "Pending", "Other"],
-                                       key=f"{form_key}_advmop")
+            advance_mop_options = ["Cash", "Card", "UPI", "Bank Transfer", "ClearTrip", "TIE Management", "Booking.com", "Pending", "Other"]
+            advance_mop = st.selectbox("Advance MOP", advance_mop_options, key=f"{form_key}_advmop")
             if advance_mop == "Other":
                 custom_advance_mop = st.text_input("Custom Advance MOP", key=f"{form_key}_custom_advmop")
             else:
@@ -562,10 +561,8 @@ def show_new_reservation_form():
             balance_amount = max(0, total_tariff - safe_float(advance_amount))
             st.text_input("Balance Amount", value=f"₹{balance_amount:.2f}", disabled=True, key=f"{form_key}_balance_amount", help="Total Tariff - Advance Amount")
         with row6_col2:
-            balance_mop = st.selectbox("Balance MOP",
-                                       [" ", "Pending", "Cash", "Card", "UPI", "Bank Transfer", "Other"],
-                                       index=0,
-                                       key=f"{form_key}_balmop")
+            balance_mop_options = ["Pending", "Cash", "Card", "UPI", "Bank Transfer", "Other"]
+            balance_mop = st.selectbox("Balance MOP", balance_mop_options, key=f"{form_key}_balmop")
             if balance_mop == "Other":
                 custom_balance_mop = st.text_input("Custom Balance MOP", key=f"{form_key}_custom_balmop")
             else:
@@ -576,29 +573,30 @@ def show_new_reservation_form():
         with row7_col1:
             booking_date = st.date_input("Booking Date", value=date.today(), key=f"{form_key}_booking")
         with row7_col2:
-            invoice_no = st.text_input("Invoice No", placeholder="Enter invoice number", key=f"{form_key}_invoice")
+            invoice_no = st.text_input("Invoice No", key=f"{form_key}_invoice")
         with row7_col3:
-            booking_status = st.selectbox("Booking Status", ["Confirmed", "Pending", "Cancelled", "Completed", "No Show"], index=1, key=f"{form_key}_status")
+            booking_status_options = ["Confirmed", "Pending", "Cancelled", "Completed", "Follow-up", "No Show"]
+            booking_status = st.selectbox("Booking Status", booking_status_options, index=0, key=f"{form_key}_status")
 
         # Row 8: Remarks
         row8_col1, = st.columns(1)
         with row8_col1:
-            remarks = st.text_area("Remarks", value="", key=f"{form_key}_remarks")
+            remarks = st.text_area("Remarks", key=f"{form_key}_remarks")
 
         # Row 9: Payment Status, Submitted By
         row9_col1, row9_col2 = st.columns(2)
         with row9_col1:
-            payment_status = st.selectbox("Payment Status", ["Fully Paid", "Partially Paid", "Not Paid"], index=2, key=f"{form_key}_payment_status")
+            payment_status_options = ["Fully Paid", "Partially Paid", "Not Paid"]
+            payment_status = st.selectbox("Payment Status", payment_status_options, index=2, key=f"{form_key}_payment_status")
         with row9_col2:
-            submitted_by = st.text_input("Submitted By", value=st.session_state.get("username", ""), disabled=True, key=f"{form_key}_submitted_by")
+            submitted_by = st.text_input("Submitted By", value=st.session_state.get('user_name', ''), disabled=True)
 
         # Online Source (conditionally shown when MOB is Online)
         if mob == "Online":
             row10_col1, = st.columns(1)
             with row10_col1:
-                online_source = st.selectbox("Online Source",
-                                             ["Booking.com", "Agoda Prepaid", "Agoda Booking.com", "Expedia", "MMT", "Cleartrip", "Others"],
-                                             key=f"{form_key}_online_source")
+                online_source_options = ["Booking.com", "Agoda Prepaid", "Agoda Booking.com", "Expedia", "MMT", "Cleartrip", "Others"]
+                online_source = st.selectbox("Online Source", online_source_options, index=0, key=f"{form_key}_online_source")
                 if online_source == "Others":
                     custom_online_source = st.text_input("Custom Online Source", key=f"{form_key}_custom_online_source")
                 else:
@@ -607,66 +605,81 @@ def show_new_reservation_form():
             online_source = None
             custom_online_source = None
 
-        if st.button("💾 Save Reservation", use_container_width=True):
-            # Validate room_no
-            if not room_no or not room_no.strip():
-                st.error("❌ Room No cannot be empty. Please enter a room number.")
-            elif len(room_no) > 50:
-                st.error("❌ Room No cannot exceed 50 characters.")
-            elif not all([property_name, guest_name, mobile_no]):
-                st.error("❌ Please fill in all required fields")
-            elif check_out < check_in:
-                st.error("❌ Check-out date must be on or after check-in")
-            elif no_of_days < 0:
-                st.error("❌ Number of days cannot be negative")
-            else:
-                mob_value = custom_mob if mob == "Others" else mob
-                is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no.strip(), mob=mob_value)
-                if is_duplicate:
-                    st.error(f"❌ Guest already exists! Booking ID: {existing_booking_id}")
+        # Row 10: Modified By, Modified Comments
+        row10_col1, row10_col2 = st.columns(2)
+        with row10_col1:
+            modified_by = st.text_input("Modified By", value="", key=f"{form_key}_modified_by")
+        with row10_col2:
+            modified_comments = st.text_area("Modified Comments", value="", key=f"{form_key}_modified_comments")
+
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("💾 Save Reservation", key=f"{form_key}_save", use_container_width=True):
+                # Validate room_no
+                if not room_no or not room_no.strip():
+                    st.error("❌ Room No cannot be empty. Please enter a room number.")
+                elif len(room_no) > 50:
+                    st.error("❌ Room No cannot exceed 50 characters.")
+                elif not all([property_name, guest_name, mobile_no]):
+                    st.error("❌ Please fill in all required fields")
+                elif check_out < check_in:
+                    st.error("❌ Check-out date must be on or after check-in")
+                elif no_of_days < 0:
+                    st.error("❌ Number of days cannot be negative")
                 else:
                     booking_id = generate_booking_id()
                     if not booking_id:
-                        st.error("❌ Failed to generate a unique booking ID")
-                        return
-                    reservation = {
-                        "Property Name": property_name,
-                        "Room No": room_no.strip(),
-                        "Guest Name": guest_name,
-                        "Mobile No": mobile_no,
-                        "No of Adults": safe_int(adults),
-                        "No of Children": safe_int(children),
-                        "No of Infants": safe_int(infants),
-                        "Total Pax": total_pax,
-                        "Check In": check_in,
-                        "Check Out": check_out,
-                        "No of Days": no_of_days,
-                        "Tariff": safe_float(tariff),
-                        "Total Tariff": safe_float(total_tariff),
-                        "Advance Amount": safe_float(advance_amount),
-                        "Balance Amount": balance_amount,
-                        "Advance MOP": custom_advance_mop if advance_mop == "Other" else advance_mop,
-                        "Balance MOP": custom_balance_mop if balance_mop == "Other" else balance_mop,
-                        "MOB": mob_value,
-                        "Online Source": custom_online_source if online_source == "Others" else online_source,
-                        "Invoice No": invoice_no,
-                        "Enquiry Date": enquiry_date,
-                        "Booking Date": booking_date,
-                        "Booking ID": booking_id,
-                        "Room Type": room_type,
-                        "Breakfast": breakfast,
-                        "Booking Status": booking_status,
-                        "Submitted By": submitted_by,
-                        "Modified By": "",
-                        "Modified Comments": "",
-                        "Remarks": remarks,
-                        "Payment Status": payment_status
-                    }
-                    if save_reservation_to_supabase(reservation):
-                        st.success(f"✅ Reservation {booking_id} created successfully!")
-                        show_confirmation_dialog(booking_id)
+                        st.error("❌ Failed to generate booking ID.")
                     else:
-                        st.error("❌ Failed to save reservation")
+                        mob_value = custom_mob if mob == "Others" else mob
+                        is_duplicate, existing_booking_id = check_duplicate_guest(guest_name, mobile_no, room_no.strip(), mob=mob_value)
+                        if is_duplicate:
+                            st.error(f"❌ Guest already exists! Booking ID: {existing_booking_id}")
+                        else:
+                            reservation = {
+                                "Property Name": property_name,
+                                "Room No": room_no.strip(),
+                                "Guest Name": guest_name,
+                                "Mobile No": mobile_no,
+                                "No of Adults": safe_int(adults),
+                                "No of Children": safe_int(children),
+                                "No of Infants": safe_int(infants),
+                                "Total Pax": total_pax,
+                                "Check In": check_in,
+                                "Check Out": check_out,
+                                "No of Days": no_of_days,
+                                "Tariff": safe_float(tariff),
+                                "Total Tariff": safe_float(total_tariff),
+                                "Advance Amount": safe_float(advance_amount),
+                                "Balance Amount": balance_amount,
+                                "Advance MOP": custom_advance_mop if advance_mop == "Other" else advance_mop,
+                                "Balance MOP": custom_balance_mop if balance_mop == "Other" else balance_mop,
+                                "MOB": mob_value,
+                                "Online Source": custom_online_source if online_source == "Others" else online_source,
+                                "Invoice No": invoice_no,
+                                "Enquiry Date": enquiry_date,
+                                "Booking Date": booking_date,
+                                "Booking ID": booking_id,
+                                "Room Type": room_type,
+                                "Breakfast": breakfast,
+                                "Booking Status": booking_status,
+                                "Submitted By": submitted_by,
+                                "Modified By": modified_by,
+                                "Modified Comments": modified_comments,
+                                "Remarks": remarks,
+                                "Payment Status": payment_status
+                            }
+                            if save_reservation_to_supabase(reservation):
+                                st.success(f"✅ Reservation {booking_id} created successfully!")
+                                show_confirmation_dialog(booking_id)
+                            else:
+                                st.error("❌ Failed to save reservation")
+        with col_btn2:
+            if st.button("🔄 Clear Form", key=f"{form_key}_clear", use_container_width=True):
+                for key in st.session_state.keys():
+                    if key.startswith(f"{form_key}_"):
+                        del st.session_state[key]
+                st.rerun()
     except Exception as e:
         st.error(f"Error rendering new reservation form: {e}")
 
@@ -718,6 +731,9 @@ def show_edit_reservations():
     """Display reservations for editing with filtering options."""
     try:
         st.header("✏️ Edit Reservations")
+        if st.button("Refresh Data"):
+            st.session_state.reservations = load_reservations_from_supabase()
+            st.rerun()
         if not st.session_state.reservations:
             st.info("No reservations available to edit.")
             return
@@ -1103,3 +1119,29 @@ def show_analytics():
             labels={"Total Tariff": "Revenue (₹)"}
         )
         st.plotly_chart(fig_bar, use_container_width=True, key="analytics_bar_chart")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Run
+# ─────────────────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    st.set_page_config(page_title="Direct Reservations", layout="wide")
+    if 'reservations' not in st.session_state:
+        st.session_state.reservations = load_reservations_from_supabase()
+    if 'role' not in st.session_state:
+        st.session_state.role = st.selectbox("Select Role", ["Management", "Staff", "Accounts Team"])
+    if 'user_name' not in st.session_state:
+        st.session_state.user_name = st.text_input("Enter Your Name")
+
+    tab1, tab2, tab3, tab4 = st.tabs(["New Reservation", "View Reservations", "Edit Reservations", "Analytics"])
+    
+    with tab1:
+        show_new_reservation_form()
+    
+    with tab2:
+        show_reservations()
+    
+    with tab3:
+        show_edit_reservations()
+    
+    with tab4:
+        show_analytics()
