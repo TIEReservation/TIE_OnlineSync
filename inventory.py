@@ -497,14 +497,18 @@ def show_daily_status():
                         "Accounts Status": st.column_config.SelectboxColumn("Accounts Status", options=["Pending", "Completed"], disabled=not is_accounts_team),
                     }
 
+                    # Create unique key for this property-day combination
+                    unique_key = f"{prop.replace(' ', '_')}_{day.strftime('%Y%m%d')}"
+
                     if is_accounts_team:
-                        with st.form(key=f"form_{prop}_{day}"):
+                        with st.form(key=f"form_{unique_key}"):
                             edited = st.data_editor(
                                 display_df,
                                 column_config=col_config,
                                 hide_index=True,
                                 use_container_width=True,
-                                num_rows="fixed"
+                                num_rows="fixed",
+                                key=f"editor_{unique_key}"
                             )
                             submitted = st.form_submit_button("💾 Save Changes")
 
@@ -525,14 +529,14 @@ def show_daily_status():
                                         continue
 
                                     # Use a unique key that includes row index to handle multi-room bookings
-                                    unique_key = f"{bid}_{i}"
+                                    update_key = f"{bid}_{i}"
                                     
                                     # Get the values, converting empty strings to None for optional fields
                                     advance_remarks = str(er.get("Advance Remarks", "") or "").strip()
                                     balance_remarks = str(er.get("Balance Remarks", "") or "").strip()
                                     accounts_status = str(er.get("Accounts Status", "Pending")).strip()
                                     
-                                    updates[unique_key] = {
+                                    updates[update_key] = {
                                         "advance_remarks": advance_remarks if advance_remarks else None,
                                         "balance_remarks": balance_remarks if balance_remarks else None,
                                         "accounts_status": accounts_status,
@@ -545,7 +549,7 @@ def show_daily_status():
                                 error_details = []
                                 processed_bookings = set()  # Track which bookings we've updated
 
-                                for unique_key, data in updates.items():
+                                for update_key, data in updates.items():
                                     bid = data["booking_id"]
                                     
                                     # Skip if we've already processed this booking
@@ -593,7 +597,15 @@ def show_daily_status():
                                         for msg in error_details:
                                             st.code(msg)
                     else:
-                        st.data_editor(display_df, column_config=col_config, hide_index=True, use_container_width=True, num_rows="fixed")
+                        st.data_editor(
+                            display_df, 
+                            column_config=col_config, 
+                            hide_index=True, 
+                            use_container_width=True, 
+                            num_rows="fixed",
+                            disabled=True,
+                            key=f"viewer_{unique_key}"
+                        )
 
                     # Extract stats and accumulate MTD
                     stats = extract_stats_from_table(display_df, mob_types)
