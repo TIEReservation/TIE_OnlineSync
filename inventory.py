@@ -454,6 +454,88 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
 
     return {"mop": mop_data, "dtd": dtd}
 
+# Helper for form submission (refactored to avoid duplication)
+def handle_form_submission(edited_display, full_df, prop, day):
+    updated_bookings = {}
+    for position in range(len(edited_display)):
+        edited_row = edited_display.iloc[position]
+        full_row = full_df.iloc[position]
+        
+        bid = edited_row.get("Booking ID")
+        if pd.isna(bid) or str(bid).strip() == "":
+            continue
+        
+        db_id = full_row.get("db_id")
+        edit_type = full_row.get("edit_type")
+        
+        if pd.isna(db_id) or str(db_id).strip() == "":
+            logging.warning(f"Skipping booking {bid} - missing db_id")
+            continue
+        
+        try:
+            db_id_int = int(float(db_id))
+        except (ValueError, TypeError):
+            logging.warning(f"Invalid db_id for booking {bid}: {db_id}")
+            continue
+        
+        bid_str = str(bid).strip()
+        
+        if bid_str not in updated_bookings:
+            advance_val = str(edited_row["Advance Remarks"]).strip() if pd.notna(edited_row["Advance Remarks"]) else ""
+            balance_val = str(edited_row["Balance Remarks"]).strip() if pd.notna(edited_row["Balance Remarks"]) else ""
+            status_val = str(edited_row["Accounts Status"]).strip() if pd.notna(edited_row["Accounts Status"]) else "Pending"
+            
+            updated_bookings[bid_str] = {
+                "advance_remarks": advance_val,
+                "balance_remarks": balance_val,
+                "accounts_status": status_val,
+                "type": str(edit_type).strip(),
+                "db_id": db_id_int
+            }
+    
+    # Execute updates
+    success_count = 0
+    error_count = 0
+    error_details = []
+    
+    for bid, data in updated_bookings.items():
+        table_name = "online_reservations" if data["type"] == "online" else "reservations"
+        update_data = {
+            "advance_remarks": data["advance_remarks"],
+            "balance_remarks": data["balance_remarks"],
+            "accounts_status": data["accounts_status"]
+        }
+        
+        logging.info(f"Updating {table_name}, id={data['db_id']}, booking={bid}")
+        logging.info(f"Data: {update_data}")
+        
+        try:
+            res = supabase.table(table_name).update(update_data).eq("id", data["db_id"]).execute()
+            if res.data and len(res.data) > 0:
+                success_count += 1
+                logging.info(f"✓ Successfully updated {bid}")
+            else:
+                error_count += 1
+                error_msg = f"No record found for booking {bid} (table={table_name}, id={data['db_id']})"
+                error_details.append(error_msg)
+                logging.warning(error_msg)
+        except Exception as e:
+            error_count += 1
+            error_msg = f"Booking {bid}: {str(e)}"
+            error_details.append(error_msg)
+            logging.error(f"Update failed for {bid}: {e}")
+    
+    # Show results
+    if success_count > 0:
+        st.success(f"✅ Successfully saved {success_count} booking(s).")
+        st.cache_data.clear()
+        st.rerun()
+    if error_count > 0:
+        st.warning(f"⚠️ {error_count} booking(s) could not be updated.")
+        with st.expander("View Error Details"):
+            for err in error_details:
+                st.text(err)
+
 # ══════════════════════════════════════════════════════════════════════════════
 # UI – Dashboard
 # ══════════════════════════════════════════════════════════════════════════════
@@ -572,7 +654,7 @@ def show_daily_status():
                     }
                     
                     # Filters for Accounts Team
-                     if is_accounts_team:
+                    if is_accounts_team:
                         filter_col1, filter_col2 = st.columns(2)
                         booking_id_filter = filter_col1.text_input("Filter by Booking ID", placeholder="Paste or type Booking ID", key=f"bid_filter_{prop}_{day.isoformat()}")
                         guest_name_filter = filter_col2.text_input("Filter by Guest Name", placeholder="Paste or type Guest Name", key=f"guest_filter_{prop}_{day.isoformat()}")
@@ -604,89 +686,7 @@ def show_daily_status():
                                 submitted = st.form_submit_button("💾 Save Changes")
                                 
                                 if submitted:
-                                    updated_bookings = {}
-                                    
-                                    # Process each row by position
-                                    for position in range(len(edited_display)):
-                                        edited_row = edited_display.iloc[position]
-                                        full_row = filtered_full.iloc[position]
-                                        
-                                        bid = edited_row.get("Booking ID")
-                                        if pd.isna(bid) or str(bid).strip() == "":
-                                            continue
-                                        
-                                        db_id = full_row.get("db_id")
-                                        edit_type = full_row.get("edit_type")
-                                        
-                                        if pd.isna(db_id) or str(db_id).strip() == "":
-                                            logging.warning(f"Skipping booking {bid} - missing db_id")
-                                            continue
-                                        
-                                        # Convert to proper types
-                                        try:
-                                            db_id_int = int(float(db_id))
-                                        except (ValueError, TypeError):
-                                            logging.warning(f"Invalid db_id for booking {bid}: {db_id}")
-                                            continue
-                                        
-                                        bid_str = str(bid).strip()
-                                        
-                                        # Store update data (handle duplicates by keeping first occurrence)
-                                        if bid_str not in updated_bookings:
-                                            advance_val = str(edited_row["Advance Remarks"]).strip() if pd.notna(edited_row["Advance Remarks"]) else ""
-                                            balance_val = str(edited_row["Balance Remarks"]).strip() if pd.notna(edited_row["Balance Remarks"]) else ""
-                                            status_val = str(edited_row["Accounts Status"]).strip() if pd.notna(edited_row["Accounts Status"]) else "Pending"
-                                            
-                                            updated_bookings[bid_str] = {
-                                                "advance_remarks": advance_val,
-                                                "balance_remarks": balance_val,
-                                                "accounts_status": status_val,
-                                                "type": str(edit_type).strip(),
-                                                "db_id": db_id_int
-                                            }
-                                    
-                                    # Execute updates
-                                    success_count = 0
-                                    error_count = 0
-                                    error_details = []
-                                    
-                                    for bid, data in updated_bookings.items():
-                                        table_name = "online_reservations" if data["type"] == "online" else "reservations"
-                                        update_data = {
-                                            "advance_remarks": data["advance_remarks"],
-                                            "balance_remarks": data["balance_remarks"],
-                                            "accounts_status": data["accounts_status"]
-                                        }
-                                        
-                                        logging.info(f"Updating {table_name}, id={data['db_id']}, booking={bid}")
-                                        logging.info(f"Data: {update_data}")
-                                        
-                                        try:
-                                            res = supabase.table(table_name).update(update_data).eq("id", data["db_id"]).execute()
-                                            if res.data and len(res.data) > 0:
-                                                success_count += 1
-                                                logging.info(f"✓ Successfully updated {bid}")
-                                            else:
-                                                error_count += 1
-                                                error_msg = f"No record found for booking {bid} (table={table_name}, id={data['db_id']})"
-                                                error_details.append(error_msg)
-                                                logging.warning(error_msg)
-                                        except Exception as e:
-                                            error_count += 1
-                                            error_msg = f"Booking {bid}: {str(e)}"
-                                            error_details.append(error_msg)
-                                            logging.error(f"Update failed for {bid}: {e}")
-                                    
-                                    # Show results
-                                    if success_count > 0:
-                                        st.success(f"✅ Successfully saved {success_count} booking(s).")
-                                        st.cache_data.clear()
-                                        st.rerun()
-                                    if error_count > 0:
-                                        st.warning(f"⚠️ {error_count} booking(s) could not be updated.")
-                                        with st.expander("View Error Details"):
-                                            for err in error_details:
-                                                st.text(err)
+                                    handle_form_submission(edited_display, filtered_full, prop, day)
                         else:
                             # No filter, edit full view
                             with st.form(key=f"form_{prop}_{day.isoformat()}"):
@@ -700,92 +700,10 @@ def show_daily_status():
                                 submitted = st.form_submit_button("💾 Save Changes")
                                 
                                 if submitted:
-                                    updated_bookings = {}
-                                    
-                                    # Process each row by position
-                                    for position in range(len(edited_display)):
-                                        edited_row = edited_display.iloc[position]
-                                        full_row = full_df.iloc[position]
-                                        
-                                        bid = edited_row.get("Booking ID")
-                                        if pd.isna(bid) or str(bid).strip() == "":
-                                            continue
-                                        
-                                        db_id = full_row.get("db_id")
-                                        edit_type = full_row.get("edit_type")
-                                        
-                                        if pd.isna(db_id) or str(db_id).strip() == "":
-                                            logging.warning(f"Skipping booking {bid} - missing db_id")
-                                            continue
-                                        
-                                        # Convert to proper types
-                                        try:
-                                            db_id_int = int(float(db_id))
-                                        except (ValueError, TypeError):
-                                            logging.warning(f"Invalid db_id for booking {bid}: {db_id}")
-                                            continue
-                                        
-                                        bid_str = str(bid).strip()
-                                        
-                                        # Store update data (handle duplicates by keeping first occurrence)
-                                        if bid_str not in updated_bookings:
-                                            advance_val = str(edited_row["Advance Remarks"]).strip() if pd.notna(edited_row["Advance Remarks"]) else ""
-                                            balance_val = str(edited_row["Balance Remarks"]).strip() if pd.notna(edited_row["Balance Remarks"]) else ""
-                                            status_val = str(edited_row["Accounts Status"]).strip() if pd.notna(edited_row["Accounts Status"]) else "Pending"
-                                            
-                                            updated_bookings[bid_str] = {
-                                                "advance_remarks": advance_val,
-                                                "balance_remarks": balance_val,
-                                                "accounts_status": status_val,
-                                                "type": str(edit_type).strip(),
-                                                "db_id": db_id_int
-                                            }
-                                    
-                                    # Execute updates
-                                    success_count = 0
-                                    error_count = 0
-                                    error_details = []
-                                    
-                                    for bid, data in updated_bookings.items():
-                                        table_name = "online_reservations" if data["type"] == "online" else "reservations"
-                                        update_data = {
-                                            "advance_remarks": data["advance_remarks"],
-                                            "balance_remarks": data["balance_remarks"],
-                                            "accounts_status": data["accounts_status"]
-                                        }
-                                        
-                                        logging.info(f"Updating {table_name}, id={data['db_id']}, booking={bid}")
-                                        logging.info(f"Data: {update_data}")
-                                        
-                                        try:
-                                            res = supabase.table(table_name).update(update_data).eq("id", data["db_id"]).execute()
-                                            if res.data and len(res.data) > 0:
-                                                success_count += 1
-                                                logging.info(f"✓ Successfully updated {bid}")
-                                            else:
-                                                error_count += 1
-                                                error_msg = f"No record found for booking {bid} (table={table_name}, id={data['db_id']})"
-                                                error_details.append(error_msg)
-                                                logging.warning(error_msg)
-                                        except Exception as e:
-                                            error_count += 1
-                                            error_msg = f"Booking {bid}: {str(e)}"
-                                            error_details.append(error_msg)
-                                            logging.error(f"Update failed for {bid}: {e}")
-                                    
-                                    # Show results
-                                    if success_count > 0:
-                                        st.success(f"✅ Successfully saved {success_count} booking(s).")
-                                        st.cache_data.clear()
-                                        st.rerun()
-                                    if error_count > 0:
-                                        st.warning(f"⚠️ {error_count} booking(s) could not be updated.")
-                                        with st.expander("View Error Details"):
-                                            for err in error_details:
-                                                st.text(err)
+                                    handle_form_submission(edited_display, full_df, prop, day)
                     else:
                         # Non-accounts team: view-only full table
-                        edited_display = st.data_editor(
+                        st.data_editor(
                             display_df,
                             column_config=col_config,
                             hide_index=True,
@@ -794,7 +712,7 @@ def show_daily_status():
                             key=f"editor_{prop}_{day.isoformat()}"
                         )
                     
-                    # Tables
+                    # Tables (aligned to if daily: level)
                     dtd_df = pd.DataFrame([
                         {"MOB": m, "D.T.D Rooms": d["rooms"], "D.T.D Value": f"₹{d['value']:,.2f}",
                          "D.T.D ARR": f"₹{d['arr']:,.2f}", "D.T.D Comm": f"₹{d['comm']:,.2f}"} 
