@@ -983,8 +983,8 @@ def show_edit_form(edit_index):
                 # Validate room_no
                 if not room_no or not room_no.strip():
                     st.error("❌ Room No cannot be empty. Please enter a room number.")
-                elif len(room_no) > 50:
-                    st.error("❌ Room No cannot exceed 50 characters.")
+                elif len(room_no) > 500:
+                    st.error("❌ Room No cannot exceed 500 characters.")
                 elif not all([property_name, guest_name, mobile_no]):
                     st.error("❌ Please fill in all required fields")
                 elif check_out < check_in:
