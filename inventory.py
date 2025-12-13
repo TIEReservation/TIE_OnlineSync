@@ -506,23 +506,29 @@ def show_daily_status():
                                 for i in range(len(edited)):
                                     er = edited.iloc[i]
                                     fr = full_df.iloc[i]
+                                    
                                     bid = str(er.get("Booking ID", "")).strip()
                                     if not bid:
                                         continue
 
-                                    db_id = fr.get("db_id", "")
-                                    btype = fr.get("type")
+                                    db_id = str(fr.get("db_id", "")).strip()
+                                    btype = str(fr.get("type", "")).strip()
 
                                     if not db_id or not btype:
                                         continue
 
-                                    if bid in updates:
-                                        continue
-
-                                    updates[bid] = {
-                                        "advance_remarks": (str(er.get("Advance Remarks", "") or "").strip() or None),
-                                        "balance_remarks": (str(er.get("Balance Remarks", "") or "").strip() or None),
-                                        "accounts_status": str(er.get("Accounts Status", "Pending")).strip(),
+                                    # Use a unique key that includes row index to handle multi-room bookings
+                                    unique_key = f"{bid}_{i}"
+                                    
+                                    # Get the values, converting empty strings to None for optional fields
+                                    advance_remarks = str(er.get("Advance Remarks", "") or "").strip()
+                                    balance_remarks = str(er.get("Balance Remarks", "") or "").strip()
+                                    accounts_status = str(er.get("Accounts Status", "Pending")).strip()
+                                    
+                                    updates[unique_key] = {
+                                        "advance_remarks": advance_remarks if advance_remarks else None,
+                                        "balance_remarks": balance_remarks if balance_remarks else None,
+                                        "accounts_status": accounts_status,
                                         "type": btype,
                                         "db_id": db_id,
                                         "booking_id": bid
@@ -530,14 +536,27 @@ def show_daily_status():
 
                                 success = error = 0
                                 error_details = []
+                                processed_bookings = set()  # Track which bookings we've updated
 
-                                for bid, data in updates.items():
+                                for unique_key, data in updates.items():
+                                    bid = data["booking_id"]
+                                    
+                                    # Skip if we've already processed this booking
+                                    if bid in processed_bookings:
+                                        continue
+                                    
+                                    processed_bookings.add(bid)
+                                    
                                     update_data = {
                                         "advance_remarks": data["advance_remarks"],
                                         "balance_remarks": data["balance_remarks"],
                                         "accounts_status": data["accounts_status"],
                                     }
-                                    logging.info(f"Saving {data['type']} booking {bid} | Key: {data['db_id'] if data['type']=='online' else bid}")
+                                    
+                                    # Remove None values to avoid overwriting with NULL
+                                    update_data = {k: v for k, v in update_data.items() if v is not None}
+                                    
+                                    logging.info(f"Saving {data['type']} booking {bid} | Key: {data['db_id'] if data['type']=='online' else bid} | Data: {update_data}")
 
                                     try:
                                         if data["type"] == "online":
@@ -547,9 +566,11 @@ def show_daily_status():
 
                                         if res.data:
                                             success += 1
+                                            logging.info(f"Successfully updated {bid}")
                                         else:
                                             error += 1
                                             error_details.append(f"{bid}: No rows updated")
+                                            logging.warning(f"No rows updated for {bid}")
                                     except Exception as e:
                                         error += 1
                                         error_details.append(f"{bid}: {str(e)}")
