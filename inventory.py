@@ -490,7 +490,7 @@ def show_daily_status():
                         "Accounts Status": st.column_config.SelectboxColumn("Accounts Status", options=["Pending", "Completed"], disabled=not is_accounts_team),
                     }
 
-                     if is_accounts_team:
+                    if is_accounts_team:
                         with st.form(key=f"form_{prop}_{day}"):
                             edited = st.data_editor(
                                 display_df,
@@ -566,8 +566,6 @@ def show_daily_status():
                                             st.code(msg)
                     else:
                         st.data_editor(display_df, column_config=col_config, hide_index=True, use_container_width=True, num_rows="fixed")
-                else:
-                    st.info("No active bookings.")
 
                     # Extract stats and accumulate MTD
                     stats = extract_stats_from_table(display_df, mob_types)
