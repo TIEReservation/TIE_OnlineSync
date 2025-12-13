@@ -438,6 +438,42 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
 # ═══════════════════════════════════════════════════════════════════════════
 def show_daily_status():
     st.title("Daily Status Dashboard")
+    
+    # Add global CSS for freezing columns in ALL tables
+    st.markdown("""
+        <style>
+        /* Freeze first 4 columns in data editor */
+        [data-testid="stDataFrameResizable"] div[data-testid="stDataFrame"] tbody tr td:nth-child(-n+4),
+        [data-testid="stDataFrameResizable"] div[data-testid="stDataFrame"] thead tr th:nth-child(-n+4) {
+            position: sticky !important;
+            z-index: 10 !important;
+            background-color: white !important;
+        }
+        [data-testid="stDataFrameResizable"] div[data-testid="stDataFrame"] tbody tr td:nth-child(1),
+        [data-testid="stDataFrameResizable"] div[data-testid="stDataFrame"] thead tr th:nth-child(1) {
+            left: 0px !important;
+        }
+        [data-testid="stDataFrameResizable"] div[data-testid="stDataFrame"] tbody tr td:nth-child(2),
+        [data-testid="stDataFrameResizable"] div[data-testid="stDataFrame"] thead tr th:nth-child(2) {
+            left: 150px !important;
+        }
+        [data-testid="stDataFrameResizable"] div[data-testid="stDataFrame"] tbody tr td:nth-child(3),
+        [data-testid="stDataFrameResizable"] div[data-testid="stDataFrame"] thead tr th:nth-child(3) {
+            left: 270px !important;
+        }
+        [data-testid="stDataFrameResizable"] div[data-testid="stDataFrame"] tbody tr td:nth-child(4),
+        [data-testid="stDataFrameResizable"] div[data-testid="stDataFrame"] thead tr th:nth-child(4) {
+            left: 390px !important;
+            border-right: 2px solid #d0d0d0 !important;
+        }
+        
+        /* Ensure background stays white even on hover */
+        [data-testid="stDataFrameResizable"] div[data-testid="stDataFrame"] tbody tr:hover td:nth-child(-n+4) {
+            background-color: #f0f2f6 !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
     if st.button("Refresh Data"):
         st.cache_data.clear()
         st.rerun()
@@ -505,41 +541,6 @@ def show_daily_status():
                                 column_order=None,
                                 key=f"editor_{prop}_{day}",
                             )
-                            
-                            # Add custom CSS to freeze columns
-                            st.markdown(f"""
-                                <style>
-                                /* Freeze first {num_frozen_cols} columns */
-                                [data-testid="stDataFrame"] tbody tr td:nth-child(-n+{num_frozen_cols}),
-                                [data-testid="stDataFrame"] thead tr th:nth-child(-n+{num_frozen_cols}) {{
-                                    position: sticky !important;
-                                    left: 0 !important;
-                                    z-index: 10 !important;
-                                    background-color: white !important;
-                                }}
-                                [data-testid="stDataFrame"] tbody tr td:nth-child(1),
-                                [data-testid="stDataFrame"] thead tr th:nth-child(1) {{
-                                    left: 0px !important;
-                                }}
-                                [data-testid="stDataFrame"] tbody tr td:nth-child(2),
-                                [data-testid="stDataFrame"] thead tr th:nth-child(2) {{
-                                    left: 120px !important;
-                                }}
-                                [data-testid="stDataFrame"] tbody tr td:nth-child(3),
-                                [data-testid="stDataFrame"] thead tr th:nth-child(3) {{
-                                    left: 220px !important;
-                                }}
-                                [data-testid="stDataFrame"] tbody tr td:nth-child(4),
-                                [data-testid="stDataFrame"] thead tr th:nth-child(4) {{
-                                    left: 340px !important;
-                                }}
-                                /* Add border to last frozen column */
-                                [data-testid="stDataFrame"] tbody tr td:nth-child({num_frozen_cols}),
-                                [data-testid="stDataFrame"] thead tr th:nth-child({num_frozen_cols}) {{
-                                    border-right: 2px solid #e0e0e0 !important;
-                                }}
-                                </style>
-                            """, unsafe_allow_html=True)
                             edited = st.data_editor(
                                 display_df,
                                 column_config=col_config,
@@ -635,37 +636,6 @@ def show_daily_status():
                                             st.code(msg)
                     else:
                         st.data_editor(display_df, column_config=col_config, hide_index=True, use_container_width=True, num_rows="fixed", key=f"readonly_editor_{prop}_{day}")
-                        
-                        # Add custom CSS to freeze columns for readonly view too
-                        st.markdown(f"""
-                            <style>
-                            /* Freeze first 4 columns */
-                            [data-testid="stDataFrame"] tbody tr td:nth-child(-n+4),
-                            [data-testid="stDataFrame"] thead tr th:nth-child(-n+4) {{
-                                position: sticky !important;
-                                left: 0 !important;
-                                z-index: 10 !important;
-                                background-color: white !important;
-                            }}
-                            [data-testid="stDataFrame"] tbody tr td:nth-child(1),
-                            [data-testid="stDataFrame"] thead tr th:nth-child(1) {{
-                                left: 0px !important;
-                            }}
-                            [data-testid="stDataFrame"] tbody tr td:nth-child(2),
-                            [data-testid="stDataFrame"] thead tr th:nth-child(2) {{
-                                left: 120px !important;
-                            }}
-                            [data-testid="stDataFrame"] tbody tr td:nth-child(3),
-                            [data-testid="stDataFrame"] thead tr th:nth-child(3) {{
-                                left: 220px !important;
-                            }}
-                            [data-testid="stDataFrame"] tbody tr td:nth-child(4),
-                            [data-testid="stDataFrame"] thead tr th:nth-child(4) {{
-                                left: 340px !important;
-                                border-right: 2px solid #e0e0e0 !important;
-                            }}
-                            </style>
-                        """, unsafe_allow_html=True)
 
                     # Extract stats and accumulate MTD
                     stats = extract_stats_from_table(display_df, mob_types)
