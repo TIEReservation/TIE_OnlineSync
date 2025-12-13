@@ -1,4 +1,4 @@
-# inventory.py – FINAL FULLY WORKING VERSION
+# inventory.py – FINAL FULLY WORKING VERSION (Saves reliably)
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date
@@ -99,7 +99,7 @@ def safe_int(v: Any, default: int = 0) -> int:
     except:
         return default
 
-def safe_float(v: Any, default: float = 0.0) -> float:
+def safe_float(v: Any, default: float = 0) -> float:
     try:
         return float(v) if v not in [None, "", " "] else default
     except:
@@ -136,19 +136,21 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
         for r in q.data or []:
             norm = normalize_booking(r, is_online=False)
             if norm: combined.append(norm)
-    except Exception as e: logging.error(f"Direct query error: {e}")
+    except Exception as e:
+        logging.error(f"Direct query error: {e}")
 
     try:
         q = supabase.table("online_reservations").select("*").in_("property", query_props).lte("check_in", str(end_date)).gte("check_out", str(start_date)).in_("booking_status", ["Confirmed", "Completed"]).in_("payment_status", ["Partially Paid", "Fully Paid"]).execute()
         for r in q.data or []:
             norm = normalize_booking(r, is_online=True)
             if norm: combined.append(norm)
-    except Exception as e: logging.error(f"Online query error: {e}")
+    except Exception as e:
+        logging.error(f"Online query error: {e}")
 
     return combined
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Normalize booking
+# Normalize booking – Correct identifier for both tables
 # ══════════════════════════════════════════════════════════════════════════════
 def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
     try:
@@ -180,8 +182,9 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
         receivable = total_amount - gst - tax - commission
         if receivable < 0: receivable = 0.0
 
-        # Identifier for update
+        # Correct identifier
         identifier = row.get("id") if is_online else row.get("booking_id")
+        identifier_str = str(identifier) if identifier is not None else ""
 
         return {
             "type": "online" if is_online else "direct",
@@ -214,17 +217,17 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
             "advance_remarks": sanitize_string(row.get("advance_remarks", "")),
             "balance_remarks": sanitize_string(row.get("balance_remarks", "")),
             "accounts_status": sanitize_string(row.get("accounts_status", "Pending")).title(),
-            "db_id": identifier,
+            "db_id": identifier_str,  # String for both UUID and text
         }
     except Exception as e:
-        logging.warning(f"normalize failed ({row.get('booking_id')}): {e}")
+        logging.warning(f"normalize failed: {e}")
         return None
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Filter & Assign
 # ══════════════════════════════════════════════════════════════════════════════
 def filter_bookings_for_day(bookings: List[Dict], day: date) -> List[Dict]:
-    return [b.copy() | {"target_date": day} for b in bookings if date.fromisoformat(b["check_in"]) <= day < date.fromisoformat(b["check_out"])]
+    return [b.copy() for b in bookings if date.fromisoformat(b["check_in"]) <= day < date.fromisoformat(b["check_out"])]
 
 def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     assigned, over = [], []
@@ -240,7 +243,6 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
         
         if not raw_room:
             over.append(b)
-            logging.warning(f"Booking {booking_id} has no room number - moved to overbookings")
             continue
 
         requested = [r.strip() for r in raw_room.split(",") if r.strip()]
@@ -250,20 +252,14 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
         for r in requested:
             key = r.lower()
             if key not in inv_lookup:
-                logging.warning(f"Booking {booking_id}: Invalid room '{r}' not in inventory")
                 over.append(b)
-                assigned_rooms = []
                 is_overbooking = True
                 break
-            
             room_name = inv_lookup[key]
             if room_name in occupied_rooms:
-                logging.warning(f"Booking {booking_id}: Room '{room_name}' already occupied - OVERBOOKING detected")
                 over.append(b)
-                assigned_rooms = []
                 is_overbooking = True
                 break
-            
             assigned_rooms.append(room_name)
 
         if is_overbooking or not assigned_rooms:
@@ -292,7 +288,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     return assigned, over
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Build Table
+# Build Table – Always populate hidden & editable fields
 # ══════════════════════════════════════════════════════════════════════════════
 def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date):
     visible_cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
@@ -317,7 +313,7 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
             is_primary = match.get("is_primary", False)
 
             row["type"] = match["type"]
-            row["db_id"] = match["db_id"]
+            row["db_id"] = str(match["db_id"]) if match["db_id"] else ""
 
             row["Room No"] = match["room_no"]
             row["Booking ID"] = match["booking_id"]
@@ -366,13 +362,7 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
     return display_df, full_df
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Extract Stats (minimal version – you can expand later)
-# ══════════════════════════════════════════════════════════════════════════════
-def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
-    return {"mop": {}, "dtd": {}}  # Placeholder – add full logic if needed
-
-# ══════════════════════════════════════════════════════════════════════════════
-# UI – Dashboard
+# UI – Dashboard with reliable save
 # ══════════════════════════════════════════════════════════════════════════════
 def show_daily_status():
     st.title("Daily Status Dashboard")
@@ -388,8 +378,6 @@ def show_daily_status():
     if not props:
         st.info("No properties found.")
         return
-
-    mob_types = ["Booking","Direct","Bkg-Direct","Agoda","Go-MMT","Walk-In","TIE Group","Stayflexi","Airbnb","Social Media","Expedia","Cleartrip","Website"]
 
     for prop in props:
         if st.checkbox(f"**{prop}**", key=f"expand_{prop}"):
@@ -412,14 +400,27 @@ def show_daily_status():
                         "Room No": st.column_config.TextColumn(disabled=True),
                         "Booking ID": st.column_config.TextColumn(disabled=True),
                         "Guest Name": st.column_config.TextColumn(disabled=True),
-                        "Advance Remarks": st.column_config.TextColumn(max_chars=500, disabled=not is_accounts_team),
-                        "Balance Remarks": st.column_config.TextColumn(max_chars=500, disabled=not is_accounts_team),
-                        "Accounts Status": st.column_config.SelectboxColumn(options=["Pending", "Completed"], disabled=not is_accounts_team),
+                        "Mobile No": st.column_config.TextColumn(disabled=True),
+                        "Total Pax": st.column_config.NumberColumn(disabled=True),
+                        "Check In": st.column_config.TextColumn(disabled=True),
+                        "Check Out": st.column_config.TextColumn(disabled=True),
+                        "Days": st.column_config.NumberColumn(disabled=True),
+                        "MOB": st.column_config.TextColumn(disabled=True),
+                        "Per Night": st.column_config.TextColumn(disabled=True),
+                        "Advance Remarks": st.column_config.TextColumn("Advance Remarks", disabled=not is_accounts_team, max_chars=500),
+                        "Balance Remarks": st.column_config.TextColumn("Balance Remarks", disabled=not is_accounts_team, max_chars=500),
+                        "Accounts Status": st.column_config.SelectboxColumn("Accounts Status", options=["Pending", "Completed"], disabled=not is_accounts_team),
                     }
 
                     if is_accounts_team:
                         with st.form(key=f"form_{prop}_{day}"):
-                            edited = st.data_editor(display_df, column_config=col_config, hide_index=True, use_container_width=True, num_rows="fixed")
+                            edited = st.data_editor(
+                                display_df,
+                                column_config=col_config,
+                                hide_index=True,
+                                use_container_width=True,
+                                num_rows="fixed"
+                            )
                             submitted = st.form_submit_button("💾 Save Changes")
 
                             if submitted:
@@ -427,46 +428,54 @@ def show_daily_status():
                                 for i in range(len(edited)):
                                     er = edited.iloc[i]
                                     fr = full_df.iloc[i]
-                                    bid = str(er["Booking ID"]).strip()
-                                    if not bid: continue
+                                    bid = str(er.get("Booking ID", "")).strip()
+                                    if not bid:
+                                        continue
 
-                                    db_id = fr.get("db_id")
+                                    db_id = fr.get("db_id", "")
                                     btype = fr.get("type")
-                                    if pd.isna(db_id) or not btype: continue
-                                    if bid in updates: continue
+
+                                    if not db_id or not btype:
+                                        continue
+
+                                    if bid in updates:
+                                        continue
 
                                     updates[bid] = {
-                                        "advance_remarks": str(er.get("Advance Remarks", "") or "").strip(),
-                                        "balance_remarks": str(er.get("Balance Remarks", "") or "").strip(),
+                                        "advance_remarks": (str(er.get("Advance Remarks", "") or "").strip() or None),
+                                        "balance_remarks": (str(er.get("Balance Remarks", "") or "").strip() or None),
                                         "accounts_status": str(er.get("Accounts Status", "Pending")).strip(),
                                         "type": btype,
-                                        "db_id": str(db_id).strip(),
+                                        "db_id": db_id,
                                         "booking_id": bid
                                     }
 
                                 success = error = 0
-                                errors = []
+                                error_details = []
 
                                 for bid, data in updates.items():
                                     update_data = {
-                                        "advance_remarks": data["advance_remarks"] or None,
-                                        "balance_remarks": data["balance_remarks"] or None,
-                                        "accounts_status": data["accounts_status"]
+                                        "advance_remarks": data["advance_remarks"],
+                                        "balance_remarks": data["balance_remarks"],
+                                        "accounts_status": data["accounts_status"],
                                     }
+                                    logging.info(f"Saving {data['type']} booking {bid} | Key: {data['db_id'] if data['type']=='online' else bid}")
+
                                     try:
                                         if data["type"] == "online":
                                             res = supabase.table("online_reservations").update(update_data).eq("id", data["db_id"]).execute()
                                         else:
-                                            res = supabase.table("reservations").update(update_data).eq("booking_id", data["booking_id"]).execute()
+                                            res = supabase.table("reservations").update(update_data).eq("booking_id", bid).execute()
 
                                         if res.data:
                                             success += 1
                                         else:
                                             error += 1
-                                            errors.append(f"{bid}: No update")
+                                            error_details.append(f"{bid}: No rows updated")
                                     except Exception as e:
                                         error += 1
-                                        errors.append(f"{bid}: {str(e)}")
+                                        error_details.append(f"{bid}: {str(e)}")
+                                        logging.error(f"Save failed {bid}: {e}")
 
                                 if success:
                                     st.success(f"✅ Saved {success} booking(s)!")
@@ -474,11 +483,11 @@ def show_daily_status():
                                     st.rerun()
                                 if error:
                                     st.error(f"⚠️ {error} failed")
-                                    with st.expander("Errors"):
-                                        for e in errors: st.write(e)
+                                    with st.expander("Error Details"):
+                                        for msg in error_details:
+                                            st.code(msg)
                     else:
                         st.data_editor(display_df, column_config=col_config, hide_index=True, use_container_width=True, num_rows="fixed")
-
                 else:
                     st.info("No active bookings.")
 
