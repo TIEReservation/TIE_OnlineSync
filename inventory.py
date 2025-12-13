@@ -1,4 +1,4 @@
-# inventory.py – FINAL FULLY WORKING VERSION (Saves reliably)
+# inventory.py — FINAL FULLY WORKING VERSION (Saves reliably + Summary Tables)
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date
@@ -150,7 +150,7 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
     return combined
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Normalize booking – Correct identifier for both tables
+# Normalize booking — Correct identifier for both tables
 # ══════════════════════════════════════════════════════════════════════════════
 def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
     try:
@@ -288,7 +288,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     return assigned, over
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Build Table – Always populate hidden & editable fields
+# Build Table — Always populate hidden & editable fields
 # ══════════════════════════════════════════════════════════════════════════════
 def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date):
     visible_cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
@@ -362,7 +362,80 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
     return display_df, full_df
 
 # ══════════════════════════════════════════════════════════════════════════════
-# UI – Dashboard with reliable save
+# Extract Stats
+# ══════════════════════════════════════════════════════════════════════════════
+def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
+    occupied = df[df["Booking ID"].fillna("").str.strip() != ""].copy()
+
+    def to_float(col):
+        return pd.to_numeric(occupied[col].replace('', '0').str.replace(',', ''), errors='coerce').fillna(0.0)
+
+    def to_int(col):
+        return pd.to_numeric(occupied[col], errors='coerce').fillna(0).astype(int)
+
+    occupied["Per Night"] = to_float("Per Night")
+    occupied["Hotel Receivable"] = to_float("Hotel Receivable")
+    occupied["GST"] = to_float("GST")
+    occupied["TAX"] = to_float("TAX")
+    occupied["Commission"] = to_float("Commission")
+    occupied["Advance"] = to_float("Advance")
+    occupied["Balance"] = to_float("Balance")
+    occupied["Total Pax"] = to_int("Total Pax")
+
+    mop_data = {m: 0.0 for m in ["UPI","Cash","Go-MMT","Agoda","NOT PAID","Expenses","Bank Transfer","Stayflexi","Card Payment","Expedia","Cleartrip","Website"]}
+    total_cash = total = 0.0
+
+    for _, row in occupied.iterrows():
+        for mop_col, amount_col in [("Advance Mop", "Advance"), ("Balance Mop", "Balance")]:
+            mop = sanitize_string(row[mop_col])
+            amount = row[amount_col]
+            if not mop or amount == 0: continue
+            for std, variants in mop_mapping.items():
+                if mop in variants:
+                    mop_data[std] += amount
+                    total += amount
+                    if std == "Cash": total_cash += amount
+
+    mop_data["Expenses"] = 0.0
+    mop_data["Total Cash"] = total_cash
+    mop_data["Total"] = total
+
+    dtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"tax":0.0,"pax":0} for m in mob_types}
+    dtd_rooms = len(occupied)
+    dtd_value = occupied["Per Night"].sum()
+    dtd_comm = occupied["Commission"].sum()
+    dtd_gst = occupied["GST"].sum()
+    dtd_tax = occupied["TAX"].sum()
+    dtd_pax = occupied["Total Pax"].sum()
+
+    for _, row in occupied.iterrows():
+        mob_raw = sanitize_string(row["MOB"])
+        mob = next((m for m, vs in mob_mapping.items() if mob_raw.upper() in [v.upper() for v in vs]), "Booking")
+        dtd[mob]["rooms"] += 1
+        dtd[mob]["value"] += row["Per Night"]
+        dtd[mob]["comm"] += row["Commission"]
+        dtd[mob]["gst"] += row["GST"]
+        dtd[mob]["tax"] += row["TAX"]
+        dtd[mob]["pax"] += row["Total Pax"]
+
+    for m in mob_types:
+        r = dtd[m]["rooms"]
+        dtd[m]["arr"] = dtd[m]["value"] / r if r > 0 else 0.0
+
+    dtd["Total"] = {
+        "rooms": dtd_rooms,
+        "value": dtd_value,
+        "arr": dtd_value / dtd_rooms if dtd_rooms > 0 else 0.0,
+        "comm": dtd_comm,
+        "gst": dtd_gst,
+        "tax": dtd_tax,
+        "pax": dtd_pax
+    }
+
+    return {"mop": mop_data, "dtd": dtd}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# UI — Dashboard with reliable save + Summary Tables
 # ══════════════════════════════════════════════════════════════════════════════
 def show_daily_status():
     st.title("Daily Status Dashboard")
@@ -379,11 +452,17 @@ def show_daily_status():
         st.info("No properties found.")
         return
 
+    mob_types = ["Booking","Direct","Bkg-Direct","Agoda","Go-MMT","Walk-In","TIE Group","Stayflexi","Airbnb","Social Media","Expedia","Cleartrip","Website"]
+
     for prop in props:
         if st.checkbox(f"**{prop}**", key=f"expand_{prop}"):
             month_dates = [date(year, month, d) for d in range(1, calendar.monthrange(year, month)[1]+1)]
             start, end = month_dates[0], month_dates[-1]
             bookings = load_combined_bookings(prop, start, end)
+
+            # MTD Accumulators
+            mtd_rooms = mtd_value = mtd_comm = mtd_gst = mtd_tax = mtd_pax = 0
+            mtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"tax":0.0,"pax":0} for m in mob_types}
 
             for day in month_dates:
                 daily = filter_bookings_for_day(bookings, day)
@@ -391,6 +470,26 @@ def show_daily_status():
 
                 assigned, over = assign_inventory_numbers(daily, prop)
                 display_df, full_df = create_inventory_table(assigned, over, prop, day)
+
+                # Extract statistics
+                stats = extract_stats_from_table(display_df, mob_types)
+                dtd = stats["dtd"]
+                mop_data = stats["mop"]
+
+                # Update MTD
+                mtd_rooms += dtd["Total"]["rooms"]
+                mtd_value += dtd["Total"]["value"]
+                mtd_comm += dtd["Total"]["comm"]
+                mtd_gst += dtd["Total"]["gst"]
+                mtd_tax += dtd["Total"]["tax"]
+                mtd_pax += dtd["Total"]["pax"]
+                for m in mob_types:
+                    mtd[m]["rooms"] += dtd[m]["rooms"]
+                    mtd[m]["value"] += dtd[m]["value"]
+                    mtd[m]["comm"] += dtd[m]["comm"]
+                    mtd[m]["gst"] += dtd[m]["gst"]
+                    mtd[m]["tax"] += dtd[m]["tax"]
+                    mtd[m]["pax"] += dtd[m]["pax"]
 
                 if daily:
                     is_accounts_team = st.session_state.get('role', '') == "Accounts Team"
@@ -488,9 +587,12 @@ def show_daily_status():
                                             st.code(msg)
                     else:
                         st.data_editor(display_df, column_config=col_config, hide_index=True, use_container_width=True, num_rows="fixed")
-                else:
-                    st.info("No active bookings.")
-              # Tables
+
+                    # ══════════════════════════════════════════════════════════════
+                    # SUMMARY TABLES
+                    # ══════════════════════════════════════════════════════════════
+                    
+                    # DTD Table
                     dtd_df = pd.DataFrame([
                         {"MOB": m, "D.T.D Rooms": d["rooms"], "D.T.D Value": f"₹{d['value']:,.2f}",
                          "D.T.D ARR": f"₹{d['arr']:,.2f}", "D.T.D Comm": f"₹{d['comm']:,.2f}"} 
@@ -501,9 +603,11 @@ def show_daily_status():
                           "D.T.D Comm": f"₹{dtd['Total']['comm']:,.2f}"}],
                         columns=["MOB","D.T.D Rooms","D.T.D Value","D.T.D ARR","D.T.D Comm"])
 
+                    # MOP Table
                     mop_df = pd.DataFrame([{"MOP": m, "Amount": f"₹{v:,.2f}"} for m, v in mop_data.items()], 
                                          columns=["MOP", "Amount"])
 
+                    # MTD Table
                     mtd_df = pd.DataFrame([
                         {"MOB": m, "M.T.D Rooms": mtd[m]["rooms"], "M.T.D Value": f"₹{mtd[m]['value']:,.2f}",
                          "M.T.D ARR": f"₹{mtd[m]['value']/mtd[m]['rooms']:,.2f}" if mtd[m]["rooms"] > 0 else "₹0.00",
@@ -513,6 +617,7 @@ def show_daily_status():
                           "M.T.D Comm": f"₹{mtd_comm:,.2f}"}], 
                         columns=["MOB","M.T.D Rooms","M.T.D Value","M.T.D ARR","M.T.D Comm"])
 
+                    # Summary Stats
                     total_inventory = len([i for i in PROPERTY_INVENTORY.get(prop,{}).get("all",[]) if not i.startswith(("Day Use","No Show"))])
                     occ_pct = (dtd["Total"]["rooms"] / total_inventory * 100) if total_inventory else 0.0
                     mtd_occ_pct = (mtd_rooms / (total_inventory * day.day) * 100) if total_inventory and day.day > 0 else 0.0
@@ -531,10 +636,17 @@ def show_daily_status():
                         "MTD Revenue": f"₹{mtd_value:,.2f}",
                     }
 
+                    # Display Tables in 4 columns
                     c1, c2, c3, c4 = st.columns(4)
-                    with c1: st.subheader("MOP"); st.dataframe(mop_df, use_container_width=True)
-                    with c2: st.subheader("Day Revenue"); st.dataframe(dtd_df, use_container_width=True)
-                    with c3: st.subheader("Month Revenue"); st.dataframe(mtd_df, use_container_width=True)
+                    with c1: 
+                        st.subheader("MOP")
+                        st.dataframe(mop_df, use_container_width=True)
+                    with c2: 
+                        st.subheader("Day Revenue")
+                        st.dataframe(dtd_df, use_container_width=True)
+                    with c3: 
+                        st.subheader("Month Revenue")
+                        st.dataframe(mtd_df, use_container_width=True)
                     with c4:
                         st.subheader("Summary")
                         st.dataframe(pd.DataFrame([{"Metric": k, "Value": v} for k, v in summary.items()]), use_container_width=True)
