@@ -490,8 +490,56 @@ def show_daily_status():
                         "Accounts Status": st.column_config.SelectboxColumn("Accounts Status", options=["Pending", "Completed"], disabled=not is_accounts_team),
                     }
 
+                    # Number of columns to freeze (Inventory No, Room No, Booking ID, Guest Name = 4)
+                    num_frozen_cols = 4
+
                     if is_accounts_team:
                         with st.form(key=f"form_{prop}_{day}"):
+                            edited = st.data_editor(
+                                display_df,
+                                column_config=col_config,
+                                hide_index=True,
+                                use_container_width=True,
+                                num_rows="fixed",
+                                disabled=False,
+                                column_order=None,
+                                key=f"editor_{prop}_{day}",
+                            )
+                            
+                            # Add custom CSS to freeze columns
+                            st.markdown(f"""
+                                <style>
+                                /* Freeze first {num_frozen_cols} columns */
+                                [data-testid="stDataFrame"] tbody tr td:nth-child(-n+{num_frozen_cols}),
+                                [data-testid="stDataFrame"] thead tr th:nth-child(-n+{num_frozen_cols}) {{
+                                    position: sticky !important;
+                                    left: 0 !important;
+                                    z-index: 10 !important;
+                                    background-color: white !important;
+                                }}
+                                [data-testid="stDataFrame"] tbody tr td:nth-child(1),
+                                [data-testid="stDataFrame"] thead tr th:nth-child(1) {{
+                                    left: 0px !important;
+                                }}
+                                [data-testid="stDataFrame"] tbody tr td:nth-child(2),
+                                [data-testid="stDataFrame"] thead tr th:nth-child(2) {{
+                                    left: 120px !important;
+                                }}
+                                [data-testid="stDataFrame"] tbody tr td:nth-child(3),
+                                [data-testid="stDataFrame"] thead tr th:nth-child(3) {{
+                                    left: 220px !important;
+                                }}
+                                [data-testid="stDataFrame"] tbody tr td:nth-child(4),
+                                [data-testid="stDataFrame"] thead tr th:nth-child(4) {{
+                                    left: 340px !important;
+                                }}
+                                /* Add border to last frozen column */
+                                [data-testid="stDataFrame"] tbody tr td:nth-child({num_frozen_cols}),
+                                [data-testid="stDataFrame"] thead tr th:nth-child({num_frozen_cols}) {{
+                                    border-right: 2px solid #e0e0e0 !important;
+                                }}
+                                </style>
+                            """, unsafe_allow_html=True)
                             edited = st.data_editor(
                                 display_df,
                                 column_config=col_config,
@@ -586,7 +634,38 @@ def show_daily_status():
                                         for msg in error_details:
                                             st.code(msg)
                     else:
-                        st.data_editor(display_df, column_config=col_config, hide_index=True, use_container_width=True, num_rows="fixed")
+                        st.data_editor(display_df, column_config=col_config, hide_index=True, use_container_width=True, num_rows="fixed", key=f"readonly_editor_{prop}_{day}")
+                        
+                        # Add custom CSS to freeze columns for readonly view too
+                        st.markdown(f"""
+                            <style>
+                            /* Freeze first 4 columns */
+                            [data-testid="stDataFrame"] tbody tr td:nth-child(-n+4),
+                            [data-testid="stDataFrame"] thead tr th:nth-child(-n+4) {{
+                                position: sticky !important;
+                                left: 0 !important;
+                                z-index: 10 !important;
+                                background-color: white !important;
+                            }}
+                            [data-testid="stDataFrame"] tbody tr td:nth-child(1),
+                            [data-testid="stDataFrame"] thead tr th:nth-child(1) {{
+                                left: 0px !important;
+                            }}
+                            [data-testid="stDataFrame"] tbody tr td:nth-child(2),
+                            [data-testid="stDataFrame"] thead tr th:nth-child(2) {{
+                                left: 120px !important;
+                            }}
+                            [data-testid="stDataFrame"] tbody tr td:nth-child(3),
+                            [data-testid="stDataFrame"] thead tr th:nth-child(3) {{
+                                left: 220px !important;
+                            }}
+                            [data-testid="stDataFrame"] tbody tr td:nth-child(4),
+                            [data-testid="stDataFrame"] thead tr th:nth-child(4) {{
+                                left: 340px !important;
+                                border-right: 2px solid #e0e0e0 !important;
+                            }}
+                            </style>
+                        """, unsafe_allow_html=True)
 
                     # Extract stats and accumulate MTD
                     stats = extract_stats_from_table(display_df, mob_types)
