@@ -509,10 +509,10 @@ def show_daily_status():
                 is_accounts_team = st.session_state.get('role', '') == "Accounts Team"
 
                 col_config = {
-                    "Inventory No": st.column_config.TextColumn(disabled=True),
-                    "Room No": st.column_config.TextColumn(disabled=True),
-                    "Booking ID": st.column_config.TextColumn(disabled=True),
-                    "Guest Name": st.column_config.TextColumn(disabled=True),
+                    "Inventory No": st.column_config.TextColumn(disabled=True, pinned=True),
+                    "Room No": st.column_config.TextColumn(disabled=True, pinned=True),
+                    "Booking ID": st.column_config.TextColumn(disabled=True, pinned=True),
+                    "Guest Name": st.column_config.TextColumn(disabled=True, pinned=True),
                     "Mobile No": st.column_config.TextColumn(disabled=True),
                     "Total Pax": st.column_config.NumberColumn(disabled=True),
                     "Check In": st.column_config.TextColumn(disabled=True),
