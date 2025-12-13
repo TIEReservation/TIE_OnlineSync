@@ -434,7 +434,7 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     return {"mop": mop_data, "dtd": dtd}
     
 # ══════════════════════════════════════════════════════════════════════════════
-# UI — Dashboard with reliable save + Summary Tables
+# UI – Dashboard with reliable save
 # ══════════════════════════════════════════════════════════════════════════════
 def show_daily_status():
     st.title("Daily Status Dashboard")
@@ -451,17 +451,11 @@ def show_daily_status():
         st.info("No properties found.")
         return
 
-    mob_types = ["Booking","Direct","Bkg-Direct","Agoda","Go-MMT","Walk-In","TIE Group","Stayflexi","Airbnb","Social Media","Expedia","Cleartrip","Website"]
-
     for prop in props:
         if st.checkbox(f"**{prop}**", key=f"expand_{prop}"):
             month_dates = [date(year, month, d) for d in range(1, calendar.monthrange(year, month)[1]+1)]
             start, end = month_dates[0], month_dates[-1]
             bookings = load_combined_bookings(prop, start, end)
-
-            # MTD Accumulators
-            mtd_rooms = mtd_value = mtd_comm = mtd_gst = mtd_tax = mtd_pax = 0
-            mtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"tax":0.0,"pax":0} for m in mob_types}
 
             for day in month_dates:
                 daily = filter_bookings_for_day(bookings, day)
@@ -469,26 +463,6 @@ def show_daily_status():
 
                 assigned, over = assign_inventory_numbers(daily, prop)
                 display_df, full_df = create_inventory_table(assigned, over, prop, day)
-
-                # Extract statistics
-                stats = extract_stats_from_table(display_df, mob_types)
-                dtd = stats["dtd"]
-                mop_data = stats["mop"]
-
-                # Update MTD
-                mtd_rooms += dtd["Total"]["rooms"]
-                mtd_value += dtd["Total"]["value"]
-                mtd_comm += dtd["Total"]["comm"]
-                mtd_gst += dtd["Total"]["gst"]
-                mtd_tax += dtd["Total"]["tax"]
-                mtd_pax += dtd["Total"]["pax"]
-                for m in mob_types:
-                    mtd[m]["rooms"] += dtd[m]["rooms"]
-                    mtd[m]["value"] += dtd[m]["value"]
-                    mtd[m]["comm"] += dtd[m]["comm"]
-                    mtd[m]["gst"] += dtd[m]["gst"]
-                    mtd[m]["tax"] += dtd[m]["tax"]
-                    mtd[m]["pax"] += dtd[m]["pax"]
 
                 if daily:
                     is_accounts_team = st.session_state.get('role', '') == "Accounts Team"
@@ -527,22 +501,21 @@ def show_daily_status():
                                     er = edited.iloc[i]
                                     fr = full_df.iloc[i]
                                     bid = str(er.get("Booking ID", "")).strip()
-                                    if not bid or bid == "":
+                                    if not bid:
                                         continue
 
-                                    db_id = str(fr.get("db_id", "")).strip()
-                                    btype = str(fr.get("type", "")).strip()
+                                    db_id = fr.get("db_id", "")
+                                    btype = fr.get("type")
 
                                     if not db_id or not btype:
                                         continue
 
-                                    # Use db_id as unique key for updates dict
-                                    if db_id in updates:
+                                    if bid in updates:
                                         continue
 
-                                    updates[db_id] = {
-                                        "advance_remarks": str(er.get("Advance Remarks", "") or "").strip(),
-                                        "balance_remarks": str(er.get("Balance Remarks", "") or "").strip(),
+                                    updates[bid] = {
+                                        "advance_remarks": (str(er.get("Advance Remarks", "") or "").strip() or None),
+                                        "balance_remarks": (str(er.get("Balance Remarks", "") or "").strip() or None),
                                         "accounts_status": str(er.get("Accounts Status", "Pending")).strip(),
                                         "type": btype,
                                         "db_id": db_id,
@@ -552,52 +525,47 @@ def show_daily_status():
                                 success = error = 0
                                 error_details = []
 
-                                for db_id, data in updates.items():
+                                for bid, data in updates.items():
                                     update_data = {
-                                        "advance_remarks": data["advance_remarks"] if data["advance_remarks"] else None,
-                                        "balance_remarks": data["balance_remarks"] if data["balance_remarks"] else None,
+                                        "advance_remarks": data["advance_remarks"],
+                                        "balance_remarks": data["balance_remarks"],
                                         "accounts_status": data["accounts_status"],
                                     }
-                                    
-                                    logging.info(f"Attempting to save {data['type']} booking {data['booking_id']} | db_id: {db_id}")
+                                    logging.info(f"Saving {data['type']} booking {bid} | Key: {data['db_id'] if data['type']=='online' else bid}")
 
                                     try:
                                         if data["type"] == "online":
-                                            # For online reservations, update using 'id' field
-                                            res = supabase.table("online_reservations").update(update_data).eq("id", db_id).execute()
-                                            logging.info(f"Online update response: {res}")
+                                            res = supabase.table("online_reservations").update(update_data).eq("id", data["db_id"]).execute()
                                         else:
-                                            # For direct reservations, update using 'booking_id' field
-                                            res = supabase.table("reservations").update(update_data).eq("booking_id", db_id).execute()
-                                            logging.info(f"Direct update response: {res}")
+                                            res = supabase.table("reservations").update(update_data).eq("booking_id", bid).execute()
 
-                                        if res.data and len(res.data) > 0:
+                                        if res.data:
                                             success += 1
-                                            logging.info(f"✅ Successfully updated {data['booking_id']}")
                                         else:
                                             error += 1
-                                            error_details.append(f"{data['booking_id']}: No rows updated (db_id: {db_id})")
-                                            logging.warning(f"⚠️ No rows updated for {data['booking_id']}")
+                                            error_details.append(f"{bid}: No rows updated")
                                     except Exception as e:
                                         error += 1
-                                        error_details.append(f"{data['booking_id']}: {str(e)}")
-                                        logging.error(f"❌ Save failed for {data['booking_id']}: {e}")
+                                        error_details.append(f"{bid}: {str(e)}")
+                                        logging.error(f"Save failed {bid}: {e}")
 
                                 if success:
                                     st.success(f"✅ Saved {success} booking(s)!")
                                     st.cache_data.clear()
                                     st.rerun()
                                 if error:
-                                    st.error(f"⚠️ {error} booking(s) failed to update")
+                                    st.error(f"⚠️ {error} failed")
                                     with st.expander("Error Details"):
                                         for msg in error_details:
                                             st.code(msg)
                     else:
                         st.data_editor(display_df, column_config=col_config, hide_index=True, use_container_width=True, num_rows="fixed")
-
-                    # ══════════════════════════════════════════════════════════════
-                    # SUMMARY TABLES
-                    # ══════════════════════════════════════════════════════════════
+                else:
+                    st.info("No active bookings.")
+            
+# ══════════════════════════════════════════════════════════════
+# SUMMARY TABLES
+# ══════════════════════════════════════════════════════════════
                     
                     # DTD Table
                     dtd_df = pd.DataFrame([
@@ -660,5 +628,7 @@ def show_daily_status():
                 else:
                     st.info("No active bookings.")
 
+if __name__ == "__main__":
+    show_daily_status()
 if __name__ == "__main__":
     show_daily_status()
