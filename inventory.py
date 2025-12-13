@@ -572,7 +572,7 @@ def show_daily_status():
                     }
                     
                     # Filters for Accounts Team
-                    if is_accounts_team:
+                     if is_accounts_team:
                         filter_col1, filter_col2 = st.columns(2)
                         booking_id_filter = filter_col1.text_input("Filter by Booking ID", placeholder="Paste or type Booking ID", key=f"bid_filter_{prop}_{day.isoformat()}")
                         guest_name_filter = filter_col2.text_input("Filter by Guest Name", placeholder="Paste or type Guest Name", key=f"guest_filter_{prop}_{day.isoformat()}")
@@ -633,10 +633,14 @@ def show_daily_status():
                                         
                                         # Store update data (handle duplicates by keeping first occurrence)
                                         if bid_str not in updated_bookings:
+                                            advance_val = str(edited_row["Advance Remarks"]).strip() if pd.notna(edited_row["Advance Remarks"]) else ""
+                                            balance_val = str(edited_row["Balance Remarks"]).strip() if pd.notna(edited_row["Balance Remarks"]) else ""
+                                            status_val = str(edited_row["Accounts Status"]).strip() if pd.notna(edited_row["Accounts Status"]) else "Pending"
+                                            
                                             updated_bookings[bid_str] = {
-                                                "advance_remarks": str(edited_row["Advance Remarks"]).strip() if pd.notna(edited_row["Advance Remarks"]) else "",
-                                                "balance_remarks": str(edited_row["Balance Remarks"]).strip() if pd.notna(edited_row["Balance Remarks"]) else "",
-                                                "accounts_status": str(edited_row["Accounts Status"]).strip() if pd.notna(edited_row["Accounts Status"]) else "Pending",
+                                                "advance_remarks": advance_val,
+                                                "balance_remarks": balance_val,
+                                                "accounts_status": status_val,
                                                 "type": str(edit_type).strip(),
                                                 "db_id": db_id_int
                                             }
@@ -664,7 +668,7 @@ def show_daily_status():
                                                 logging.info(f"✓ Successfully updated {bid}")
                                             else:
                                                 error_count += 1
-                                                error_msg = f"No record found for booking {bid} (id={data['db_id']})"
+                                                error_msg = f"No record found for booking {bid} (table={table_name}, id={data['db_id']})"
                                                 error_details.append(error_msg)
                                                 logging.warning(error_msg)
                                         except Exception as e:
@@ -725,10 +729,14 @@ def show_daily_status():
                                         
                                         # Store update data (handle duplicates by keeping first occurrence)
                                         if bid_str not in updated_bookings:
+                                            advance_val = str(edited_row["Advance Remarks"]).strip() if pd.notna(edited_row["Advance Remarks"]) else ""
+                                            balance_val = str(edited_row["Balance Remarks"]).strip() if pd.notna(edited_row["Balance Remarks"]) else ""
+                                            status_val = str(edited_row["Accounts Status"]).strip() if pd.notna(edited_row["Accounts Status"]) else "Pending"
+                                            
                                             updated_bookings[bid_str] = {
-                                                "advance_remarks": str(edited_row["Advance Remarks"]).strip() if pd.notna(edited_row["Advance Remarks"]) else "",
-                                                "balance_remarks": str(edited_row["Balance Remarks"]).strip() if pd.notna(edited_row["Balance Remarks"]) else "",
-                                                "accounts_status": str(edited_row["Accounts Status"]).strip() if pd.notna(edited_row["Accounts Status"]) else "Pending",
+                                                "advance_remarks": advance_val,
+                                                "balance_remarks": balance_val,
+                                                "accounts_status": status_val,
                                                 "type": str(edit_type).strip(),
                                                 "db_id": db_id_int
                                             }
@@ -756,7 +764,7 @@ def show_daily_status():
                                                 logging.info(f"✓ Successfully updated {bid}")
                                             else:
                                                 error_count += 1
-                                                error_msg = f"No record found for booking {bid} (id={data['db_id']})"
+                                                error_msg = f"No record found for booking {bid} (table={table_name}, id={data['db_id']})"
                                                 error_details.append(error_msg)
                                                 logging.warning(error_msg)
                                         except Exception as e:
