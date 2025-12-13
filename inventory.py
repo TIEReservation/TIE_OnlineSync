@@ -509,7 +509,7 @@ def show_daily_status():
                     unique_key = f"{prop.replace(' ', '_')}_{day.strftime('%Y%m%d')}"
 
                     # Show styled preview with highlighted columns
-                    st.markdown("**)**")
+                    
                     st.dataframe(
                         display_df.style.apply(lambda x: highlight_financial_cols(display_df), axis=None),
                         use_container_width=True,
