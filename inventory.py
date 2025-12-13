@@ -1,4 +1,4 @@
-# inventory.py – FIXED VERSION
+# inventory.py – FIXED VERSION with colored columns
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date
@@ -441,7 +441,7 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     return {"mop": mop_data, "dtd": dtd}
     
 # ═══════════════════════════════════════════════════════════════════════════
-# UI – Dashboard with reliable save
+# UI – Dashboard with reliable save and styled columns
 # ═══════════════════════════════════════════════════════════════════════════
 def show_daily_status():
     st.title("Daily Status Dashboard")
@@ -479,6 +479,18 @@ def show_daily_status():
 
                 if daily:
                     is_accounts_team = st.session_state.get('role', '') == "Accounts Team"
+
+                    # Apply styling using HTML/CSS
+                    st.markdown("""
+                    <style>
+                    /* Style for Total, Advance, and Balance columns */
+                    [data-testid="stDataFrame"] [data-testid="column-Total"],
+                    [data-testid="stDataFrame"] [data-testid="column-Advance"],
+                    [data-testid="stDataFrame"] [data-testid="column-Balance"] {
+                        background-color: #FFE4E1 !important;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
 
                     col_config = {
                         "Inventory No": st.column_config.TextColumn(disabled=True, pinned=True),
