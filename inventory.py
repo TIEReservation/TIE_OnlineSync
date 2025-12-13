@@ -321,6 +321,7 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
             is_check_in_day = (target_date == check_in_date)
             is_primary = match.get("is_primary", False)
 
+            # Basic info - always populated
             row.update({
                 "Room No": match["room_no"],
                 "Booking ID": match["booking_id"],
@@ -338,6 +339,7 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
                 "primary": is_primary,
             })
 
+            # Financial info - only on check-in day for primary booking
             if is_check_in_day and is_primary:
                 row.update({
                     "Room Charges": f"{match.get('room_charges', 0):.2f}",
@@ -356,14 +358,15 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
                     "Submitted by": match["submitted_by"],
                     "Modified by": match["modified_by"],
                     "Remarks": match.get("remarks", ""),
-                    "Advance Remarks": match.get("advance_remarks", ""),
-                    "Balance Remarks": match.get("balance_remarks", ""),
-                    "Accounts Status": match["accounts_status"],
                 })
-            else:
-                row["Advance Remarks"] = ""
-                row["Balance Remarks"] = ""
-                row["Accounts Status"] = ""
+            
+            # CRITICAL FIX: Always populate these fields for ALL occupied rooms
+            # This allows accounts team to edit them regardless of check-in day
+            row.update({
+                "Advance Remarks": match.get("advance_remarks", ""),
+                "Balance Remarks": match.get("balance_remarks", ""),
+                "Accounts Status": match.get("accounts_status", "Pending"),
+            })
 
         rows.append(row)
 
