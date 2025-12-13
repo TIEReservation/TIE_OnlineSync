@@ -14,7 +14,10 @@ except KeyError as e:
 def update_online_reservation_in_supabase(booking_id, updated_reservation):
     """Update an online reservation in Supabase."""
     try:
-        # Truncate string fields to prevent database errors
+        # Trim booking_id before update
+        booking_id = booking_id.strip()
+        
+        # Truncate and trim string fields to prevent database errors
         truncated_reservation = updated_reservation.copy()
         string_fields_50 = [
             "property", "booking_id", "guest_name", "guest_phone", "room_no", 
@@ -24,9 +27,13 @@ def update_online_reservation_in_supabase(booking_id, updated_reservation):
         ]
         for field in string_fields_50:
             if field in truncated_reservation:
-                truncated_reservation[field] = str(truncated_reservation[field])[:50] if truncated_reservation[field] else ""
+                value = truncated_reservation[field]
+                # Trim whitespace and limit length
+                truncated_reservation[field] = str(value).strip()[:50] if value else ""
+        
         if "remarks" in truncated_reservation:
-            truncated_reservation["remarks"] = str(truncated_reservation["remarks"])[:500] if truncated_reservation["remarks"] else ""
+            truncated_reservation["remarks"] = str(truncated_reservation["remarks"]).strip()[:500] if truncated_reservation["remarks"] else ""
+        
         response = supabase.table("online_reservations").update(truncated_reservation).eq("booking_id", booking_id).execute()
         return bool(response.data)
     except Exception as e:
@@ -36,6 +43,8 @@ def update_online_reservation_in_supabase(booking_id, updated_reservation):
 def delete_online_reservation_in_supabase(booking_id):
     """Delete an online reservation from Supabase."""
     try:
+        # Trim booking_id before delete
+        booking_id = booking_id.strip()
         response = supabase.table("online_reservations").delete().eq("booking_id", booking_id).execute()
         return bool(response.data)
     except Exception as e:
@@ -73,15 +82,35 @@ def load_online_reservations_from_supabase():
         return []
 
 def search_booking_by_id(booking_id):
-    """Search for a specific booking by ID directly from database."""
+    """Search for a specific booking by ID directly from database with fuzzy matching."""
     try:
+        # First, try exact match with trimmed input
+        booking_id_clean = booking_id.strip()
+        
         response = supabase.table("online_reservations")\
             .select("*")\
-            .eq("booking_id", booking_id)\
+            .eq("booking_id", booking_id_clean)\
             .execute()
         
         if response.data and len(response.data) > 0:
             return response.data[0]
+        
+        # If exact match fails, try case-insensitive LIKE search
+        # This handles potential whitespace or case issues in the database
+        response = supabase.table("online_reservations")\
+            .select("*")\
+            .ilike("booking_id", f"%{booking_id_clean}%")\
+            .execute()
+        
+        if response.data and len(response.data) > 0:
+            # If multiple results, try to find exact match after trimming
+            for record in response.data:
+                if record.get("booking_id", "").strip().upper() == booking_id_clean.upper():
+                    return record
+            # Return first result if no exact match found
+            st.warning(f"Found {len(response.data)} similar booking(s). Showing first match.")
+            return response.data[0]
+        
         return None
     except Exception as e:
         st.error(f"Error searching for booking {booking_id}: {e}")
@@ -168,12 +197,12 @@ def show_edit_online_reservations(selected_booking_id=None):
                 
                 # Check if booking already exists in session
                 existing_ids = [b['booking_id'] for b in st.session_state.online_reservations]
-                if search_booking_id not in existing_ids:
+                if search_booking_id.strip() not in existing_ids:
                     st.session_state.online_reservations.insert(0, found_booking)
                 
-                st.success(f"✅ Found booking: {search_booking_id}")
-                selected_booking_id = search_booking_id
-                st.session_state.force_select_booking = search_booking_id
+                st.success(f"✅ Found booking: {found_booking['booking_id']}")
+                selected_booking_id = found_booking['booking_id']
+                st.session_state.force_select_booking = found_booking['booking_id']
             else:
                 st.error(f"❌ Booking ID '{search_booking_id}' not found in database.")
                 return
