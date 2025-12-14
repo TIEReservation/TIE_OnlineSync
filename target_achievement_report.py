@@ -342,64 +342,6 @@ def show_target_achievement_report():
 
     st.dataframe(styled, use_container_width=True, hide_index=True)
 
-    # Debug Section - Expandable
-    with st.expander("🔍 Debug Information - Click to expand"):
-        st.subheader("Property-wise Booking Details")
-        debug_data = []
-        for prop in properties:
-            prop_bookings = bookings.get(prop, [])
-            online_count = len([b for b in prop_bookings if b.get("type") == "online"])
-            direct_count = len([b for b in prop_bookings if b.get("type") == "direct"])
-            
-            # Calculate total for this property with detailed breakdown
-            prop_total = 0
-            prop_online_total = 0
-            prop_direct_total = 0
-            check_in_count = 0
-            online_checkin_count = 0
-            direct_checkin_count = 0
-            
-            for d in dates:
-                m = compute_daily_metrics(prop_bookings, prop, d)
-                prop_total += m["total"]
-                
-                # Count check-ins per day for debugging
-                daily = filter_bookings_for_day(prop_bookings, d)
-                assigned, _ = assign_inventory_numbers(daily, prop)
-                primaries = [b for b in assigned if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == d]
-                check_in_count += len(primaries)
-                
-                for b in primaries:
-                    booking_type = b.get("type", "")
-                    if booking_type == "online":
-                        online_checkin_count += 1
-                        total_amount = safe_float(b.get("booking_amount"))
-                        ota_tax = safe_float(b.get("ota_tax"))
-                        prop_online_total += total_amount - ota_tax + ota_tax  # room_charges + gst
-                    else:
-                        direct_checkin_count += 1
-                        prop_direct_total += safe_float(b.get("total_tariff"))
-            
-            debug_data.append({
-                "Property": prop,
-                "Total Bookings": len(prop_bookings),
-                "Check-ins": check_in_count,
-                "Online": f"{online_count} ({online_checkin_count} check-ins)",
-                "Direct": f"{direct_count} ({direct_checkin_count} check-ins)",
-                "Online Total": f"₹{int(prop_online_total):,}",
-                "Direct Total": f"₹{int(prop_direct_total):,}",
-                "Calculated Total": f"₹{int(prop_total):,}"
-            })
-        
-        debug_df = pd.DataFrame(debug_data)
-        st.dataframe(debug_df, use_container_width=True, hide_index=True)
-        
-        # Show total check-ins
-        total_checkins = sum([int(row["Check-ins"]) for row in debug_data])
-        st.info(f"📊 Total Check-ins in December 2025: {total_checkins}")
-        
-        st.warning("💡 Check if Online Total is showing ₹0 - if yes, online bookings may not have 'booking_amount' field populated")
-
     if not df.empty and "TOTAL" in df["Property Name"].values:
         total = df[df["Property Name"] == "TOTAL"].iloc[0]
         c1, c2, c3, c4, c5, c6 = st.columns(6)
