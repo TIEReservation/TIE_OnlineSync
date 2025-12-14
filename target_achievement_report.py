@@ -119,12 +119,23 @@ def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
             .in_("payment_status", ["Partially Paid", "Fully Paid"]).execute().data or []
 
         all_bookings = []
-        for b in direct + online:
-            name = b.get("property_name") or b.get("property")
+        
+        # Process direct bookings
+        for b in direct:
+            name = b.get("property_name")
             if normalize_property_name(name) == prop:
                 b["property_name"] = prop
-                b["type"] = "direct" if "property_name" in b else "online"
+                b["type"] = "direct"
                 all_bookings.append(b)
+        
+        # Process online bookings
+        for b in online:
+            name = b.get("property")
+            if normalize_property_name(name) == prop:
+                b["property_name"] = prop  # Set consistent property_name field
+                b["type"] = "online"
+                all_bookings.append(b)
+                
         return all_bookings
     except Exception as e:
         st.warning(f"Failed to load bookings for {prop}: {e}")
@@ -168,7 +179,8 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     # EXACT LOGIC FROM SUMMARY REPORT
     room_charges = gst = commission = 0.0
     for b in check_in_primaries:
-        if b.get("type") == "online":
+        booking_type = b.get("type", "")
+        if booking_type == "online":
             total_amount = safe_float(b.get("booking_amount"))
             gst += safe_float(b.get("ota_tax"))
             commission += safe_float(b.get("ota_commission"))
@@ -344,6 +356,8 @@ def show_target_achievement_report():
             prop_online_total = 0
             prop_direct_total = 0
             check_in_count = 0
+            online_checkin_count = 0
+            direct_checkin_count = 0
             
             for d in dates:
                 m = compute_daily_metrics(prop_bookings, prop, d)
@@ -356,17 +370,22 @@ def show_target_achievement_report():
                 check_in_count += len(primaries)
                 
                 for b in primaries:
-                    if b["type"] == "online":
-                        prop_online_total += safe_float(b.get("booking_amount"))
+                    booking_type = b.get("type", "")
+                    if booking_type == "online":
+                        online_checkin_count += 1
+                        total_amount = safe_float(b.get("booking_amount"))
+                        ota_tax = safe_float(b.get("ota_tax"))
+                        prop_online_total += total_amount - ota_tax + ota_tax  # room_charges + gst
                     else:
+                        direct_checkin_count += 1
                         prop_direct_total += safe_float(b.get("total_tariff"))
             
             debug_data.append({
                 "Property": prop,
                 "Total Bookings": len(prop_bookings),
                 "Check-ins": check_in_count,
-                "Online": online_count,
-                "Direct": direct_count,
+                "Online": f"{online_count} ({online_checkin_count} check-ins)",
+                "Direct": f"{direct_count} ({direct_checkin_count} check-ins)",
                 "Online Total": f"₹{int(prop_online_total):,}",
                 "Direct Total": f"₹{int(prop_direct_total):,}",
                 "Calculated Total": f"₹{int(prop_total):,}"
@@ -376,14 +395,10 @@ def show_target_achievement_report():
         st.dataframe(debug_df, use_container_width=True, hide_index=True)
         
         # Show total check-ins
-        total_checkins = sum([row["Check-ins"] for row in debug_data])
-        st.info(f"📊 Total Check-ins in December 2025: {total_checkins} | Compare this with Summary Report")
+        total_checkins = sum([int(row["Check-ins"]) for row in debug_data])
+        st.info(f"📊 Total Check-ins in December 2025: {total_checkins}")
         
-        st.warning("💡 If totals don't match Summary Report, possible reasons:\n"
-                  "- Different booking status filters\n"
-                  "- Different payment status filters\n"
-                  "- Booking date range mismatch\n"
-                  "- Multi-room booking calculation differences")
+        st.warning("💡 Check if Online Total is showing ₹0 - if yes, online bookings may not have 'booking_amount' field populated")
 
     if not df.empty and "TOTAL" in df["Property Name"].values:
         total = df[df["Property Name"] == "TOTAL"].iloc[0]
