@@ -1,7 +1,7 @@
-# target_achievement_report.py - CORRECTED VERSION (December 2025) - Aligned with Summary Report Receivable Calculation
+# target_achievement_report.py - CORRECTED VERSION (December 2025) - Dynamic Date System
 
 import streamlit as st
-from datetime import date
+from datetime import date, datetime
 import calendar
 import pandas as pd
 from supabase import create_client, Client
@@ -55,7 +55,7 @@ DECEMBER_2025_TARGETS = {
     "Le Poshe Suite":        545150,
     "Eden Beach Resort":     413706,
     "La Antilia Luxury":    1275000,
-    "La Coromandel Luxury":  738878,  # FIXED: Typo corrected from "La coramandel"
+    "La Coromandel Luxury":  738878,
     "La Tamara Suite":       657956,
     "Villa Shakti":          947947,
     "La Paradise Luxury":    591102,
@@ -162,25 +162,20 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     assigned, _ = assign_inventory_numbers(daily, prop)
     rooms_sold = len({b.get("assigned_room") for b in assigned if b.get("assigned_room")})
     
-    # Get check-in bookings for the day (primary bookings only)
     primaries = [b for b in assigned if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day]
     
-    # Calculate net value and receivable for check-in bookings (ALIGNED WITH SUMMARY REPORT)
     receivable = net_value = 0.0
     for b in primaries:
         if b["type"] == "online":
-            # Online booking: Net Value = Total booking amount; Receivable = Total - Commission (matches Summary's Receivable Report)
             amt = safe_float(b.get("booking_amount"))
             comm = safe_float(b.get("ota_commission"))
             
-            # Debug: Log if amount >0 but commission is zero (optional, but kept simplified)
             if amt > 0 and comm == 0:
                 st.warning(f"Online booking {b.get('booking_id')} has amount ₹{amt} but commission is zero")
             
             net_value += amt
             receivable += amt - comm
         else:
-            # Direct booking: total_tariff is both net value and receivable
             total = safe_float(b.get("total_tariff"))
             net_value += total
             receivable += total
@@ -191,10 +186,9 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
         "net_value": net_value
     }
 
-# -------------------------- MAIN REPORT (CORRECTED) --------------------------
+# -------------------------- MAIN REPORT --------------------------
 def build_target_achievement_report(props: List[str], dates: List[date], bookings_dict: Dict[str, List[Dict]], current_date: date) -> pd.DataFrame:
     rows = []
-    # FIXED: Balance Days = remaining days AFTER today (excluding today)
     balance_days = len([d for d in dates if d > current_date])
 
     for prop in props:
@@ -209,27 +203,20 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
             for d in dates:
                 m = compute_daily_metrics(bookings_dict.get(prop, []), prop, d)
                 if d <= current_date:
-                    achieved += m["receivable"]  # Only past + today
-                    actual_receivable += m["receivable"]  # Actual receivable from past
+                    achieved += m["receivable"]
+                    actual_receivable += m["receivable"]
                 
-                all_booking += m["receivable"]  # All bookings (past + future)
-                net_value_total += m["net_value"]  # Net value from all bookings
+                all_booking += m["receivable"]
+                net_value_total += m["net_value"]
                 rooms_sold += m["rooms_sold"]
                 
                 if d > current_date:
                     future_booked += m["rooms_sold"]
 
             balance_rooms = max((total_rooms * balance_days) - future_booked, 0)
-            
-            # FIXED: Balance = Target - All Bookings (not Target - Achieved)
             balance = target - all_booking
-            
-            # FIXED: Achieved % = Achieved / Target (not All Booking / Target)
             achieved_pct = (achieved / target * 100) if target > 0 else 0
-            
-            # FIXED: Occupancy % = Rooms Sold / Total Rooms
             occupancy = (rooms_sold / total_room_nights * 100) if total_room_nights > 0 else 0
-            
             per_day_needed = max(balance, 0) / balance_days if balance_days > 0 else 0
 
             rows.append({
@@ -245,18 +232,16 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
                 "Balance Days": balance_days, 
                 "Balance Rooms": int(balance_rooms),
                 "Per Day Needed": int(per_day_needed),
-                "Net Value": int(net_value_total),  # MOVED TO END
-                "Actual Receivable": int(actual_receivable)  # MOVED TO END
+                "Net Value": int(net_value_total),
+                "Actual Receivable": int(actual_receivable)
             })
         except Exception as e:
             st.warning(f"Error processing {prop}: {e}")
             continue
 
     if rows:
-        # Calculate totals row
         totals = {k: sum(r[k] for r in rows if k != "Property Name") for k in rows[0].keys() if k != "Property Name"}
         totals["Property Name"] = "TOTAL"
-        # FIXED: Achieved % = Achieved / Target (not All Booking / Target)
         totals["Achieved %"] = round((totals["Achieved"] / totals["Target"] * 100) if totals["Target"] else 0, 1)
         totals["Occupancy %"] = round((totals["Rooms Sold"] / totals["Total Rooms"] * 100) if totals["Total Rooms"] else 0, 1)
         rows.append(totals)
@@ -265,7 +250,7 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
     df.insert(0, "S.No", range(1, len(df) + 1))
     return df
 
-# -------------------------- Styling (Balance Green only >=90%) --------------------------
+# -------------------------- Styling --------------------------
 def style_dataframe(df):
     if df is None or df.empty:
         return df
@@ -302,15 +287,27 @@ def show_target_achievement_report():
     st.set_page_config(page_title="Target vs Achievement - Dec 2025", layout="wide")
     st.title("Target vs Achievement Report - December 2025")
 
-    # You can change this to date.today() for automatic daily updates
-    current_date = date(2025, 12, 8)  # Example: December 8, 2025
-    year, month = 2025, 12
-    _, days_in_month = calendar.monthrange(year, month)
-    dates = [date(year, month, d) for d in range(1, days_in_month + 1)]
+    # Get today's date from system
+    current_date = date.today()
+    
+    # Calculate balance days: if current month is December, balance = 31 - today's date
+    year = current_date.year
+    month = current_date.month
+    
+    if month == 12:
+        balance_days = 31 - current_date.day
+    else:
+        # For non-December months, calculate remaining days in the month
+        _, days_in_month = calendar.monthrange(year, month)
+        balance_days = days_in_month - current_date.day
+    
+    # Always use December 2025 for the report
+    report_year, report_month = 2025, 12
+    _, days_in_month = calendar.monthrange(report_year, report_month)
+    dates = [date(report_year, report_month, d) for d in range(1, days_in_month + 1)]
     
     # Display current date and balance days info
-    balance_days = len([d for d in dates if d > current_date])
-    st.info(f"Current Date: {current_date.strftime('%B %d, %Y')} | Balance Days: {balance_days}")
+    st.info(f"📅 Current Date: {current_date.strftime('%B %d, %Y')} | ⏳ Balance Days: {balance_days}")
 
     db_props = load_properties()
     properties = [p for p in DECEMBER_2025_TARGETS.keys() if p in db_props]
