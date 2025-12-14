@@ -730,14 +730,23 @@ def show_edit_reservations():
     """Display reservations for editing with filtering options and direct booking ID search."""
     try:
         st.header("✏️ Edit Reservations")
-        if st.button("Refresh Data"):
-            st.session_state.reservations = load_reservations_from_supabase()
-            st.rerun()
+        col_refresh1, col_refresh2 = st.columns([1, 4])
+        with col_refresh1:
+            if st.button("🔄 Refresh Data", use_container_width=True):
+                st.session_state.reservations = load_reservations_from_supabase()
+                st.success(f"✅ Loaded {len(st.session_state.reservations)} reservations")
+                st.rerun()
+        
         if not st.session_state.reservations:
             st.info("No reservations available to edit.")
             return
 
         df = pd.DataFrame(st.session_state.reservations)
+        
+        # Debug info (you can remove this later)
+        with st.expander("🔍 Debug Info - Click to expand"):
+            st.write(f"**Total reservations loaded:** {len(df)}")
+            st.write(f"**Booking IDs in memory:** {sorted(df['Booking ID'].tolist())[:10]}...")  # Show first 10
         
         # Add direct booking ID search at the top
         st.subheader("Quick Search")
@@ -754,7 +763,15 @@ def show_edit_reservations():
         
         # If direct search is performed
         if search_button and direct_booking_id:
-            matching_reservation = df[df["Booking ID"] == direct_booking_id]
+            # Force refresh from database before searching
+            st.session_state.reservations = load_reservations_from_supabase()
+            df = pd.DataFrame(st.session_state.reservations)
+            
+            # Debug: Show what we're searching for
+            st.info(f"🔍 Searching for: '{direct_booking_id}' in {len(df)} total reservations")
+            
+            matching_reservation = df[df["Booking ID"].str.strip() == direct_booking_id.strip()]
+            
             if not matching_reservation.empty:
                 edit_index = matching_reservation.index[0]
                 st.session_state.edit_mode = True
@@ -764,6 +781,11 @@ def show_edit_reservations():
                 return
             else:
                 st.error(f"❌ Booking ID '{direct_booking_id}' not found in database.")
+                # Show similar booking IDs for debugging
+                all_booking_ids = df["Booking ID"].tolist()
+                similar = [bid for bid in all_booking_ids if direct_booking_id[:10] in bid]
+                if similar:
+                    st.warning(f"💡 Similar booking IDs found: {', '.join(similar[:5])}")
                 return
         
         st.divider()
