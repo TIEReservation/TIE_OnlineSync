@@ -162,31 +162,26 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     assigned, _ = assign_inventory_numbers(daily, prop)
     rooms_sold = len({b.get("assigned_room") for b in assigned if b.get("assigned_room")})
     
-    primaries = [b for b in assigned if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day]
+    # Get check-in bookings for the day (primary bookings only)
+    check_in_primaries = [b for b in assigned if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day]
     
-    total_amount = commission = gst = receivable = 0.0
-    
-    for b in primaries:
-        if b["type"] == "online":
-            # Online: Total (Achieved) = booking_amount
-            booking_amt = safe_float(b.get("booking_amount"))
-            comm = safe_float(b.get("ota_commission"))
-            tax = safe_float(b.get("ota_tax"))
-            
-            total_amount += booking_amt
-            commission += comm
-            gst += tax
-            # Receivable = booking_amount - ota_commission - ota_tax
-            receivable += booking_amt - comm - tax
+    # EXACT LOGIC FROM SUMMARY REPORT
+    room_charges = gst = commission = 0.0
+    for b in check_in_primaries:
+        if b.get("type") == "online":
+            total_amount = safe_float(b.get("booking_amount"))
+            gst += safe_float(b.get("ota_tax"))
+            commission += safe_float(b.get("ota_commission"))
+            room_charges += total_amount - safe_float(b.get("ota_tax"))
         else:
-            # Direct: Total = total_tariff, Receivable = total_tariff (same)
-            tariff = safe_float(b.get("total_tariff"))
-            total_amount += tariff
-            receivable += tariff
+            room_charges += safe_float(b.get("total_tariff"))
+    
+    total = room_charges + gst
+    receivable = total - commission
     
     return {
         "rooms_sold": rooms_sold, 
-        "total": total_amount,
+        "total": total,
         "receivable": receivable,
         "commission": commission,
         "gst": gst
@@ -320,16 +315,75 @@ def show_target_achievement_report():
 
     with st.spinner("Generating report..."):
         bookings = {}
+        total_bookings_count = 0
         for p in properties:
             try:
                 bookings[p] = load_combined_bookings(p, dates[0], dates[-1])
+                total_bookings_count += len(bookings[p])
             except:
                 bookings[p] = []
+        
+        st.info(f"📊 Loaded {total_bookings_count} total bookings across all properties for December 2025")
 
         df = build_target_achievement_report(properties, dates, bookings, current_date)
         styled = style_dataframe(df)
 
     st.dataframe(styled, use_container_width=True, hide_index=True)
+
+    # Debug Section - Expandable
+    with st.expander("🔍 Debug Information - Click to expand"):
+        st.subheader("Property-wise Booking Details")
+        debug_data = []
+        for prop in properties:
+            prop_bookings = bookings.get(prop, [])
+            online_count = len([b for b in prop_bookings if b.get("type") == "online"])
+            direct_count = len([b for b in prop_bookings if b.get("type") == "direct"])
+            
+            # Calculate total for this property with detailed breakdown
+            prop_total = 0
+            prop_online_total = 0
+            prop_direct_total = 0
+            check_in_count = 0
+            
+            for d in dates:
+                m = compute_daily_metrics(prop_bookings, prop, d)
+                prop_total += m["total"]
+                
+                # Count check-ins per day for debugging
+                daily = filter_bookings_for_day(prop_bookings, d)
+                assigned, _ = assign_inventory_numbers(daily, prop)
+                primaries = [b for b in assigned if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == d]
+                check_in_count += len(primaries)
+                
+                for b in primaries:
+                    if b["type"] == "online":
+                        prop_online_total += safe_float(b.get("booking_amount"))
+                    else:
+                        prop_direct_total += safe_float(b.get("total_tariff"))
+            
+            debug_data.append({
+                "Property": prop,
+                "Total Bookings": len(prop_bookings),
+                "Check-ins": check_in_count,
+                "Online": online_count,
+                "Direct": direct_count,
+                "Online Total": f"₹{int(prop_online_total):,}",
+                "Direct Total": f"₹{int(prop_direct_total):,}",
+                "Calculated Total": f"₹{int(prop_total):,}"
+            })
+        
+        debug_df = pd.DataFrame(debug_data)
+        st.dataframe(debug_df, use_container_width=True, hide_index=True)
+        
+        # Show total check-ins
+        total_checkins = sum([row["Check-ins"] for row in debug_data])
+        st.info(f"📊 Total Check-ins in December 2025: {total_checkins} | Compare this with Summary Report")
+        
+        st.warning("💡 If totals don't match Summary Report, possible reasons:\n"
+                  "- Different booking status filters\n"
+                  "- Different payment status filters\n"
+                  "- Booking date range mismatch\n"
+                  "- Multi-room booking calculation differences")
 
     if not df.empty and "TOTAL" in df["Property Name"].values:
         total = df[df["Property Name"] == "TOTAL"].iloc[0]
