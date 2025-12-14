@@ -197,16 +197,16 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
             total_rooms = get_total_rooms(prop)
             total_room_nights = total_rooms * len(dates)
 
-            achieved = all_booking = rooms_sold = future_booked = 0.0
+            achieved = rooms_sold = future_booked = 0.0
             net_value_total = actual_receivable = 0.0
             
             for d in dates:
                 m = compute_daily_metrics(bookings_dict.get(prop, []), prop, d)
+                achieved += m["receivable"]  # Total booking value for the entire month
+                
                 if d <= current_date:
-                    achieved += m["receivable"]
                     actual_receivable += m["receivable"]
                 
-                all_booking += m["receivable"]
                 net_value_total += m["net_value"]
                 rooms_sold += m["rooms_sold"]
                 
@@ -214,7 +214,7 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
                     future_booked += m["rooms_sold"]
 
             balance_rooms = max((total_rooms * balance_days) - future_booked, 0)
-            balance = target - all_booking
+            balance = target - achieved
             achieved_pct = (achieved / target * 100) if target > 0 else 0
             occupancy = (rooms_sold / total_room_nights * 100) if total_room_nights > 0 else 0
             per_day_needed = max(balance, 0) / balance_days if balance_days > 0 else 0
@@ -223,7 +223,6 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
                 "Property Name": prop, 
                 "Target": int(target), 
                 "Achieved": int(achieved),
-                "All Booking": int(all_booking), 
                 "Balance": int(balance),
                 "Achieved %": round(achieved_pct, 1), 
                 "Total Rooms": int(total_room_nights),
@@ -271,7 +270,7 @@ def style_dataframe(df):
             .apply(color_balance, axis=1) \
             .applymap(color_pct, subset=["Achieved %", "Occupancy %"]) \
             .format({
-                "Target": "₹{:,.0f}", "Achieved": "₹{:,.0f}", "All Booking": "₹{:,.0f}", 
+                "Target": "₹{:,.0f}", "Achieved": "₹{:,.0f}", 
                 "Balance": "₹{:,.0f}", "Net Value": "₹{:,.0f}", "Actual Receivable": "₹{:,.0f}",
                 "Total Rooms": "{:,.0f}", "Rooms Sold": "{:,.0f}", "Balance Rooms": "{:,.0f}",
                 "Per Day Needed": "₹{:,.0f}", "Achieved %": "{:.1f}%", "Occupancy %": "{:.1f}%"
@@ -329,13 +328,12 @@ def show_target_achievement_report():
 
     if not df.empty and "TOTAL" in df["Property Name"].values:
         total = df[df["Property Name"] == "TOTAL"].iloc[0]
-        c1, c2, c3, c4, c5, c6 = st.columns(6)
+        c1, c2, c3, c4, c5 = st.columns(5)
         with c1: st.metric("Total Target", f"₹{total.Target:,.0f}")
         with c2: st.metric("Achieved", f"₹{total.Achieved:,.0f}", delta=f"{total['Achieved %']:.1f}%")
-        with c3: st.metric("All Booking", f"₹{total['All Booking']:,.0f}")
-        with c4: st.metric("Balance", f"₹{total.Balance:,.0f}", delta=f"{balance_days} days")
-        with c5: st.metric("Net Value", f"₹{total['Net Value']:,.0f}")
-        with c6: st.metric("Actual Receivable", f"₹{total['Actual Receivable']:,.0f}")
+        with c3: st.metric("Balance", f"₹{total.Balance:,.0f}", delta=f"{balance_days} days")
+        with c4: st.metric("Net Value", f"₹{total['Net Value']:,.0f}")
+        with c5: st.metric("Actual Receivable", f"₹{total['Actual Receivable']:,.0f}")
 
     st.download_button("Download Report (CSV)", df.to_csv(index=False), "Target_Achievement_Dec2025.csv", "text/csv")
 
