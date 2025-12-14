@@ -219,9 +219,11 @@ def safe_float(value, default=0.0):
         return default
 
 def load_reservations_from_supabase():
-    """Load reservations from Supabase, handling potential None values."""
+    """Load ALL reservations from Supabase, handling potential None values."""
     try:
-        response = supabase.table("reservations").select("*").execute()
+        # Fetch ALL records with no limit
+        response = supabase.table("reservations").select("*").order("booking_id", desc=True).execute()
+        
         reservations = []
         for record in response.data:
             reservation = {
@@ -258,6 +260,8 @@ def load_reservations_from_supabase():
                 "Payment Status": record.get("payment_status", "Not Paid")
             }
             reservations.append(reservation)
+        
+        print(f"✅ Loaded {len(reservations)} reservations from Supabase")
         return reservations
     except Exception as e:
         st.error(f"Error loading reservations: {e}")
