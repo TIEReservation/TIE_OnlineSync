@@ -746,12 +746,7 @@ def show_edit_reservations():
             return
 
         df = pd.DataFrame(st.session_state.reservations)
-        
-        # Debug info (you can remove this later)
-        with st.expander("🔍 Debug Info - Click to expand"):
-            st.write(f"**Total reservations loaded:** {len(df)}")
-            st.write(f"**Booking IDs in memory:** {sorted(df['Booking ID'].tolist())[:10]}...")  # Show first 10
-        
+                 
         # Add direct booking ID search at the top
         st.subheader("Quick Search")
         col_search1, col_search2 = st.columns([3, 1])
