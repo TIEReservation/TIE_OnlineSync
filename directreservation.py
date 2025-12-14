@@ -726,9 +726,8 @@ def show_reservations():
         filtered_df[["Booking ID", "Guest Name", "Mobile No", "Enquiry Date", "Room No", "MOB", "Check In", "Check Out", "Booking Status", "Payment Status", "Remarks"]],
         use_container_width=True
     )
-
 def show_edit_reservations():
-    """Display reservations for editing with filtering options."""
+    """Display reservations for editing with filtering options and direct booking ID search."""
     try:
         st.header("✏️ Edit Reservations")
         if st.button("Refresh Data"):
@@ -740,7 +739,35 @@ def show_edit_reservations():
 
         df = pd.DataFrame(st.session_state.reservations)
         
-        st.subheader("Filters")
+        # Add direct booking ID search at the top
+        st.subheader("Quick Search")
+        col_search1, col_search2 = st.columns([3, 1])
+        with col_search1:
+            direct_booking_id = st.text_input(
+                "Search by Booking ID", 
+                placeholder="Enter Booking ID (e.g., TIE20251214001)",
+                key="direct_booking_search",
+                help="Enter exact Booking ID to directly edit a reservation"
+            )
+        with col_search2:
+            search_button = st.button("🔍 Search", use_container_width=True)
+        
+        # If direct search is performed
+        if search_button and direct_booking_id:
+            matching_reservation = df[df["Booking ID"] == direct_booking_id]
+            if not matching_reservation.empty:
+                edit_index = matching_reservation.index[0]
+                st.session_state.edit_mode = True
+                st.session_state.edit_index = edit_index
+                st.success(f"✅ Found: {direct_booking_id}")
+                show_edit_form(edit_index)
+                return
+            else:
+                st.error(f"❌ Booking ID '{direct_booking_id}' not found in database.")
+                return
+        
+        st.divider()
+        st.subheader("Browse with Filters")
         col1, col2, col3, col4, col5, col6 = st.columns(6)
         with col1:
             filter_status = st.selectbox("Filter by Status", ["All", "Confirmed", "Pending", "Cancelled", "Completed", "No Show"], key="edit_filter_status")
@@ -778,17 +805,17 @@ def show_edit_reservations():
             use_container_width=True
         )
 
-        # Select reservation to edit
+        # Select reservation to edit from filtered results
         booking_id = st.selectbox("Select Booking ID to Edit", filtered_df["Booking ID"].tolist(), key="edit_booking_id")
         if booking_id:
-            edit_index = filtered_df[filtered_df["Booking ID"] == booking_id].index[0]
+            edit_index = df[df["Booking ID"] == booking_id].index[0]  # Use original df to get correct index
             st.session_state.edit_mode = True
             st.session_state.edit_index = edit_index
             show_edit_form(edit_index)
 
     except Exception as e:
         st.error(f"Error rendering edit reservations: {e}")
-
+        
 def show_edit_form(edit_index):
     """Display form for editing an existing reservation with dynamic room assignments."""
     try:
