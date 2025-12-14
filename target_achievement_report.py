@@ -164,26 +164,32 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     
     primaries = [b for b in assigned if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day]
     
-    receivable = net_value = 0.0
+    total_amount = commission = gst = receivable = 0.0
+    
     for b in primaries:
         if b["type"] == "online":
-            amt = safe_float(b.get("booking_amount"))
+            # Online: Total = booking_amount
+            booking_amt = safe_float(b.get("booking_amount"))
             comm = safe_float(b.get("ota_commission"))
+            tax = safe_float(b.get("ota_tax"))
             
-            if amt > 0 and comm == 0:
-                st.warning(f"Online booking {b.get('booking_id')} has amount ₹{amt} but commission is zero")
-            
-            net_value += amt
-            receivable += amt - comm
+            total_amount += booking_amt
+            commission += comm
+            gst += tax
+            # Receivable = Total - Commission - GST
+            receivable += booking_amt - comm - tax
         else:
-            total = safe_float(b.get("total_tariff"))
-            net_value += total
-            receivable += total
+            # Direct: Total = total_tariff, Receivable = same as Total
+            tariff = safe_float(b.get("total_tariff"))
+            total_amount += tariff
+            receivable += tariff
     
     return {
         "rooms_sold": rooms_sold, 
+        "total": total_amount,
         "receivable": receivable,
-        "net_value": net_value
+        "commission": commission,
+        "gst": gst
     }
 
 # -------------------------- MAIN REPORT --------------------------
@@ -198,16 +204,14 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
             total_room_nights = total_rooms * len(dates)
 
             achieved = rooms_sold = future_booked = 0.0
-            net_value_total = actual_receivable = 0.0
+            commission_total = receivable_total = gst_total = 0.0
             
             for d in dates:
                 m = compute_daily_metrics(bookings_dict.get(prop, []), prop, d)
-                achieved += m["receivable"]  # Total booking value for the entire month
-                
-                if d <= current_date:
-                    actual_receivable += m["receivable"]
-                
-                net_value_total += m["net_value"]
+                achieved += m["total"]  # Total booking amount
+                commission_total += m["commission"]
+                gst_total += m["gst"]
+                receivable_total += m["receivable"]
                 rooms_sold += m["rooms_sold"]
                 
                 if d > current_date:
@@ -230,8 +234,9 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
                 "Occupancy %": round(occupancy, 1),
                 "Balance Rooms": int(balance_rooms),
                 "Per Day Needed": int(per_day_needed),
-                "Net Value": int(net_value_total),
-                "Actual Receivable": int(actual_receivable)
+                "GST": int(gst_total),
+                "Commission": int(commission_total),
+                "Receivable": int(receivable_total)
             })
         except Exception as e:
             st.warning(f"Error processing {prop}: {e}")
@@ -271,7 +276,7 @@ def style_dataframe(df):
             .applymap(color_pct, subset=["Achieved %", "Occupancy %"]) \
             .format({
                 "Target": "₹{:,.0f}", "Achieved": "₹{:,.0f}", 
-                "Balance": "₹{:,.0f}", "Net Value": "₹{:,.0f}", "Actual Receivable": "₹{:,.0f}",
+                "Balance": "₹{:,.0f}", "GST": "₹{:,.0f}", "Commission": "₹{:,.0f}", "Receivable": "₹{:,.0f}",
                 "Total Rooms": "{:,.0f}", "Rooms Sold": "{:,.0f}", "Balance Rooms": "{:,.0f}",
                 "Per Day Needed": "₹{:,.0f}", "Achieved %": "{:.1f}%", "Occupancy %": "{:.1f}%"
             }) \
@@ -328,12 +333,13 @@ def show_target_achievement_report():
 
     if not df.empty and "TOTAL" in df["Property Name"].values:
         total = df[df["Property Name"] == "TOTAL"].iloc[0]
-        c1, c2, c3, c4, c5 = st.columns(5)
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
         with c1: st.metric("Total Target", f"₹{total.Target:,.0f}")
         with c2: st.metric("Achieved", f"₹{total.Achieved:,.0f}", delta=f"{total['Achieved %']:.1f}%")
         with c3: st.metric("Balance", f"₹{total.Balance:,.0f}", delta=f"{balance_days} days")
-        with c4: st.metric("Net Value", f"₹{total['Net Value']:,.0f}")
-        with c5: st.metric("Actual Receivable", f"₹{total['Actual Receivable']:,.0f}")
+        with c4: st.metric("GST", f"₹{total['GST']:,.0f}")
+        with c5: st.metric("Commission", f"₹{total['Commission']:,.0f}")
+        with c6: st.metric("Receivable", f"₹{total['Receivable']:,.0f}")
 
     st.download_button("Download Report (CSV)", df.to_csv(index=False), "Target_Achievement_Dec2025.csv", "text/csv")
 
