@@ -1,4 +1,4 @@
-# target_achievement_report.py - CORRECTED VERSION (December 2025) - Dynamic Date System
+# target_achievement_report.py - FINAL VERSION with Correct Formulas
 
 import streamlit as st
 from datetime import date, datetime
@@ -168,7 +168,7 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     
     for b in primaries:
         if b["type"] == "online":
-            # Online: Total = booking_amount
+            # Online: Total (Achieved) = booking_amount
             booking_amt = safe_float(b.get("booking_amount"))
             comm = safe_float(b.get("ota_commission"))
             tax = safe_float(b.get("ota_tax"))
@@ -176,10 +176,10 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
             total_amount += booking_amt
             commission += comm
             gst += tax
-            # Receivable = Total - Commission - GST
+            # Receivable = booking_amount - ota_commission - ota_tax
             receivable += booking_amt - comm - tax
         else:
-            # Direct: Total = total_tariff, Receivable = same as Total
+            # Direct: Total = total_tariff, Receivable = total_tariff (same)
             tariff = safe_float(b.get("total_tariff"))
             total_amount += tariff
             receivable += tariff
@@ -208,7 +208,7 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
             
             for d in dates:
                 m = compute_daily_metrics(bookings_dict.get(prop, []), prop, d)
-                achieved += m["total"]  # Total booking amount
+                achieved += m["total"]  # Total booking amount (booking_amount for online + total_tariff for direct)
                 commission_total += m["commission"]
                 gst_total += m["gst"]
                 receivable_total += m["receivable"]
