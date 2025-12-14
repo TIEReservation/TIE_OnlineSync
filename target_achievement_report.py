@@ -229,7 +229,6 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
                 "Total Rooms": int(total_room_nights),
                 "Rooms Sold": int(rooms_sold), 
                 "Occupancy %": round(occupancy, 1),
-                "Balance Days": balance_days, 
                 "Balance Rooms": int(balance_rooms),
                 "Per Day Needed": int(per_day_needed),
                 "Net Value": int(net_value_total),
