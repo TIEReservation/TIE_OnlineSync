@@ -223,13 +223,25 @@ def show_online_reservations():
                 # Reload to reflect changes
                 st.session_state.online_reservations = load_online_reservations_from_supabase()
 
-    # View section
+     # View section
     st.subheader("View Online Reservations")
     if not st.session_state.online_reservations:
         st.info("No online reservations available.")
         return
 
     df = pd.DataFrame(st.session_state.online_reservations)
+    
+    # ✅ OPTIMIZED: Add pagination controls
+    col_page1, col_page2, col_page3 = st.columns([1, 2, 1])
+    with col_page1:
+        page_size = st.selectbox("Records per page", [50, 100, 200, 500], index=1, key="page_size_online")
+    with col_page2:
+        total_records = len(df)
+        total_pages = (total_records + page_size - 1) // page_size
+        page_number = st.number_input("Page", min_value=1, max_value=max(1, total_pages), value=1, step=1, key="page_num_online")
+    with col_page3:
+        st.metric("Total Records", total_records)
+        st.metric("Total Pages", total_pages)
     # Enhanced filters
     st.subheader("Filters")
     col1, col2, col3, col4 = st.columns(4)
