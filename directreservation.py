@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -1217,4 +1216,3 @@ if __name__ == "__main__":
     
     with tab4:
         show_analytics()
-```
