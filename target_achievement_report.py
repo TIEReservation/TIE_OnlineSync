@@ -102,21 +102,28 @@ def load_properties() -> List[str]:
         return []
 
 # -------------------------- Booking Functions --------------------------
+@st.cache_data(ttl=1800)  # Cache for 30 minutes
 def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
+    """Load bookings with caching and optimized date filtering."""
     normalized = normalize_property_name(prop)
     query_props = [normalized] + reverse_mapping.get(normalized, [])
     try:
+        # ✅ OPTIMIZED: Use indexed date columns
         direct = supabase.table("reservations").select("*")\
             .in_("property_name", query_props)\
-            .lte("check_in", str(end)).gte("check_out", str(start))\
+            .gte("check_in", str(start))\
+            .lte("check_in", str(end))\
             .in_("plan_status", ["Confirmed", "Completed"])\
-            .in_("payment_status", ["Partially Paid", "Fully Paid"]).execute().data or []
+            .in_("payment_status", ["Partially Paid", "Fully Paid"])\
+            .execute().data or []
 
         online = supabase.table("online_reservations").select("*")\
             .in_("property", query_props)\
-            .lte("check_in", str(end)).gte("check_out", str(start))\
+            .gte("check_in", str(start))\
+            .lte("check_in", str(end))\
             .in_("booking_status", ["Confirmed", "Completed"])\
-            .in_("payment_status", ["Partially Paid", "Fully Paid"]).execute().data or []
+            .in_("payment_status", ["Partially Paid", "Fully Paid"])\
+            .execute().data or []
 
         all_bookings = []
         
@@ -132,7 +139,7 @@ def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
         for b in online:
             name = b.get("property")
             if normalize_property_name(name) == prop:
-                b["property_name"] = prop  # Set consistent property_name field
+                b["property_name"] = prop
                 b["type"] = "online"
                 all_bookings.append(b)
                 
