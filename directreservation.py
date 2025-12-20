@@ -553,7 +553,7 @@ def show_new_reservation_form():
             payment_status = st.selectbox("Payment Status", payment_status_options, index=2, key=f"{form_key}_payment_status")
         with row9_col2:
             # Submitted By is automatically filled with login name
-            submitted_by = st.text_input("Submitted By", value=st.session_state.get('user_name', ''), disabled=True, help="Automatically filled with your login name")
+            submitted_by = st.text_input("Submitted By", value=st.session_state.username, disabled=True, help="Automatically filled with your login name")
 
         if mob == "Online":
             row10_col1, = st.columns(1)
@@ -618,7 +618,7 @@ def show_new_reservation_form():
                                 "Room Type": room_type,
                                 "Breakfast": breakfast,
                                 "Booking Status": booking_status,
-                                "Submitted By": st.session_state.get('user_name', ''),
+                                "Submitted By": st.session_state.username,
                                 "Modified By": "",
                                 "Modified Comments": "",
                                 "Remarks": remarks,
@@ -928,7 +928,7 @@ def show_edit_form(edit_index):
         row11_col1, row11_col2 = st.columns(2)
         with row11_col1:
             # Modified By is automatically filled with current user (read-only)
-            modified_by = st.text_input("Modified By", value=st.session_state.get('user_name', ''), disabled=True, help="Automatically filled with your login name")
+            modified_by = st.text_input("Modified By", value=st.session_state.username, disabled=True, help="Automatically filled with your login name")
         with row11_col2:
             modified_comments = st.text_area("Modified Comments", value=reservation["Modified Comments"], key=f"{form_key}_modified_comments")
 
@@ -979,7 +979,7 @@ def show_edit_form(edit_index):
                             "Breakfast": breakfast,
                             "Booking Status": booking_status,
                             "Submitted By": reservation["Submitted By"],
-                            "Modified By": st.session_state.get('user_name', ''),
+                            "Modified By": st.session_state.username,
                             "Modified Comments": modified_comments,
                             "Remarks": remarks,
                             "Payment Status": payment_status
@@ -1099,29 +1099,29 @@ if __name__ == "__main__":
         )
         st.session_state.role = role
         
-        # User name input
-        if 'user_name' not in st.session_state:
-            st.session_state.user_name = ""
+        # User name input - using 'username' to match your working code
+        if 'username' not in st.session_state:
+            st.session_state.username = ""
         
-        user_name = st.text_input(
+        username = st.text_input(
             "Enter Your Name",
-            value=st.session_state.user_name,
+            value=st.session_state.username,
             placeholder="Your full name",
-            key="user_name_input"
+            key="username_input"
         )
         
-        if user_name and user_name != st.session_state.user_name:
-            st.session_state.user_name = user_name
+        if username and username != st.session_state.username:
+            st.session_state.username = username
             st.rerun()
         
-        if st.session_state.user_name:
-            st.success(f"✅ Logged in as: **{st.session_state.user_name}**")
+        if st.session_state.username:
+            st.success(f"✅ Logged in as: **{st.session_state.username}**")
             st.info(f"Role: **{st.session_state.role}**")
         else:
             st.warning("⚠️ Please enter your name to continue")
     
     # Check if user is logged in
-    if not st.session_state.user_name or st.session_state.user_name.strip() == "":
+    if not st.session_state.username or st.session_state.username.strip() == "":
         st.error("❌ Please enter your name in the sidebar to access the system")
         st.stop()
     
