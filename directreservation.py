@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -10,13 +11,6 @@ try:
 except KeyError as e:
     st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets configuration.")
     st.stop()
-
-# Autofetch user_name from secrets for Submitted By
-if 'user_name' not in st.session_state:
-    try:
-        st.session_state.user_name = st.secrets["user_name"]
-    except KeyError:
-        st.session_state.user_name = "System User"  # Fallback if not set in secrets
 
 def load_property_room_map():
     """
@@ -455,6 +449,13 @@ def show_new_reservation_form():
         form_key = "new_reservation"
         property_room_map = load_property_room_map()
         
+        # Ensure user_name is set
+        if 'user_name' not in st.session_state or not st.session_state.user_name:
+            try:
+                st.session_state.user_name = st.secrets["user_name"]
+            except KeyError:
+                st.session_state.user_name = "System User"
+        
         # Initialize session state for dynamic updates
         if f"{form_key}_property" not in st.session_state:
             st.session_state[f"{form_key}_property"] = sorted(property_room_map.keys())[0]
@@ -848,6 +849,13 @@ def show_edit_reservations():
 def show_edit_form(edit_index):
     """Display form for editing an existing reservation with dynamic room assignments."""
     try:
+        # Ensure user_name is set
+        if 'user_name' not in st.session_state or not st.session_state.user_name:
+            try:
+                st.session_state.user_name = st.secrets["user_name"]
+            except KeyError:
+                st.session_state.user_name = "System User"
+        
         st.subheader(f"✏️ Editing Reservation: {st.session_state.reservations[edit_index]['Booking ID']}")
         reservation = st.session_state.reservations[edit_index]
         form_key = f"edit_reservation_{edit_index}"
@@ -1183,6 +1191,14 @@ def show_analytics():
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     st.set_page_config(page_title="Direct Reservations", layout="wide")
+    
+    # Autofetch user_name from secrets for Submitted By
+    if 'user_name' not in st.session_state:
+        try:
+            st.session_state.user_name = st.secrets["user_name"]
+        except KeyError:
+            st.session_state.user_name = "System User"  # Fallback if not set in secrets
+    
     if 'reservations' not in st.session_state:
         st.session_state.reservations = load_reservations_from_supabase()
     if 'role' not in st.session_state:
@@ -1201,3 +1217,4 @@ if __name__ == "__main__":
     
     with tab4:
         show_analytics()
+```
