@@ -448,8 +448,8 @@ def main():
         show_target_achievement_report()
         log_activity(supabase, st.session_state.username, "Accessed Target Achievement")
     elif page == "Accounts Report":
-    show_accounts_report()
-    log_activity(supabase, st.session_state.username, "Accessed Accounts Report")
+        show_accounts_report()
+        log_activity(supabase, st.session_state.username, "Accessed Accounts Report")
     # === Footer: User Info & Logout ===
     if st.session_state.authenticated:
         st.sidebar.write(f"Logged in as: **{st.session_state.username}**")
