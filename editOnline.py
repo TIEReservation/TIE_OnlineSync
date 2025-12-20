@@ -51,32 +51,22 @@ def delete_online_reservation_in_supabase(booking_id):
         st.error(f"Error deleting online reservation {booking_id}: {e}")
         return False
 
-def load_online_reservations_from_supabase():
-    """Load ALL online reservations from Supabase without any limit using pagination."""
+@st.cache_data(ttl=600)  # Cache for 10 minutes
+def load_online_reservations_from_supabase(limit=500):
+    """Load recent online reservations with limit for faster loading."""
     try:
-        all_data = []
-        page_size = 1000
-        offset = 0
+        # ✅ OPTIMIZED: Only load most recent 500 records by default
+        response = supabase.table("online_reservations")\
+            .select("*")\
+            .order("check_in", desc=True)\
+            .limit(limit)\
+            .execute()
         
-        while True:
-            response = supabase.table("online_reservations")\
-                .select("*")\
-                .range(offset, offset + page_size - 1)\
-                .execute()
-            
-            if response.data:
-                all_data.extend(response.data)
-                # If we got less than page_size records, we've reached the end
-                if len(response.data) < page_size:
-                    break
-                offset += page_size
-            else:
-                break
-        
-        if not all_data:
+        if not response.data:
             st.warning("No online reservations found in the database.")
+            return []
         
-        return all_data
+        return response.data
     except Exception as e:
         st.error(f"Error loading online reservations: {e}")
         return []
