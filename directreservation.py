@@ -1076,13 +1076,55 @@ def show_analytics():
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Direct Reservations", layout="wide")
+    
+    # Initialize session state
     if 'reservations' not in st.session_state:
         st.session_state.reservations = load_reservations_from_supabase()
-    if 'role' not in st.session_state:
-        st.session_state.role = st.selectbox("Select Role", ["Management", "Staff", "Accounts Team"])
-    if 'user_name' not in st.session_state:
-        st.session_state.user_name = st.text_input("Enter Your Name")
-
+    
+    # User Authentication Section - MUST BE AT TOP
+    st.title("🏨 Direct Reservations System")
+    
+    with st.sidebar:
+        st.header("User Login")
+        
+        # Role selection
+        if 'role' not in st.session_state:
+            st.session_state.role = "Staff"
+        
+        role = st.selectbox(
+            "Select Role", 
+            ["Management", "Staff", "Accounts Team"],
+            key="role_select",
+            index=["Management", "Staff", "Accounts Team"].index(st.session_state.role) if st.session_state.role in ["Management", "Staff", "Accounts Team"] else 1
+        )
+        st.session_state.role = role
+        
+        # User name input
+        if 'user_name' not in st.session_state:
+            st.session_state.user_name = ""
+        
+        user_name = st.text_input(
+            "Enter Your Name",
+            value=st.session_state.user_name,
+            placeholder="Your full name",
+            key="user_name_input"
+        )
+        
+        if user_name and user_name != st.session_state.user_name:
+            st.session_state.user_name = user_name
+            st.rerun()
+        
+        if st.session_state.user_name:
+            st.success(f"✅ Logged in as: **{st.session_state.user_name}**")
+            st.info(f"Role: **{st.session_state.role}**")
+        else:
+            st.warning("⚠️ Please enter your name to continue")
+    
+    # Check if user is logged in
+    if not st.session_state.user_name or st.session_state.user_name.strip() == "":
+        st.error("❌ Please enter your name in the sidebar to access the system")
+        st.stop()
+    
     tab1, tab2, tab3, tab4 = st.tabs(["New Reservation", "View Reservations", "Edit Reservations", "Analytics"])
     
     with tab1:
