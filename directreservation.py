@@ -219,7 +219,6 @@ def safe_float(value, default=0.0):
         return default
 
 def load_reservations_from_supabase():
-    def load_reservations_from_supabase():
     """Load ALL reservations from Supabase with pagination, handling potential None values."""
     try:
         reservations = []
