@@ -279,9 +279,16 @@ def show_online_reservations():
     if filtered_df.empty:
         st.warning("No reservations match the selected filters.")
     else:
+        # ✅ OPTIMIZED: Apply pagination
+        start_idx = (page_number - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_df = filtered_df.iloc[start_idx:end_idx]
+        
+        st.info(f"Showing records {start_idx + 1} to {min(end_idx, len(filtered_df))} of {len(filtered_df)}")
+        
         # Display selected columns
         display_columns = [
             "property", "booking_id", "guest_name", "guest_phone", "check_in", "check_out", "room_no", "room_type",
             "booking_status", "payment_status", "booking_amount", "total_payment_made", "balance_due"
         ]
-        st.dataframe(filtered_df[display_columns], use_container_width=True)
+        st.dataframe(paginated_df[display_columns], use_container_width=True, height=600)
