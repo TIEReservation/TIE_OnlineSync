@@ -11,6 +11,13 @@ except KeyError as e:
     st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets configuration.")
     st.stop()
 
+# Autofetch user_name from secrets for Submitted By
+if 'user_name' not in st.session_state:
+    try:
+        st.session_state.user_name = st.secrets["user_name"]
+    except KeyError:
+        st.session_state.user_name = "System User"  # Fallback if not set in secrets
+
 def load_property_room_map():
     """
     Loads the property to room type to room numbers mapping based on provided data.
@@ -448,13 +455,6 @@ def show_new_reservation_form():
         form_key = "new_reservation"
         property_room_map = load_property_room_map()
         
-        # Ensure login name (user_name) is set and used as Submitted By
-        if 'user_name' not in st.session_state or not st.session_state.user_name:
-            st.session_state.user_name = st.text_input("Login Name (Submitted By)", placeholder="Enter your login name", help="This will be used as 'Submitted By' for all new reservations and cannot be changed later.")
-            if not st.session_state.user_name:
-                st.warning("⚠️ Please enter your login name to proceed.")
-                st.stop()
-        
         # Initialize session state for dynamic updates
         if f"{form_key}_property" not in st.session_state:
             st.session_state[f"{form_key}_property"] = sorted(property_room_map.keys())[0]
@@ -594,13 +594,14 @@ def show_new_reservation_form():
         with row8_col1:
             remarks = st.text_area("Remarks", key=f"{form_key}_remarks")
 
-        # Row 9: Payment Status, Submitted By (non-editable, uses login name)
+        # Row 9: Payment Status, Submitted By (autofetched, non-editable)
         row9_col1, row9_col2 = st.columns(2)
         with row9_col1:
             payment_status_options = ["Fully Paid", "Partially Paid", "Not Paid"]
             payment_status = st.selectbox("Payment Status", payment_status_options, index=2, key=f"{form_key}_payment_status")
         with row9_col2:
-            submitted_by = st.text_input("Submitted By", value=st.session_state.user_name, disabled=True, help="This is your login name and cannot be edited.")
+            submitted_by = st.session_state.user_name
+            st.text_input("Submitted By", value=submitted_by, disabled=True, help="Autofetched from login and cannot be edited.")
 
         # Online Source (conditionally shown when MOB is Online)
         if mob == "Online":
@@ -674,7 +675,7 @@ def show_new_reservation_form():
                                 "Room Type": room_type,
                                 "Breakfast": breakfast,
                                 "Booking Status": booking_status,
-                                "Submitted By": submitted_by,  # Uses login name
+                                "Submitted By": submitted_by,  # Autofetched value
                                 "Modified By": modified_by,
                                 "Modified Comments": modified_comments,
                                 "Remarks": remarks,
@@ -852,13 +853,6 @@ def show_edit_form(edit_index):
         form_key = f"edit_reservation_{edit_index}"
         property_room_map = load_property_room_map()
 
-        # Ensure login name (user_name) is set
-        if 'user_name' not in st.session_state or not st.session_state.user_name:
-            st.session_state.user_name = st.text_input("Login Name", placeholder="Enter your login name", help="This will be used for modifications.")
-            if not st.session_state.user_name:
-                st.warning("⚠️ Please enter your login name to proceed.")
-                st.stop()
-
         # Initialize session state only if not already set
         if f"{form_key}_property" not in st.session_state:
             st.session_state[f"{form_key}_property"] = reservation["Property Name"]
@@ -1008,14 +1002,15 @@ def show_edit_form(edit_index):
         with row8_col1:
             remarks = st.text_area("Remarks", value=reservation["Remarks"], key=f"{form_key}_remarks")
 
-        # Row 9: Payment Status, Submitted By (non-editable, shows original)
+        # Row 9: Payment Status, Submitted By (non-editable, shows original autofetched value)
         row9_col1, row9_col2 = st.columns(2)
         with row9_col1:
             payment_status_options = ["Fully Paid", "Partially Paid", "Not Paid"]
             payment_status_index = payment_status_options.index(reservation["Payment Status"]) if reservation["Payment Status"] in payment_status_options else 2
             payment_status = st.selectbox("Payment Status", payment_status_options, index=payment_status_index, key=f"{form_key}_payment_status")
         with row9_col2:
-            submitted_by = st.text_input("Submitted By", value=reservation["Submitted By"], disabled=True, help="This is the original submitter and cannot be edited.")
+            submitted_by = reservation["Submitted By"]
+            st.text_input("Submitted By", value=submitted_by, disabled=True, help="Original autofetched submitter value, cannot be edited.")
 
         # Online Source (conditionally shown when MOB is Online)
         if mob == "Online":
@@ -1032,10 +1027,11 @@ def show_edit_form(edit_index):
             online_source = None
             custom_online_source = None
 
-        # Row 10: Modified By, Modified Comments
+        # Row 10: Modified By (autofetched), Modified Comments
         row10_col1, row10_col2 = st.columns(2)
         with row10_col1:
-            modified_by = st.text_input("Modified By", value=st.session_state.user_name or reservation["Modified By"], key=f"{form_key}_modified_by", help="This will record the current login name for modifications.")
+            modified_by = st.session_state.user_name
+            st.text_input("Modified By", value=modified_by, disabled=True, help="Autofetched from current login for this modification.")
         with row10_col2:
             modified_comments = st.text_area("Modified Comments", value=reservation["Modified Comments"], key=f"{form_key}_modified_comments")
 
@@ -1086,8 +1082,8 @@ def show_edit_form(edit_index):
                             "Room Type": room_type,
                             "Breakfast": breakfast,
                             "Booking Status": booking_status,
-                            "Submitted By": submitted_by,  # Retains original
-                            "Modified By": modified_by,  # Uses current login name
+                            "Submitted By": submitted_by,  # Retains original autofetched value
+                            "Modified By": modified_by,  # Autofetched current value
                             "Modified Comments": modified_comments,
                             "Remarks": remarks,
                             "Payment Status": payment_status
@@ -1191,11 +1187,6 @@ if __name__ == "__main__":
         st.session_state.reservations = load_reservations_from_supabase()
     if 'role' not in st.session_state:
         st.session_state.role = st.selectbox("Select Role", ["Management", "Staff", "Accounts Team"])
-
-    # Ensure login name is set once at the app level (non-persistent prompt)
-    if 'user_name' not in st.session_state or not st.session_state.user_name:
-        with st.sidebar:
-            st.session_state.user_name = st.text_input("Login Name (Required for Submitted By)", placeholder="Enter your login name", help="This will be used as 'Submitted By' for new reservations and 'Modified By' for edits. Set once per session.")
 
     tab1, tab2, tab3, tab4 = st.tabs(["New Reservation", "View Reservations", "Edit Reservations", "Analytics"])
     
