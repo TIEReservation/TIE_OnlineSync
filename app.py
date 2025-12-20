@@ -35,14 +35,20 @@ st.set_page_config(
 )
 # Display logo in top-left corner
 st.image("https://github.com/TIEReservation/TIEReservation-System/raw/main/TIE_Logo_Icon.png", width=100)
-# Initialize Supabase client with environment variables
-try:
-    os.environ["SUPABASE_URL"] = "https://oxbrezracnmazucnnqox.supabase.co"
-    os.environ["SUPABASE_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94YnJlenJhY25tYXp1Y25ucW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjUxMTgsImV4cCI6MjA2OTM0MTExOH0.nqBK2ZxntesLY9qYClpoFPVnXOW10KrzF-UI_DKjbKo"
-    supabase: Client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
-except Exception as e:
-    st.error(f"Failed to initialize Supabase client: {e}")
-    st.stop()
+
+# ✅ OPTIMIZED: Initialize Supabase client with caching
+@st.cache_resource
+def get_supabase_client():
+    """Create a single Supabase client for the entire session."""
+    try:
+        os.environ["SUPABASE_URL"] = "https://oxbrezracnmazucnnqox.supabase.co"
+        os.environ["SUPABASE_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94YnJlenJhY25tYXp1Y25ucW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjUxMTgsImV4cCI6MjA2OTM0MTExOH0.nqBK2ZxntesLY9qYClpoFPVnXOW10KrzF-UI_DKjbKo"
+        return create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
+    except Exception as e:
+        st.error(f"Failed to initialize Supabase client: {e}")
+        st.stop()
+
+supabase: Client = get_supabase_client()
 def check_authentication():
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
