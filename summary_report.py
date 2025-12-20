@@ -80,22 +80,25 @@ def load_properties() -> List[str]:
         st.error(f"Error loading properties: {e}")
         return []
 
+@st.cache_data(ttl=1800)  # Cache for 30 minutes
 def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
+    """Load bookings with caching and optimized filtering."""
     normalized_prop = normalize_property_name(prop)
     query_props = [normalized_prop] + reverse_mapping.get(normalized_prop, [])
     try:
+        # ✅ OPTIMIZED: Use indexed columns
         direct = (supabase.table("reservations").select("*")
                   .in_("property_name", query_props)
+                  .gte("check_in", str(start))
                   .lte("check_in", str(end))
-                  .gte("check_out", str(start))
                   .in_("plan_status", ["Confirmed", "Completed"])
                   .in_("payment_status", ["Partially Paid", "Fully Paid"])
                   .execute().data or [])
 
         online = (supabase.table("online_reservations").select("*")
                   .in_("property", query_props)
+                  .gte("check_in", str(start))
                   .lte("check_in", str(end))
-                  .gte("check_out", str(start))
                   .in_("booking_status", ["Confirmed", "Completed"])
                   .in_("payment_status", ["Partially Paid", "Fully Paid"])
                   .execute().data or [])
