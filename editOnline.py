@@ -81,33 +81,33 @@ def load_online_reservations_from_supabase():
         st.error(f"Error loading online reservations: {e}")
         return []
 
+@st.cache_data(ttl=300)  # Cache search results for 5 minutes
 def search_booking_by_id(booking_id):
-    """Search for a specific booking by ID directly from database with fuzzy matching."""
+    """Optimized search using database index."""
     try:
-        # First, try exact match with trimmed input
         booking_id_clean = booking_id.strip()
         
+        # ✅ OPTIMIZED: Single fast query using indexed column
         response = supabase.table("online_reservations")\
             .select("*")\
             .eq("booking_id", booking_id_clean)\
+            .limit(1)\
             .execute()
         
         if response.data and len(response.data) > 0:
             return response.data[0]
         
-        # If exact match fails, try case-insensitive LIKE search
-        # This handles potential whitespace or case issues in the database
+        # Try case-insensitive search if exact match fails
         response = supabase.table("online_reservations")\
             .select("*")\
             .ilike("booking_id", f"%{booking_id_clean}%")\
+            .limit(5)\
             .execute()
         
         if response.data and len(response.data) > 0:
-            # If multiple results, try to find exact match after trimming
             for record in response.data:
                 if record.get("booking_id", "").strip().upper() == booking_id_clean.upper():
                     return record
-            # Return first result if no exact match found
             st.warning(f"Found {len(response.data)} similar booking(s). Showing first match.")
             return response.data[0]
         
@@ -115,7 +115,7 @@ def search_booking_by_id(booking_id):
     except Exception as e:
         st.error(f"Error searching for booking {booking_id}: {e}")
         return None
-
+        
 def load_properties():
     """Load unique properties from reservations table (direct reservations)."""
     try:
