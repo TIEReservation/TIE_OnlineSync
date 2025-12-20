@@ -125,14 +125,24 @@ def load_properties() -> List[str]:
         logging.error(f"load_properties: {e}")
         return []
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)  
 def load_combined_bookings(property: str, start_date: date, end_date: date) -> List[Dict]:
+    """Load bookings with optimized date filtering - ONLY loads data for selected date range."""
     prop = normalize_property(property)
     query_props = [prop] + reverse_mapping.get(prop, [])
     combined: List[Dict] = []
 
     try:
-        q = supabase.table("reservations").select("*").in_("property_name", query_props).lte("check_in", str(end_date)).gte("check_out", str(start_date)).in_("plan_status", ["Confirmed", "Completed"]).in_("payment_status", ["Partially Paid", "Fully Paid"]).execute()
+        # ✅ OPTIMIZED: Filter dates on database side BEFORE loading
+        q = supabase.table("reservations")\
+            .select("*")\
+            .in_("property_name", query_props)\
+            .gte("check_in", str(start_date))\
+            .lte("check_out", str(end_date))\
+            .in_("plan_status", ["Confirmed", "Completed"])\
+            .in_("payment_status", ["Partially Paid", "Fully Paid"])\
+            .execute()
+        
         for r in q.data or []:
             norm = normalize_booking(r, is_online=False)
             if norm: combined.append(norm)
@@ -140,7 +150,16 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
         logging.error(f"Direct query error: {e}")
 
     try:
-        q = supabase.table("online_reservations").select("*").in_("property", query_props).lte("check_in", str(end_date)).gte("check_out", str(start_date)).in_("booking_status", ["Confirmed", "Completed"]).in_("payment_status", ["Partially Paid", "Fully Paid"]).execute()
+        # ✅ OPTIMIZED: Filter dates on database side BEFORE loading
+        q = supabase.table("online_reservations")\
+            .select("*")\
+            .in_("property", query_props)\
+            .gte("check_in", str(start_date))\
+            .lte("check_out", str(end_date))\
+            .in_("booking_status", ["Confirmed", "Completed"])\
+            .in_("payment_status", ["Partially Paid", "Fully Paid"])\
+            .execute()
+        
         for r in q.data or []:
             norm = normalize_booking(r, is_online=True)
             if norm: combined.append(norm)
