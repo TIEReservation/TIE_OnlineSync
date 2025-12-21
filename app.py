@@ -130,7 +130,7 @@ def check_authentication():
             # Admin from database
             valid_screens = st.session_state.user_data.get("screens", ["User Management", "Log Report"])
         else:
-            valid_screens = ["Inventory Dashboard", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement"]
+            valid_screens = ["Inventory Dashboard", "Direct Reservations", "Night Report Dashboard", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement"]
        
         # Apply screen filtering for users with configured screens
         if st.session_state.user_data:
@@ -208,11 +208,11 @@ def show_user_management():
         elif new_role == "Management":
             default_screens = [s for s in all_screens if s not in ["User Management", "Log Report"]]
         elif new_role == "ReservationHead":
-            default_screens = ["Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Monthly Consolidation", "Summary Report", "Target Achievement"]
+            default_screens = ["Direct Reservations", "Night Report Dashboard", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Monthly Consolidation", "Summary Report", "Target Achievement"]
         elif new_role == "Accounts Team":
-            default_screens = ["Daily Status", "Monthly Consolidation", "Accounts Report"]
+            default_screens = ["Daily Status", "Night Report Dashboard", "Monthly Consolidation", "Accounts Report"]
         else:
-            default_screens = [s for s in all_screens if s not in ["Daily Management Status", "Analytics", "Inventory Dashboard", "Summary Report", "Target Achievement", "User Management", "Log Report"]]
+            default_screens = [s for s in all_screens if s not in ["Daily Management Status", "Night Report Dashboard", "Analytics", "Inventory Dashboard", "Summary Report", "Target Achievement", "User Management", "Log Report"]]
        
         new_screens = st.multiselect("Visible Screens", all_screens, default=default_screens, key="create_screens")
        
@@ -312,7 +312,7 @@ def show_user_management():
                             default_properties = all_properties
                         mod_properties = st.multiselect("Visible Properties", all_properties, default=default_properties, key="modify_properties")
                        
-                        all_screens = ["Inventory Dashboard", "Accounts Report", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement", "User Management", "Log Report"]
+                        all_screens = ["Inventory Dashboard", "Accounts Report", "Direct Reservations", "Night Report Dashboard", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement", "User Management", "Log Report"]
                         # Filter out any screens that don't exist in all_screens to avoid the error
                         valid_current_screens = [screen for screen in current_screens if screen in all_screens]
                         mod_screens = st.multiselect("Visible Screens", all_screens, default=valid_current_screens, key="modify_screens")
