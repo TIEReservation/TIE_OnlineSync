@@ -19,6 +19,7 @@ import json
 from log import show_log_report, log_activity
 from users import validate_user, create_user, update_user, delete_user, load_users
 from accounts_report import show_accounts_report
+from nrd_report import show_nrd_report
 # Try to import target achievement module
 try:
     from target_achievement_report import show_target_achievement_report
@@ -199,7 +200,7 @@ def show_user_management():
         ]
         new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties, key="create_properties")
        
-        all_screens = ["Inventory Dashboard", "Accounts Report", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement", "User Management", "Log Report"]
+        all_screens = ["Inventory Dashboard", "Night Report Dashboard", "Accounts Report", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement", "User Management", "Log Report"]
        
         # Default screens based on role
         if new_role == "Admin":
@@ -449,6 +450,9 @@ def main():
     elif page == "Accounts Report":
         show_accounts_report()
         log_activity(supabase, st.session_state.username, "Accessed Accounts Report")
+    elif page == "Night Report Dashboard":
+        show_nrd_report()
+        log_activity(supabase, st.session_state.username, "Accessed Night Report Dashboard")
     # === Footer: User Info & Logout ===
     if st.session_state.authenticated:
         st.sidebar.write(f"Logged in as: **{st.session_state.username}**")
