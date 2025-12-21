@@ -1,10 +1,3 @@
-"""
-nrd_report.py - Night Report Dashboard for TIE Hotels & Resorts (Streamlit Integration)
-
-This module provides a Streamlit interface for generating overall daily reports
-across all TIE Hotels & Resorts properties using the exact same logic as inventory.py
-"""
-
 import streamlit as st
 from datetime import date, timedelta
 import pandas as pd
@@ -619,43 +612,70 @@ def export_to_excel(df: pd.DataFrame, report_date: date) -> bytes:
 def show_nrd_report():
     """Display the Night Report Dashboard in Streamlit"""
     st.header("📊 Night Report Dashboard (NRD)")
-    st.markdown("Generate overall daily report for all TIE Hotels & Resorts properties")
+    st.markdown("View overall daily reports for all TIE Hotels & Resorts properties for the entire month")
     
-    col1, col2 = st.columns([3, 1])
+    # Month and Year selectors
+    today = date.today()
+    col1, col2, col3 = st.columns([2, 2, 1])
     
     with col1:
-        target_date = st.date_input(
-            "Select Report Date",
-            value=date.today(),
-            max_value=date.today(),
-            help="Select the date for which to generate the report"
-        )
+        year = st.selectbox("Year", list(range(today.year-5, today.year+6)), index=5, key="nrd_year")
     
     with col2:
+        month = st.selectbox("Month", list(range(1, 13)), index=today.month-1, 
+                            format_func=lambda x: calendar.month_name[x], key="nrd_month")
+    
+    with col3:
         st.markdown("<br>", unsafe_allow_html=True)
-        generate_btn = st.button("🔄 Generate Report", type="primary", use_container_width=True)
+        if st.button("🔄 Refresh Data", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
     
     st.markdown("---")
     
-    if generate_btn:
-        with st.spinner(f"Fetching data for {target_date.strftime('%d-%b-%Y')}..."):
-            try:
-                supabase = st.session_state.get('supabase_client')
-                
-                if supabase is None:
-                    from supabase import create_client
-                    supabase_url = os.getenv("SUPABASE_URL", "https://oxbrezracnmazucnnqox.supabase.co")
-                    supabase_key = os.getenv("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94YnJlenJhY25tYXp1Y25ucW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjUxMTgsImV4cCI6MjA2OTM0MTExOH0.nqBK2ZxntesLY9qYClpoFPVnXOW10KrzF-UI_DKjbKo")
-                    supabase = create_client(supabase_url, supabase_key)
-                
-                # MOB types from inventory.py
-                mob_types = list(mob_mapping.keys())
+    # Generate dates for the month
+    num_days = calendar.monthrange(year, month)[1]
+    month_dates = [date(year, month, d) for d in range(1, num_days + 1)]
+    
+    # Only show dates up to today
+    month_dates = [d for d in month_dates if d <= today]
+    
+    if not month_dates:
+        st.warning(f"No data available for {calendar.month_name[month]} {year}")
+        return
+    
+    with st.spinner(f"Loading data for {calendar.month_name[month]} {year}..."):
+        try:
+            supabase = st.session_state.get('supabase_client')
+            
+            if supabase is None:
+                from supabase import create_client
+                supabase_url = os.getenv("SUPABASE_URL", "https://oxbrezracnmazucnnqox.supabase.co")
+                supabase_key = os.getenv("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94YnJlenJhY25tYXp1Y25ucW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjUxMTgsImV4cCI6MjA2OTM0MTExOH0.nqBK2ZxntesLY9qYClpoFPVnXOW10KrzF-UI_DKjbKo")
+                supabase = create_client(supabase_url, supabase_key)
+            
+            mob_types = list(mob_mapping.keys())
+            
+            # Collect all data for the month
+            all_month_data = []
+            mtd_totals_running = {
+                "rooms_available": 0,
+                "rooms_sold": 0,
+                "gst": 0.0,
+                "commission": 0.0,
+                "receivable": 0.0,
+                "receivable_per_night": 0.0
+            }
+            
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            for day_idx, target_date in enumerate(month_dates):
+                status_text.text(f"Processing {target_date.strftime('%d %b %Y')}...")
                 
                 property_data = {}
-                progress_bar = st.progress(0)
-                total_props = len(PROPERTY_SHORT_NAMES)
                 
-                for idx, property_name in enumerate(PROPERTY_SHORT_NAMES.keys()):
+                for property_name in PROPERTY_SHORT_NAMES.keys():
                     metrics = calculate_property_metrics_for_day(
                         supabase, 
                         property_name, 
@@ -663,68 +683,115 @@ def show_nrd_report():
                         mob_types
                     )
                     property_data[property_name] = metrics
-                    progress_bar.progress((idx + 1) / total_props)
-                
-                progress_bar.empty()
                 
                 totals = aggregate_totals(property_data)
                 df = build_report_dataframe(property_data, totals)
                 
                 dtd = totals["dtd"]
                 
-                st.success(f"✅ Report generated successfully for {target_date.strftime('%d-%b-%Y')}")
+                # Update MTD running totals
+                mtd_totals_running["rooms_available"] += dtd["rooms_available"]
+                mtd_totals_running["rooms_sold"] += dtd["rooms_sold"]
+                mtd_totals_running["gst"] += dtd["gst"]
+                mtd_totals_running["commission"] += dtd["commission"]
+                mtd_totals_running["receivable"] += dtd["receivable"]
+                mtd_totals_running["receivable_per_night"] += dtd["receivable_per_night"]
                 
+                # Calculate MTD occupancy and ARR
+                days_so_far = day_idx + 1
+                total_room_days = mtd_totals_running["rooms_available"]
+                mtd_occ = (mtd_totals_running["rooms_sold"] / total_room_days * 100) if total_room_days > 0 else 0.0
+                mtd_arr = (mtd_totals_running["receivable_per_night"] / mtd_totals_running["rooms_sold"]) if mtd_totals_running["rooms_sold"] > 0 else 0.0
+                
+                all_month_data.append({
+                    "date": target_date,
+                    "date_str": target_date.strftime("%d-%b-%Y"),
+                    "df": df,
+                    "dtd": dtd,
+                    "mtd_occ": mtd_occ,
+                    "mtd_arr": mtd_arr,
+                    "mtd_revenue": mtd_totals_running["receivable_per_night"],
+                    "mtd_rooms_sold": mtd_totals_running["rooms_sold"]
+                })
+                
+                progress_bar.progress((day_idx + 1) / len(month_dates))
+            
+            progress_bar.empty()
+            status_text.empty()
+            
+            st.success(f"✅ Loaded {len(month_dates)} days for {calendar.month_name[month]} {year}")
+            
+            # Month Summary at the top
+            st.subheader(f"📊 Month Summary - {calendar.month_name[month]} {year}")
+            
+            final_mtd = all_month_data[-1] if all_month_data else None
+            
+            if final_mtd:
                 col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
                     st.metric(
-                        "Total Rooms Sold",
-                        f"{dtd['rooms_sold']}/{dtd['rooms_available']}",
-                        f"{dtd['occupancy']:.1f}% Occupancy"
+                        "MTD Rooms Sold",
+                        f"{mtd_totals_running['rooms_sold']:,}",
+                        f"{final_mtd['mtd_occ']:.1f}% Avg Occ"
                     )
                 
                 with col2:
-                    st.metric("Total Revenue", f"₹{dtd['receivable']:,.0f}")
+                    st.metric("MTD Revenue", f"₹{final_mtd['mtd_revenue']:,.0f}")
                 
                 with col3:
-                    st.metric("Average ARR", f"₹{dtd['arr']:,.0f}")
+                    st.metric("MTD Average ARR", f"₹{final_mtd['mtd_arr']:,.0f}")
                 
                 with col4:
-                    st.metric("Total GST", f"₹{dtd['gst']:,.0f}")
-                
-                st.markdown("---")
-                st.subheader("📋 Overall Report")
-                
-                def highlight_totals(s):
-                    if s.name in ['D.T.D', 'M.T.D']:
-                        return ['background-color: #E8F5E9'] * len(s)
-                    return [''] * len(s)
-                
-                styled_df = df.style.apply(highlight_totals, axis=0)
-                st.dataframe(styled_df, use_container_width=True, height=400)
-                
-                excel_data = export_to_excel(df, target_date)
-                filename = f"TIE_Daily_Report_{target_date.strftime('%Y-%m-%d')}.xlsx"
-                
-                st.download_button(
-                    label="📥 Download Excel Report",
-                    data=excel_data,
-                    file_name=filename,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
-                
-            except Exception as e:
-                st.error(f"❌ Error generating report: {str(e)}")
-                logging.error(f"NRD Report Error: {e}", exc_info=True)
-    
-    else:
-        st.info("👆 Select a date and click 'Generate Report' to view the overall daily report")
-        
-        with st.expander("📍 Properties Included in Report"):
-            cols = st.columns(3)
-            properties = list(PROPERTY_SHORT_NAMES.keys())
+                    st.metric("MTD GST", f"₹{mtd_totals_running['gst']:,.0f}")
             
-            for idx, prop in enumerate(properties):
-                short_name = PROPERTY_SHORT_NAMES[prop]
-                cols[idx % 3].write(f"✓ **{short_name}**: {prop}")
+            st.markdown("---")
+            
+            # Display each day's report
+            for day_data in all_month_data:
+                with st.expander(f"📅 {day_data['date_str']} - {day_data['dtd']['rooms_sold']} rooms sold", expanded=False):
+                    
+                    # Daily metrics
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    with col1:
+                        st.metric(
+                            "Rooms Sold",
+                            f"{day_data['dtd']['rooms_sold']}/{day_data['dtd']['rooms_available']}",
+                            f"{day_data['dtd']['occupancy']:.1f}% Occ"
+                        )
+                    
+                    with col2:
+                        st.metric("Revenue", f"₹{day_data['dtd']['receivable']:,.0f}")
+                    
+                    with col3:
+                        st.metric("ARR", f"₹{day_data['dtd']['arr']:,.0f}")
+                    
+                    with col4:
+                        st.metric("GST", f"₹{day_data['dtd']['gst']:,.0f}")
+                    
+                    st.markdown("**Daily Report:**")
+                    
+                    def highlight_totals(s):
+                        if s.name in ['D.T.D', 'M.T.D']:
+                            return ['background-color: #E8F5E9'] * len(s)
+                        return [''] * len(s)
+                    
+                    styled_df = day_data['df'].style.apply(highlight_totals, axis=0)
+                    st.dataframe(styled_df, use_container_width=True, height=350)
+                    
+                    # Download button for this day
+                    excel_data = export_to_excel(day_data['df'], day_data['date'])
+                    filename = f"TIE_Daily_Report_{day_data['date'].strftime('%Y-%m-%d')}.xlsx"
+                    
+                    st.download_button(
+                        label=f"📥 Download {day_data['date_str']} Excel",
+                        data=excel_data,
+                        file_name=filename,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key=f"download_{day_data['date'].strftime('%Y%m%d')}"
+                    )
+            
+        except Exception as e:
+            st.error(f"❌ Error generating reports: {str(e)}")
+            logging.error(f"NRD Report Error: {e}", exc_info=True)
