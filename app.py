@@ -12,7 +12,6 @@ except Exception as e:
     edit_online_available = False
 from inventory import show_daily_status
 from dms import show_dms
-from monthlyconsolidation import show_monthly_consolidation
 from dashboard import show_dashboard
 from summary_report import show_summary_report
 import pandas as pd
