@@ -296,6 +296,7 @@ def build_till_today_report(props: List[str], dates: List[date], bookings_dict: 
                 "Achieved": int(achieved_till_today),
                 "Percent": round(achieved_pct, 1),
                 "Occupancy %": round(occupancy_pct, 1),
+                "Sold Rooms": int(rooms_sold_till_today),
                 "Unsold Rooms": int(unsold_rooms),
                 "Current ARR": int(current_arr)
             })
@@ -362,7 +363,7 @@ def style_dataframe(df):
             styled = styled.format({col: "{:.1f}%"})
         
         # Format number columns
-        num_cols = ["Total Rooms", "Rooms Sold", "Balance Rooms", "Unsold Rooms"]
+        num_cols = ["Total Rooms", "Rooms Sold", "Balance Rooms", "Sold Rooms", "Unsold Rooms"]
         for col in num_cols:
             if col in df.columns:
                 styled = styled.format({col: "{:,.0f}"})
@@ -440,12 +441,13 @@ def show_target_achievement_report():
 
     if not df_today.empty and "TOTAL" in df_today["Property Name"].values:
         total_today = df_today[df_today["Property Name"] == "TOTAL"].iloc[0]
-        c1, c2, c3, c4, c5 = st.columns(5)
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
         with c1: st.metric("Target", f"₹{total_today.Target:,.0f}")
         with c2: st.metric("Achieved", f"₹{total_today.Achieved:,.0f}", delta=f"{total_today['Percent']:.1f}%")
         with c3: st.metric("Occupancy", f"{total_today['Occupancy %']:.1f}%")
-        with c4: st.metric("Unsold Rooms", f"{total_today['Unsold Rooms']:,.0f}")
-        with c5: st.metric("Current ARR", f"₹{total_today['Current ARR']:,.0f}")
+        with c4: st.metric("Sold Rooms", f"{total_today['Sold Rooms']:,.0f}")
+        with c5: st.metric("Unsold Rooms", f"{total_today['Unsold Rooms']:,.0f}")
+        with c6: st.metric("Current ARR", f"₹{total_today['Current ARR']:,.0f}")
 
     # Download buttons
     st.markdown("---")
