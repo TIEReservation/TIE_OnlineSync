@@ -1,4 +1,4 @@
-# target_achievement_report.py - FINAL VERSION with Correct Formulas
+# target_achievement_report.py - FINAL VERSION with Correct Formulas + Till Today Table
 
 import streamlit as st
 from datetime import date, datetime
@@ -102,13 +102,12 @@ def load_properties() -> List[str]:
         return []
 
 # -------------------------- Booking Functions --------------------------
-@st.cache_data(ttl=1800)  # Cache for 30 minutes
+@st.cache_data(ttl=1800)
 def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
     """Load bookings with caching and optimized date filtering."""
     normalized = normalize_property_name(prop)
     query_props = [normalized] + reverse_mapping.get(normalized, [])
     try:
-        # ✅ OPTIMIZED: Use indexed date columns
         direct = supabase.table("reservations").select("*")\
             .in_("property_name", query_props)\
             .gte("check_in", str(start))\
@@ -127,7 +126,6 @@ def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
 
         all_bookings = []
         
-        # Process direct bookings
         for b in direct:
             name = b.get("property_name")
             if normalize_property_name(name) == prop:
@@ -135,7 +133,6 @@ def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
                 b["type"] = "direct"
                 all_bookings.append(b)
         
-        # Process online bookings
         for b in online:
             name = b.get("property")
             if normalize_property_name(name) == prop:
@@ -180,10 +177,8 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     assigned, _ = assign_inventory_numbers(daily, prop)
     rooms_sold = len({b.get("assigned_room") for b in assigned if b.get("assigned_room")})
     
-    # Get check-in bookings for the day (primary bookings only)
     check_in_primaries = [b for b in assigned if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day]
     
-    # EXACT LOGIC FROM SUMMARY REPORT
     room_charges = gst = commission = 0.0
     for b in check_in_primaries:
         booking_type = b.get("type", "")
@@ -222,7 +217,7 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
             
             for d in dates:
                 m = compute_daily_metrics(bookings_dict.get(prop, []), prop, d)
-                achieved += m["total"]  # Total booking amount (booking_amount for online + total_tariff for direct)
+                achieved += m["total"]
                 commission_total += m["commission"]
                 gst_total += m["gst"]
                 receivable_total += m["receivable"]
@@ -267,13 +262,73 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
     df.insert(0, "S.No", range(1, len(df) + 1))
     return df
 
+# -------------------------- TILL TODAY REPORT --------------------------
+def build_till_today_report(props: List[str], dates: List[date], bookings_dict: Dict[str, List[Dict]], current_date: date) -> pd.DataFrame:
+    """Calculate metrics only till current system date"""
+    rows = []
+    dates_till_today = [d for d in dates if d <= current_date]
+    
+    if not dates_till_today:
+        return pd.DataFrame([{"Property Name": "No Data"}])
+
+    for prop in props:
+        try:
+            target = DECEMBER_2025_TARGETS.get(prop, 0)
+            total_rooms = get_total_rooms(prop)
+            total_room_nights_till_today = total_rooms * len(dates_till_today)
+
+            achieved_till_today = 0.0
+            rooms_sold_till_today = 0.0
+            
+            for d in dates_till_today:
+                m = compute_daily_metrics(bookings_dict.get(prop, []), prop, d)
+                achieved_till_today += m["total"]
+                rooms_sold_till_today += m["rooms_sold"]
+
+            unsold_rooms = total_room_nights_till_today - rooms_sold_till_today
+            achieved_pct = (achieved_till_today / target * 100) if target > 0 else 0
+            occupancy_pct = (rooms_sold_till_today / total_room_nights_till_today * 100) if total_room_nights_till_today > 0 else 0
+            current_arr = (achieved_till_today / rooms_sold_till_today) if rooms_sold_till_today > 0 else 0
+
+            rows.append({
+                "Property Name": prop,
+                "Target": int(target),
+                "Achieved": int(achieved_till_today),
+                "Percent": round(achieved_pct, 1),
+                "Occupancy %": round(occupancy_pct, 1),
+                "Unsold Rooms": int(unsold_rooms),
+                "Current ARR": int(current_arr)
+            })
+        except Exception as e:
+            st.warning(f"Error processing {prop} (Till Today): {e}")
+            continue
+
+    if rows:
+        totals = {k: sum(r[k] for r in rows if k != "Property Name") for k in rows[0].keys() if k != "Property Name"}
+        totals["Property Name"] = "TOTAL"
+        totals["Percent"] = round((totals["Achieved"] / totals["Target"] * 100) if totals["Target"] else 0, 1)
+        
+        # Calculate total occupancy % correctly
+        total_room_nights = sum(get_total_rooms(p) * len(dates_till_today) for p in props)
+        total_sold = sum(r["Unsold Rooms"] for r in rows)
+        total_rooms_sold = total_room_nights - total_sold
+        totals["Occupancy %"] = round((total_rooms_sold / total_room_nights * 100) if total_room_nights else 0, 1)
+        
+        # Calculate total ARR correctly
+        totals["Current ARR"] = int(totals["Achieved"] / total_rooms_sold) if total_rooms_sold else 0
+        rows.append(totals)
+
+    df = pd.DataFrame(rows or [{"Property Name": "No Data"}])
+    df.insert(0, "S.No", range(1, len(df) + 1))
+    return df
+
 # -------------------------- Styling --------------------------
 def style_dataframe(df):
     if df is None or df.empty:
         return df
 
     def color_balance(row):
-        if row["Achieved %"] >= 90:
+        if "Achieved %" in row.index and row["Achieved %"] >= 90:
             return ["color: green; font-weight: bold" if col == "Balance" else "" for col in row.index]
         else:
             return ["color: red; font-weight: bold" if col == "Balance" else "" for col in row.index]
@@ -285,17 +340,35 @@ def style_dataframe(df):
         return ""
 
     try:
-        return df.style \
-            .apply(color_balance, axis=1) \
-            .applymap(color_pct, subset=["Achieved %", "Occupancy %"]) \
-            .format({
-                "Target": "₹{:,.0f}", "Achieved": "₹{:,.0f}", 
-                "Balance": "₹{:,.0f}", "GST": "₹{:,.0f}", "Commission": "₹{:,.0f}", "Receivable": "₹{:,.0f}",
-                "Total Rooms": "{:,.0f}", "Rooms Sold": "{:,.0f}", "Balance Rooms": "{:,.0f}",
-                "Per Day Needed": "₹{:,.0f}", "Achieved %": "{:.1f}%", "Occupancy %": "{:.1f}%"
-            }) \
-            .set_properties(**{"text-align": "center"}) \
-            .set_table_styles([{"selector": "th", "props": "background-color: #4CAF50; color: white; font-weight: bold;"}])
+        styled = df.style.set_properties(**{"text-align": "center"})
+        
+        # Apply balance coloring if Balance column exists
+        if "Balance" in df.columns and "Achieved %" in df.columns:
+            styled = styled.apply(color_balance, axis=1)
+        
+        # Apply percentage coloring
+        pct_cols = [col for col in df.columns if "%" in col or "Percent" in col]
+        if pct_cols:
+            styled = styled.applymap(color_pct, subset=pct_cols)
+        
+        # Format currency columns
+        currency_cols = ["Target", "Achieved", "Balance", "GST", "Commission", "Receivable", "Current ARR", "Per Day Needed"]
+        for col in currency_cols:
+            if col in df.columns:
+                styled = styled.format({col: "₹{:,.0f}"})
+        
+        # Format percentage columns
+        for col in pct_cols:
+            styled = styled.format({col: "{:.1f}%"})
+        
+        # Format number columns
+        num_cols = ["Total Rooms", "Rooms Sold", "Balance Rooms", "Unsold Rooms"]
+        for col in num_cols:
+            if col in df.columns:
+                styled = styled.format({col: "{:,.0f}"})
+        
+        styled = styled.set_table_styles([{"selector": "th", "props": "background-color: #4CAF50; color: white; font-weight: bold;"}])
+        return styled
     except:
         return df.style
 
@@ -304,26 +377,21 @@ def show_target_achievement_report():
     st.set_page_config(page_title="Target vs Achievement - Dec 2025", layout="wide")
     st.title("Target vs Achievement Report - December 2025")
 
-    # Get today's date from system
     current_date = date.today()
     
-    # Calculate balance days: if current month is December, balance = 31 - today's date
     year = current_date.year
     month = current_date.month
     
     if month == 12:
         balance_days = 31 - current_date.day
     else:
-        # For non-December months, calculate remaining days in the month
         _, days_in_month = calendar.monthrange(year, month)
         balance_days = days_in_month - current_date.day
     
-    # Always use December 2025 for the report
     report_year, report_month = 2025, 12
     _, days_in_month = calendar.monthrange(report_year, report_month)
     dates = [date(report_year, report_month, d) for d in range(1, days_in_month + 1)]
     
-    # Display current date and balance days info
     st.info(f"📅 Current Date: {current_date.strftime('%B %d, %Y')} | ⏳ Balance Days: {balance_days}")
 
     db_props = load_properties()
@@ -344,6 +412,7 @@ def show_target_achievement_report():
         
         st.info(f"📊 Loaded {total_bookings_count} total bookings across all properties for December 2025")
 
+        # Main Report
         df = build_target_achievement_report(properties, dates, bookings, current_date)
         styled = style_dataframe(df)
 
@@ -359,7 +428,32 @@ def show_target_achievement_report():
         with c5: st.metric("Commission", f"₹{total['Commission']:,.0f}")
         with c6: st.metric("Receivable", f"₹{total['Receivable']:,.0f}")
 
-    st.download_button("Download Report (CSV)", df.to_csv(index=False), "Target_Achievement_Dec2025.csv", "text/csv")
+    # Till Today Report
+    st.markdown("---")
+    st.subheader("📊 Values Till Today")
+    st.caption(f"Performance metrics calculated from Dec 1 to {current_date.strftime('%B %d, %Y')}")
+    
+    df_today = build_till_today_report(properties, dates, bookings, current_date)
+    styled_today = style_dataframe(df_today)
+    
+    st.dataframe(styled_today, use_container_width=True, hide_index=True)
+
+    if not df_today.empty and "TOTAL" in df_today["Property Name"].values:
+        total_today = df_today[df_today["Property Name"] == "TOTAL"].iloc[0]
+        c1, c2, c3, c4, c5 = st.columns(5)
+        with c1: st.metric("Target", f"₹{total_today.Target:,.0f}")
+        with c2: st.metric("Achieved", f"₹{total_today.Achieved:,.0f}", delta=f"{total_today['Percent']:.1f}%")
+        with c3: st.metric("Occupancy", f"{total_today['Occupancy %']:.1f}%")
+        with c4: st.metric("Unsold Rooms", f"{total_today['Unsold Rooms']:,.0f}")
+        with c5: st.metric("Current ARR", f"₹{total_today['Current ARR']:,.0f}")
+
+    # Download buttons
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.download_button("📥 Download Full Report (CSV)", df.to_csv(index=False), "Target_Achievement_Dec2025.csv", "text/csv")
+    with col2:
+        st.download_button("📥 Download Till Today Report (CSV)", df_today.to_csv(index=False), "Target_Achievement_TillToday.csv", "text/csv")
 
 if __name__ == "__main__":
     show_target_achievement_report()
