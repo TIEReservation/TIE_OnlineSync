@@ -1,4 +1,4 @@
-# target_achievement_report.py - FINAL VERSION with Correct Formulas + Till Today Table
+# target_achievement_report.py - FIXED Current ARR Calculation
 
 import streamlit as st
 from datetime import date, datetime
@@ -262,9 +262,9 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
     df.insert(0, "S.No", range(1, len(df) + 1))
     return df
 
-# -------------------------- TILL TODAY REPORT --------------------------
+# -------------------------- TILL TODAY REPORT - FIXED ARR CALCULATION --------------------------
 def build_till_today_report(props: List[str], dates: List[date], bookings_dict: Dict[str, List[Dict]], current_date: date) -> pd.DataFrame:
-    """Calculate metrics only till current system date"""
+    """Calculate metrics only till current system date - ARR based on total room inventory"""
     rows = []
     dates_till_today = [d for d in dates if d <= current_date]
     
@@ -288,7 +288,9 @@ def build_till_today_report(props: List[str], dates: List[date], bookings_dict: 
             unsold_rooms = total_room_nights_till_today - rooms_sold_till_today
             achieved_pct = (achieved_till_today / target * 100) if target > 0 else 0
             occupancy_pct = (rooms_sold_till_today / total_room_nights_till_today * 100) if total_room_nights_till_today > 0 else 0
-            current_arr = (achieved_till_today / rooms_sold_till_today) if rooms_sold_till_today > 0 else 0
+            
+            # FIXED: Current ARR = Achieved Revenue / Total Room Inventory (not just sold rooms)
+            current_arr = (achieved_till_today / total_room_nights_till_today) if total_room_nights_till_today > 0 else 0
 
             rows.append({
                 "Property Name": prop,
@@ -311,12 +313,11 @@ def build_till_today_report(props: List[str], dates: List[date], bookings_dict: 
         
         # Calculate total occupancy % correctly
         total_room_nights = sum(get_total_rooms(p) * len(dates_till_today) for p in props)
-        total_sold = sum(r["Unsold Rooms"] for r in rows)
-        total_rooms_sold = total_room_nights - total_sold
-        totals["Occupancy %"] = round((total_rooms_sold / total_room_nights * 100) if total_room_nights else 0, 1)
+        total_sold = sum(r["Sold Rooms"] for r in rows)
+        totals["Occupancy %"] = round((total_sold / total_room_nights * 100) if total_room_nights else 0, 1)
         
-        # Calculate total ARR correctly
-        totals["Current ARR"] = int(totals["Achieved"] / total_rooms_sold) if total_rooms_sold else 0
+        # FIXED: Total ARR = Total Achieved / Total Room Inventory
+        totals["Current ARR"] = int(totals["Achieved"] / total_room_nights) if total_room_nights else 0
         rows.append(totals)
 
     df = pd.DataFrame(rows or [{"Property Name": "No Data"}])
@@ -432,7 +433,7 @@ def show_target_achievement_report():
     # Till Today Report
     st.markdown("---")
     st.subheader("📊 Values Till Today")
-    st.caption(f"Performance metrics calculated from Dec 1 to {current_date.strftime('%B %d, %Y')}")
+    st.caption(f"Performance metrics calculated from Dec 1 to {current_date.strftime('%B %d, %Y')} | ARR = Revenue ÷ Total Room Inventory")
     
     df_today = build_till_today_report(properties, dates, bookings, current_date)
     styled_today = style_dataframe(df_today)
