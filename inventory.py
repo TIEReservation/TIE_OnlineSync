@@ -456,6 +456,20 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
 # ══════════════════════════════════════════════════════════════════════════════
 def show_daily_status():
     st.title("Daily Status Dashboard")
+    st.markdown("""
+    <style>
+        /* Sky blue highlighting for Total, Advance, and Balance Mop columns */
+        [data-testid="stDataFrame"] [data-testid="StyledDataFrameRowHeaderCell"]:has([title="Total"]),
+        [data-testid="stDataFrame"] [data-testid="StyledDataFrameCellContainer"]:has([title="Total"]),
+        [data-testid="stDataFrame"] [data-testid="StyledDataFrameRowHeaderCell"]:has([title="Advance"]),
+        [data-testid="stDataFrame"] [data-testid="StyledDataFrameCellContainer"]:has([title="Advance"]),
+        [data-testid="stDataFrame"] [data-testid="StyledDataFrameRowHeaderCell"]:has([title="Balance Mop"]),
+        [data-testid="stDataFrame"] [data-testid="StyledDataFrameCellContainer"]:has([title="Balance Mop"]) {
+            background-color: #87CEEB !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
     if st.button("Refresh Data"):
         st.cache_data.clear()
         st.rerun()
