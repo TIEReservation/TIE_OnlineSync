@@ -456,30 +456,48 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
 # ══════════════════════════════════════════════════════════════════════════════
 def show_daily_status():
     st.title("Daily Status Dashboard")
-    st.markdown("""
+     st.markdown("""
     <style>
-        /* Target data_editor cells for Total, Advance, and Balance Mop columns */
-        /* Adjust column numbers based on your actual column positions */
-        
-        /* Total column (14th column) */
-        div[data-testid="stDataFrame"] div[data-testid="column-14"] {
+        /* Method 1: Target by column header text (most reliable) */
+        div[data-testid="stDataFrame"] thead th:has-text("Total"),
+        div[data-testid="stDataFrame"] tbody td:nth-child(14) {
             background-color: #87CEEB !important;
         }
         
-        /* Advance column (18th column) */
-        div[data-testid="stDataFrame"] div[data-testid="column-18"] {
+        div[data-testid="stDataFrame"] thead th:has-text("Advance"),
+        div[data-testid="stDataFrame"] tbody td:nth-child(17) {
             background-color: #87CEEB !important;
         }
         
-        /* Balance Mop column (21st column) */
-        div[data-testid="stDataFrame"] div[data-testid="column-21"] {
+        div[data-testid="stDataFrame"] thead th:has-text("Balance Mop"),
+        div[data-testid="stDataFrame"] tbody td:nth-child(20) {
             background-color: #87CEEB !important;
         }
         
-        /* Alternative approach - target by content */
-        div[data-testid="stDataFrame"] [data-testid*="cell"]:has(div:contains("Total")),
-        div[data-testid="stDataFrame"] [data-testid*="cell"]:has(div:contains("Advance")),
-        div[data-testid="stDataFrame"] [data-testid*="cell"]:has(div:contains("Balance Mop")) {
+        /* Method 2: Target entire column by position (count from left, 1-indexed) */
+        div[data-testid="stDataFrame"] table tr > :nth-child(14) {
+            background-color: #87CEEB !important;
+        }
+        
+        div[data-testid="stDataFrame"] table tr > :nth-child(17) {
+            background-color: #87CEEB !important;
+        }
+        
+        div[data-testid="stDataFrame"] table tr > :nth-child(20) {
+            background-color: #87CEEB !important;
+        }
+        
+        /* Method 3: Target by data-column attribute (newer Streamlit versions) */
+        [data-testid="stDataFrame"] [data-column="Total"],
+        [data-testid="stDataFrame"] [data-column="Advance"],
+        [data-testid="stDataFrame"] [data-column="Balance Mop"] {
+            background-color: #87CEEB !important;
+        }
+        
+        /* Method 4: Target glide-data-grid cells (latest versions) */
+        .glide-cell[data-col-index="13"],
+        .glide-cell[data-col-index="16"],
+        .glide-cell[data-col-index="19"] {
             background-color: #87CEEB !important;
         }
     </style>
