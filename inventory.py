@@ -458,13 +458,20 @@ def show_daily_status():
     st.title("Daily Status Dashboard")
     st.markdown("""
     <style>
-        /* Sky blue highlighting for Total, Advance, and Balance Mop columns */
-        [data-testid="stDataFrame"] [data-testid="StyledDataFrameRowHeaderCell"]:has([title="Total"]),
-        [data-testid="stDataFrame"] [data-testid="StyledDataFrameCellContainer"]:has([title="Total"]),
-        [data-testid="stDataFrame"] [data-testid="StyledDataFrameRowHeaderCell"]:has([title="Advance"]),
-        [data-testid="stDataFrame"] [data-testid="StyledDataFrameCellContainer"]:has([title="Advance"]),
-        [data-testid="stDataFrame"] [data-testid="StyledDataFrameRowHeaderCell"]:has([title="Balance Mop"]),
-        [data-testid="stDataFrame"] [data-testid="StyledDataFrameCellContainer"]:has([title="Balance Mop"]) {
+        /* Pink highlighting for Total, Advance, and Balance Mop columns */
+        div[data-testid="stDataFrame"] table thead tr th:nth-child(14),
+        div[data-testid="stDataFrame"] table tbody tr td:nth-child(14),
+        div[data-testid="stDataFrame"] table thead tr th:nth-child(18),
+        div[data-testid="stDataFrame"] table tbody tr td:nth-child(18),
+        div[data-testid="stDataFrame"] table thead tr th:nth-child(21),
+        div[data-testid="stDataFrame"] table tbody tr td:nth-child(21) {
+            background-color: #87CEEB !important;  /* Light blue */
+        }
+        
+        /* Alternative: Use column names if nth-child doesn't work */
+        [data-testid="stDataFrame"] div[aria-label*="Total"],
+        [data-testid="stDataFrame"] div[aria-label*="Advance"],
+        [data-testid="stDataFrame"] div[aria-label*="Balance Mop"] {
             background-color: #87CEEB !important;
         }
     </style>
