@@ -458,14 +458,9 @@ def show_daily_status():
     st.title("Daily Status Dashboard")
     st.markdown("""
     <style>
-        /* Target Total (14th), Advance (18th), Balance Mop (21st) columns */
-        div[data-testid="stDataFrame"] table tr > th:nth-child(14),
-        div[data-testid="stDataFrame"] table tr > td:nth-child(14),
-        div[data-testid="stDataFrame"] table tr > th:nth-child(18),
-        div[data-testid="stDataFrame"] table tr > td:nth-child(18),
-        div[data-testid="stDataFrame"] table tr > th:nth-child(21),
-        div[data-testid="stDataFrame"] table tr > td:nth-child(21) {
-            background-color: #87CEEB !important;
+        /* Highlight ALL columns to verify CSS is working */
+        div[data-testid="stDataFrame"] table tr > td {
+            border: 2px solid red !important;
         }
     </style>
     """, unsafe_allow_html=True)
