@@ -456,48 +456,15 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
 # ══════════════════════════════════════════════════════════════════════════════
 def show_daily_status():
     st.title("Daily Status Dashboard")
-     st.markdown("""
+    st.markdown("""
     <style>
-        /* Method 1: Target by column header text (most reliable) */
-        div[data-testid="stDataFrame"] thead th:has-text("Total"),
-        div[data-testid="stDataFrame"] tbody td:nth-child(14) {
-            background-color: #87CEEB !important;
-        }
-        
-        div[data-testid="stDataFrame"] thead th:has-text("Advance"),
-        div[data-testid="stDataFrame"] tbody td:nth-child(17) {
-            background-color: #87CEEB !important;
-        }
-        
-        div[data-testid="stDataFrame"] thead th:has-text("Balance Mop"),
-        div[data-testid="stDataFrame"] tbody td:nth-child(20) {
-            background-color: #87CEEB !important;
-        }
-        
-        /* Method 2: Target entire column by position (count from left, 1-indexed) */
-        div[data-testid="stDataFrame"] table tr > :nth-child(14) {
-            background-color: #87CEEB !important;
-        }
-        
-        div[data-testid="stDataFrame"] table tr > :nth-child(17) {
-            background-color: #87CEEB !important;
-        }
-        
-        div[data-testid="stDataFrame"] table tr > :nth-child(20) {
-            background-color: #87CEEB !important;
-        }
-        
-        /* Method 3: Target by data-column attribute (newer Streamlit versions) */
-        [data-testid="stDataFrame"] [data-column="Total"],
-        [data-testid="stDataFrame"] [data-column="Advance"],
-        [data-testid="stDataFrame"] [data-column="Balance Mop"] {
-            background-color: #87CEEB !important;
-        }
-        
-        /* Method 4: Target glide-data-grid cells (latest versions) */
-        .glide-cell[data-col-index="13"],
-        .glide-cell[data-col-index="16"],
-        .glide-cell[data-col-index="19"] {
+        /* Target Total (14th), Advance (18th), Balance Mop (21st) columns */
+        div[data-testid="stDataFrame"] table tr > th:nth-child(14),
+        div[data-testid="stDataFrame"] table tr > td:nth-child(14),
+        div[data-testid="stDataFrame"] table tr > th:nth-child(18),
+        div[data-testid="stDataFrame"] table tr > td:nth-child(18),
+        div[data-testid="stDataFrame"] table tr > th:nth-child(21),
+        div[data-testid="stDataFrame"] table tr > td:nth-child(21) {
             background-color: #87CEEB !important;
         }
     </style>
