@@ -113,11 +113,11 @@ def highlight_columns(df):
     styles = pd.DataFrame('', index=df.index, columns=df.columns)
     
     if 'Total' in df.columns:
-        styles['Total'] = 'background-color: #87CEEB'
+        styles['Total'] = 'background-color: #D3D3D3'
     if 'Advance' in df.columns:
-        styles['Advance'] = 'background-color: #87CEEB'
+        styles['Advance'] = 'background-color: #D3D3D3'
     if 'Balance Mop' in df.columns:
-        styles['Balance Mop'] = 'background-color: #87CEEB'
+        styles['Balance Mop'] = 'background-color: #D3D3D3'
     
     return styles
 
