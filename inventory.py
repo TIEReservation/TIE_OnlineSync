@@ -1,4 +1,4 @@
-# inventory.py – FIXED VERSION with all functionalities working
+# inventory.py – FIXED VERSION with column highlighting
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date
@@ -84,9 +84,9 @@ PROPERTY_INVENTORY = {
     "Happymates Forest Retreat": {"all": ["101","102","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]}  
 }
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 # Helpers
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 def normalize_property(name: str) -> str:
     return property_mapping.get(name.strip(), name.strip())
 
@@ -105,9 +105,25 @@ def safe_float(v: Any, default: float = 0) -> float:
     except:
         return default
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
+# Highlighting Function
+# ═══════════════════════════════════════════════════════════════════════════════
+def highlight_columns(df):
+    """Apply sky blue background to Total, Advance, and Balance Mop columns"""
+    styles = pd.DataFrame('', index=df.index, columns=df.columns)
+    
+    if 'Total' in df.columns:
+        styles['Total'] = 'background-color: #87CEEB'
+    if 'Advance' in df.columns:
+        styles['Advance'] = 'background-color: #87CEEB'
+    if 'Balance Mop' in df.columns:
+        styles['Balance Mop'] = 'background-color: #87CEEB'
+    
+    return styles
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Load Properties & Bookings
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 @st.cache_data(ttl=3600)
 def load_properties() -> List[str]:
     try:
@@ -133,7 +149,6 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
     combined: List[Dict] = []
 
     try:
-        # ✅ FIXED: Correct date filtering for overlapping bookings
         q = supabase.table("reservations")\
             .select("*")\
             .in_("property_name", query_props)\
@@ -167,9 +182,9 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
 
     return combined
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 # Normalize booking
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
     try:
         bid = sanitize_string(row.get("booking_id") or row.get("id"))
@@ -240,9 +255,9 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
         logging.warning(f"normalize failed: {e}")
         return None
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 # Filter & Assign
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 def filter_bookings_for_day(bookings: List[Dict], day: date) -> List[Dict]:
     return [b.copy() for b in bookings if date.fromisoformat(b["check_in"]) <= day < date.fromisoformat(b["check_out"])]
 
@@ -304,9 +319,9 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
 
     return assigned, over
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 # Build Table
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date):
     visible_cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
                     "Check In","Check Out","Days","MOB","Room Charges","GST","TAX","Total","Commission",
@@ -378,9 +393,9 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
     full_df = df
     return display_df, full_df
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 # Extract Stats
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     occupied = df[df["Booking ID"].fillna("").str.strip() != ""].copy()
 
@@ -451,19 +466,11 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
 
     return {"mop": mop_data, "dtd": dtd}
     
-# ══════════════════════════════════════════════════════════════════════════════
-# UI – Dashboard with single editable table
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
+# UI – Dashboard with highlighted display + editable section
+# ═══════════════════════════════════════════════════════════════════════════════
 def show_daily_status():
     st.title("Daily Status Dashboard")
-    st.markdown("""
-    <style>
-        /* Highlight ALL columns to verify CSS is working */
-        div[data-testid="stDataFrame"] table tr > td {
-            border: 2px solid red !important;
-        }
-    </style>
-    """, unsafe_allow_html=True)
     
     if st.button("Refresh Data"):
         st.cache_data.clear()
@@ -500,56 +507,63 @@ def show_daily_status():
                 if daily:
                     is_accounts_team = st.session_state.get('role', '') == "Accounts Team"
 
-                    # Column configuration
-                    col_config = {
-                        "Inventory No": st.column_config.TextColumn(disabled=True, pinned=True),
-                        "Room No": st.column_config.TextColumn(disabled=True, pinned=True),
-                        "Booking ID": st.column_config.TextColumn(disabled=True, pinned=True),
-                        "Guest Name": st.column_config.TextColumn(disabled=True, pinned=True),
-                        "Mobile No": st.column_config.TextColumn(disabled=True),
-                        "Total Pax": st.column_config.NumberColumn(disabled=True),
-                        "Check In": st.column_config.TextColumn(disabled=True),
-                        "Check Out": st.column_config.TextColumn(disabled=True),
-                        "Days": st.column_config.NumberColumn(disabled=True),
-                        "MOB": st.column_config.TextColumn(disabled=True),
-                        "Room Charges": st.column_config.TextColumn(disabled=True),
-                        "GST": st.column_config.TextColumn(disabled=True),
-                        "TAX": st.column_config.TextColumn(disabled=True),
-                        "Total": st.column_config.TextColumn(disabled=True),
-                        "Commission": st.column_config.TextColumn(disabled=True),
-                        "Hotel Receivable": st.column_config.TextColumn(disabled=True),
-                        "Per Night": st.column_config.TextColumn(disabled=True),
-                        "Advance": st.column_config.TextColumn(disabled=True),
-                        "Advance Mop": st.column_config.TextColumn(disabled=True),
-                        "Balance": st.column_config.TextColumn(disabled=True),
-                        "Balance Mop": st.column_config.TextColumn(disabled=True),
-                        "Plan": st.column_config.TextColumn(disabled=True),
-                        "Booking Status": st.column_config.TextColumn(disabled=True),
-                        "Payment Status": st.column_config.TextColumn(disabled=True),
-                        "Submitted by": st.column_config.TextColumn(disabled=True),
-                        "Modified by": st.column_config.TextColumn(disabled=True),
-                        "Remarks": st.column_config.TextColumn(disabled=True),
-                        "Advance Remarks": st.column_config.TextColumn("Advance Remarks", disabled=not is_accounts_team, max_chars=500),
-                        "Balance Remarks": st.column_config.TextColumn("Balance Remarks", disabled=not is_accounts_team, max_chars=500),
-                        "Accounts Status": st.column_config.SelectboxColumn("Accounts Status", options=["Pending", "Completed"], disabled=not is_accounts_team),
-                    }
-
-                    # Create unique key
-                    unique_key = f"{prop.replace(' ', '_')}_{day.strftime('%Y%m%d')}"
-
-                    # Show single table with form
-                    with st.form(key=f"form_{unique_key}"):
-                        edited = st.data_editor(
-                            display_df,
-                            column_config=col_config,
-                            hide_index=True,
-                            use_container_width=True,
-                            num_rows="fixed",
-                            key=f"editor_{unique_key}",
-                            height=400
-                        )
+                    # ✅ Display highlighted read-only table
+                    st.subheader("📊 Booking Overview (Sky Blue = Important Columns)")
+                    styled_display = display_df.style.apply(highlight_columns, axis=None)
+                    st.dataframe(styled_display, use_container_width=True, height=400, hide_index=True)
+                    
+                    st.markdown("---")
+                    
+                    # ✅ Editable section for Accounts Team
+                    if is_accounts_team:
+                        st.subheader("✏️ Edit Section (Accounts Team Only)")
                         
-                        if is_accounts_team:
+                        col_config = {
+                            "Inventory No": st.column_config.TextColumn(disabled=True, pinned=True),
+                            "Room No": st.column_config.TextColumn(disabled=True, pinned=True),
+                            "Booking ID": st.column_config.TextColumn(disabled=True, pinned=True),
+                            "Guest Name": st.column_config.TextColumn(disabled=True, pinned=True),
+                            "Mobile No": st.column_config.TextColumn(disabled=True),
+                            "Total Pax": st.column_config.NumberColumn(disabled=True),
+                            "Check In": st.column_config.TextColumn(disabled=True),
+                            "Check Out": st.column_config.TextColumn(disabled=True),
+                            "Days": st.column_config.NumberColumn(disabled=True),
+                            "MOB": st.column_config.TextColumn(disabled=True),
+                            "Room Charges": st.column_config.TextColumn(disabled=True),
+                            "GST": st.column_config.TextColumn(disabled=True),
+                            "TAX": st.column_config.TextColumn(disabled=True),
+                            "Total": st.column_config.TextColumn("💰 Total", disabled=True),
+                            "Commission": st.column_config.TextColumn(disabled=True),
+                            "Hotel Receivable": st.column_config.TextColumn(disabled=True),
+                            "Per Night": st.column_config.TextColumn(disabled=True),
+                            "Advance": st.column_config.TextColumn("💳 Advance", disabled=True),
+                            "Advance Mop": st.column_config.TextColumn(disabled=True),
+                            "Balance": st.column_config.TextColumn(disabled=True),
+                            "Balance Mop": st.column_config.TextColumn("💵 Balance Mop", disabled=True),
+                            "Plan": st.column_config.TextColumn(disabled=True),
+                            "Booking Status": st.column_config.TextColumn(disabled=True),
+                            "Payment Status": st.column_config.TextColumn(disabled=True),
+                            "Submitted by": st.column_config.TextColumn(disabled=True),
+                            "Modified by": st.column_config.TextColumn(disabled=True),
+                            "Remarks": st.column_config.TextColumn(disabled=True),
+                            "Advance Remarks": st.column_config.TextColumn("Advance Remarks", disabled=False, max_chars=500),
+                            "Balance Remarks": st.column_config.TextColumn("Balance Remarks", disabled=False, max_chars=500),
+                            "Accounts Status": st.column_config.SelectboxColumn("Accounts Status", options=["Pending", "Completed"], disabled=False),
+                        }
+
+                        unique_key = f"{prop.replace(' ', '_')}_{day.strftime('%Y%m%d')}"
+
+                        with st.form(key=f"form_{unique_key}"):
+                            edited = st.data_editor(
+                                display_df,
+                                column_config=col_config,
+                                hide_index=True,
+                                use_container_width=True,
+                                num_rows="fixed",
+                                key=f"editor_{unique_key}",
+                                height=300
+                            )
+                            
                             submitted = st.form_submit_button("💾 Save Changes")
 
                             if submitted:
@@ -632,10 +646,10 @@ def show_daily_status():
                                     with st.expander("Error Details"):
                                         for msg in error_details:
                                             st.code(msg)
-                        else:
-                            st.form_submit_button("💾 Save Changes (Accounts Team Only)", disabled=True)
+                    
+                    st.markdown("---")
 
-                    # ✅ FIXED: Extract stats and display tables
+                    # ✅ Extract stats and display tables
                     stats = extract_stats_from_table(display_df, mob_types)
                     dtd = stats["dtd"]
                     mop_data = stats["mop"]
