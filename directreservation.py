@@ -263,7 +263,7 @@ def load_reservations_from_supabase():
                     "Modified By": record.get("modified_by", ""),
                     "Modified Comments": record.get("modified_comments", ""),
                     "Remarks": record.get("remarks", ""),
-                    "Payment Status": record.get("payment_status", "Not Paid")
+                    "Payment Status": record.get("payment_status", "NOT PAID")
                 }
                 reservations.append(reservation)
             
@@ -563,7 +563,7 @@ def show_new_reservation_form():
             booking_status_options = ["Confirmed", "Pending", "Cancelled", "Completed", "Follow-up", "No Show"]
             booking_status = st.selectbox("Booking Status", booking_status_options, index=0, key=f"{form_key}_status")
         with row9_col2:
-            payment_status_options = ["Fully Paid", "Partially Paid", "Not Paid"]
+            payment_status_options = ["Fully Paid", "Partially Paid", "NOT PAID"]
             payment_status = st.selectbox("Payment Status", payment_status_options, index=2, key=f"{form_key}_payment_status")
 
         if mob == "Online":
@@ -876,7 +876,7 @@ def show_edit_form(edit_index):
 
         row9_col1, row9_col2 = st.columns(2)
         with row9_col1:
-            payment_status_options = ["Fully Paid", "Partially Paid", "Not Paid"]
+            payment_status_options = ["Fully Paid", "Partially Paid", "NOT PAID"]
             payment_status_index = payment_status_options.index(reservation["Payment Status"]) if reservation["Payment Status"] in payment_status_options else 2
             payment_status = st.selectbox("Payment Status", payment_status_options, index=payment_status_index, key=f"{form_key}_payment_status")
         with row9_col2:
