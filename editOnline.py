@@ -287,7 +287,7 @@ def show_edit_online_reservations(selected_booking_id=None):
     with col2:
         total_payment_made = st.number_input("Advance Amount", value=safe_float(reservation.get("total_payment_made", 0.0)))
     with col3:
-        mop_options = ["","Not Paid", "Cash", "Card", "UPI", "Bank Transfer", "Other", "MMT","Cleartrip","Agoda","Goibibo","Expedia","Booking","STAYFLEXI_GHA","Stayflexi Booking Engine"]
+        mop_options = ["","NOT PAID", "Cash", "Card", "UPI", "Bank Transfer", "Other", "MMT","Cleartrip","Agoda","Goibibo","Expedia","Booking","STAYFLEXI_GHA","Stayflexi Booking Engine"]
         current_advance_mop = reservation.get("advance_mop", "")
         advance_mop_index = mop_options.index(current_advance_mop) if current_advance_mop in mop_options else 0
         advance_mop = st.selectbox("Advance Mop", mop_options, index=advance_mop_index)
@@ -323,7 +323,7 @@ def show_edit_online_reservations(selected_booking_id=None):
             status_index = 0
         booking_status = st.selectbox("Booking Status", booking_status_options, index=status_index)
     with col3:
-        payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], index=["Not Paid", "Fully Paid", "Partially Paid"].index(reservation.get("payment_status", "Not Paid")))
+        payment_status = st.selectbox("Payment Status", ["NOT PAID", "Fully Paid", "Partially Paid"], index=["NOT PAID", "Fully Paid", "Partially Paid"].index(reservation.get("payment_status", "NOT PAID")))
 
     # Row 8: Remarks
     remarks = st.text_area("Remarks", value=reservation.get("remarks", ""))
