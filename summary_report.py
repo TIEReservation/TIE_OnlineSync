@@ -1,5 +1,5 @@
 # summary_report.py - FINAL FULL VERSION
-# Red zeros + Light green weekends + Frozen header & first column + All original logic 100% working
+# Red zeros + Light green weekends + Scrollable tables
 
 import streamlit as st
 from datetime import date
@@ -80,13 +80,11 @@ def load_properties() -> List[str]:
         st.error(f"Error loading properties: {e}")
         return []
 
-@st.cache_data(ttl=1800)  # Cache for 30 minutes
+@st.cache_data(ttl=1800)
 def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
-    """Load bookings with caching and optimized filtering."""
     normalized_prop = normalize_property_name(prop)
     query_props = [normalized_prop] + reverse_mapping.get(normalized_prop, [])
     try:
-        # ✅ OPTIMIZED: Use indexed columns
         direct = (supabase.table("reservations").select("*")
                   .in_("property_name", query_props)
                   .gte("check_in", str(start))
@@ -263,9 +261,8 @@ def build_report(props: List[str], dates: List[date], bookings: Dict[str, List[D
     rows.append(total_row)
     return pd.DataFrame(rows)
 
-# -------------------------- Styling: Frozen Header & First Column + Red Zeros + Green Weekends --------------------------
-def style_dataframe_with_highlights(df: pd.DataFrame, table_id: str) -> str:
-    """Style dataframe with unique table ID for isolated scrolling"""
+# -------------------------- Styling with Horizontal Scroll --------------------------
+def style_dataframe_with_highlights(df: pd.DataFrame) -> str:
     def is_zero(val):
         if pd.isna(val):
             return False
@@ -275,19 +272,16 @@ def style_dataframe_with_highlights(df: pd.DataFrame, table_id: str) -> str:
             return False
 
     def highlight_row(row):
-        # Default style for all cells in the row
         styles = [""] * len(row)
         
-        # Light green background for weekends
         if row["Date"] != "Total":
             try:
                 d = pd.to_datetime(row["Date"]).date()
-                if d.weekday() >= 5:  # Saturday or Sunday
+                if d.weekday() >= 5:
                     styles = ["background-color: #d4edda"] * len(row)
             except:
                 pass
 
-        # Overlay red bold text for zero values (except Date column)
         for i, (col, val) in enumerate(row.items()):
             if col != "Date" and is_zero(val):
                 current = styles[i]
@@ -298,98 +292,38 @@ def style_dataframe_with_highlights(df: pd.DataFrame, table_id: str) -> str:
 
     numeric_cols = [c for c in df.columns if c != "Date"]
 
-    # Generate the styled HTML
     styled_html = (df.style
             .apply(highlight_row, axis=1)
             .format({c: "{:,.0f}" for c in numeric_cols})
-            .set_table_attributes(f'class="dataframe {table_id}" id="{table_id}"')
+            .set_table_styles([
+                {"selector": "th", 
+                 "props": [
+                     ("background-color", "#4169E1"),
+                     ("color", "white"),
+                     ("font-weight", "bold"),
+                     ("text-align", "center"),
+                     ("padding", "10px"),
+                     ("position", "sticky"),
+                     ("top", "0"),
+                     ("z-index", "2")
+                 ]},
+                {"selector": "td", 
+                 "props": "text-align: right; padding: 8px; white-space: nowrap;"},
+                {"selector": "td:first-child", 
+                 "props": "text-align: left; font-weight: bold; position: sticky; left: 0; background-color: white; z-index: 1;"},
+                {"selector": "tr:hover td", 
+                 "props": "background-color: #f5f5f5;"},
+            ])
             .to_html())
     
-    # Add scoped CSS for this specific table with better specificity
-    css = f"""
-    <style>
-        /* Table-specific styles for {table_id} */
-        #{table_id} {{
-            border-collapse: collapse;
-            width: 100%;
-            font-size: 14px;
-        }}
-        
-        /* Sticky header */
-        #{table_id} thead th {{
-            background-color: #4169E1 !important;
-            color: white !important;
-            font-weight: bold !important;
-            text-align: center !important;
-            padding: 12px 8px !important;
-            position: sticky !important;
-            top: 0 !important;
-            z-index: 100 !important;
-            border: 1px solid white !important;
-        }}
-        
-        /* Sticky first column in body */
-        #{table_id} tbody td:first-child {{
-            position: sticky !important;
-            left: 0 !important;
-            background-color: white !important;
-            font-weight: bold !important;
-            text-align: left !important;
-            padding: 8px !important;
-            z-index: 50 !important;
-            border-right: 2px solid #ddd !important;
-        }}
-        
-        /* Sticky first column in footer (Total row) */
-        #{table_id} tbody tr:last-child td:first-child {{
-            position: sticky !important;
-            left: 0 !important;
-            background-color: #f8f9fa !important;
-            font-weight: bold !important;
-            z-index: 50 !important;
-        }}
-        
-        /* Corner cell - Date header (sticky both ways) */
-        #{table_id} thead th:first-child {{
-            position: sticky !important;
-            left: 0 !important;
-            z-index: 150 !important;
-            background-color: #4169E1 !important;
-            border-right: 2px solid white !important;
-        }}
-        
-        /* Regular data cells */
-        #{table_id} td {{
-            text-align: right !important;
-            padding: 8px !important;
-            border: 1px solid #ddd !important;
-        }}
-        
-        /* Total row styling */
-        #{table_id} tbody tr:last-child {{
-            background-color: #f8f9fa !important;
-            font-weight: bold !important;
-            border-top: 3px solid #4169E1 !important;
-        }}
-        
-        /* Hover effect */
-        #{table_id} tbody tr:hover td {{
-            background-color: #f0f0f0 !important;
-        }}
-        
-        /* Keep first column background on hover */
-        #{table_id} tbody tr:hover td:first-child {{
-            background-color: white !important;
-        }}
-        
-        /* Weekend rows - ensure first column stays white */
-        #{table_id} tbody tr td:first-child[style*="background-color: #d4edda"] {{
-            background-color: white !important;
-        }}
-    </style>
+    # Wrap in scrollable div
+    scrollable_html = f"""
+    <div style="overflow-x: auto; max-width: 100%; border: 1px solid #ddd; border-radius: 5px;">
+        {styled_html}
+    </div>
     """
     
-    return css + styled_html
+    return scrollable_html
 
 # -------------------------- UI --------------------------
 def show_summary_report():
@@ -423,30 +357,10 @@ def show_summary_report():
     ]
 
     for metric, title in reports:
-        # Use expander as a frame for each report
-        with st.expander(f"📊 {title}", expanded=True):
-            df = build_report(properties, month_dates, bookings, metric)
-            
-            # Create unique table ID for this report
-            table_id = f"table_{metric.replace('_', '-')}"
-            html = style_dataframe_with_highlights(df, table_id)
-            
-            # Wrap in unique scrollable container with iframe-like isolation
-            st.markdown(f"""
-            <div class="table-container-{table_id}" style="
-                overflow-x: auto; 
-                overflow-y: auto; 
-                max-height: 500px; 
-                border: 2px solid #ddd;
-                border-radius: 5px;
-                background: white;
-                padding: 0;
-                margin-bottom: 20px;
-            ">
-                {html}
-            </div>
-            """, unsafe_allow_html=True)
-        
+        st.subheader(f"TIE Hotels & Resort {title}")
+        df = build_report(properties, month_dates, bookings, metric)
+        html = style_dataframe_with_highlights(df)
+        st.markdown(html, unsafe_allow_html=True)
         st.markdown("---")
 
 if __name__ == "__main__":
