@@ -264,7 +264,8 @@ def build_report(props: List[str], dates: List[date], bookings: Dict[str, List[D
     return pd.DataFrame(rows)
 
 # -------------------------- Styling: Frozen Header & First Column + Red Zeros + Green Weekends --------------------------
-def style_dataframe_with_highlights(df: pd.DataFrame) -> str:
+def style_dataframe_with_highlights(df: pd.DataFrame, table_id: str) -> str:
+    """Style dataframe with unique table ID for isolated scrolling"""
     def is_zero(val):
         if pd.isna(val):
             return False
@@ -297,62 +298,77 @@ def style_dataframe_with_highlights(df: pd.DataFrame) -> str:
 
     numeric_cols = [c for c in df.columns if c != "Date"]
 
-    return (df.style
+    styled_html = (df.style
             .apply(highlight_row, axis=1)
             .format({c: "{:,.0f}" for c in numeric_cols})
-            .set_table_styles([
-                # === ROYAL BLUE HEADER with WHITE TEXT + STICKY ===
-                {"selector": "th", 
-                 "props": [
-                     ("background-color", "#4169E1"),
-                     ("color", "white"),
-                     ("font-weight", "bold"),
-                     ("text-align", "center"),
-                     ("padding", "10px"),
-                     ("position", "sticky"),
-                     ("top", "0"),
-                     ("z-index", "2")
-                 ]},
-                
-                # === STICKY FIRST COLUMN (Date) ===
-                {"selector": "td:first-child", 
-                 "props": [
-                     ("position", "sticky"),
-                     ("left", "0"),
-                     ("background-color", "white"),
-                     ("font-weight", "bold"),
-                     ("text-align", "left"),
-                     ("padding", "8px"),
-                     ("z-index", "1")
-                 ]},
-                
-                # First header cell (Date column header) - sticky both ways
-                {"selector": "th:first-child",
-                 "props": [
-                     ("position", "sticky"),
-                     ("left", "0"),
-                     ("z-index", "3"),
-                     ("background-color", "#4169E1")
-                 ]},
-                
-                # Data cells
-                {"selector": "td", 
-                 "props": "text-align: right; padding: 8px;"},
-                
-                # Hover effect on rows
-                {"selector": "tr:hover td", 
-                 "props": "background-color: #f5f5f5;"},
-                
-                # Ensure table has scrollable container
-                {"selector": "", 
-                 "props": [
-                     ("overflow-x", "auto"),
-                     ("overflow-y", "auto"),
-                     ("max-height", "600px"),
-                     ("display", "block")
-                 ]}
-            ])
+            .set_table_attributes(f'id="{table_id}"')
             .to_html())
+    
+    # Add scoped CSS for this specific table
+    css = f"""
+    <style>
+        /* Container for table {table_id} */
+        .table-container-{table_id} {{
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: 500px;
+            border: 1px solid #ddd;
+            position: relative;
+        }}
+        
+        /* Sticky header for table {table_id} */
+        #{table_id} thead th {{
+            background-color: #4169E1 !important;
+            color: white !important;
+            font-weight: bold;
+            text-align: center;
+            padding: 10px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }}
+        
+        /* Sticky first column for table {table_id} */
+        #{table_id} tbody td:first-child,
+        #{table_id} tfoot td:first-child {{
+            position: sticky;
+            left: 0;
+            background-color: white;
+            font-weight: bold;
+            text-align: left;
+            padding: 8px;
+            z-index: 5;
+            border-right: 2px solid #ddd;
+        }}
+        
+        /* Corner cell (Date header) - sticky both ways */
+        #{table_id} thead th:first-child {{
+            position: sticky;
+            left: 0;
+            z-index: 15;
+            background-color: #4169E1 !important;
+            border-right: 2px solid white;
+        }}
+        
+        /* Data cells */
+        #{table_id} td {{
+            text-align: right;
+            padding: 8px;
+        }}
+        
+        /* Hover effect */
+        #{table_id} tr:hover td {{
+            background-color: #f5f5f5 !important;
+        }}
+        
+        /* Keep first column white on hover */
+        #{table_id} tr:hover td:first-child {{
+            background-color: white !important;
+        }}
+    </style>
+    """
+    
+    return css + styled_html
 
 # -------------------------- UI --------------------------
 def show_summary_report():
@@ -388,11 +404,14 @@ def show_summary_report():
     for metric, title in reports:
         st.subheader(f"TIE Hotels & Resort {title}")
         df = build_report(properties, month_dates, bookings, metric)
-        html = style_dataframe_with_highlights(df)
         
-        # Wrap in scrollable container with fixed dimensions
+        # Create unique table ID for this report
+        table_id = f"table_{metric.replace('_', '-')}"
+        html = style_dataframe_with_highlights(df, table_id)
+        
+        # Wrap in unique scrollable container
         st.markdown(f"""
-        <div style="overflow-x: auto; overflow-y: auto; max-height: 600px; border: 1px solid #ddd;">
+        <div class="table-container-{table_id}">
             {html}
         </div>
         """, unsafe_allow_html=True)
