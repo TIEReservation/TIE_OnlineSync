@@ -402,19 +402,30 @@ def show_summary_report():
     ]
 
     for metric, title in reports:
-        st.subheader(f"TIE Hotels & Resort {title}")
-        df = build_report(properties, month_dates, bookings, metric)
+        # Use expander as a frame for each report
+        with st.expander(f"📊 {title}", expanded=True):
+            df = build_report(properties, month_dates, bookings, metric)
+            
+            # Create unique table ID for this report
+            table_id = f"table_{metric.replace('_', '-')}"
+            html = style_dataframe_with_highlights(df, table_id)
+            
+            # Wrap in unique scrollable container with iframe-like isolation
+            st.markdown(f"""
+            <div class="table-container-{table_id}" style="
+                overflow-x: auto; 
+                overflow-y: auto; 
+                max-height: 500px; 
+                border: 2px solid #ddd;
+                border-radius: 5px;
+                background: white;
+                padding: 0;
+                margin-bottom: 20px;
+            ">
+                {html}
+            </div>
+            """, unsafe_allow_html=True)
         
-        # Create unique table ID for this report
-        table_id = f"table_{metric.replace('_', '-')}"
-        html = style_dataframe_with_highlights(df, table_id)
-        
-        # Wrap in unique scrollable container
-        st.markdown(f"""
-        <div class="table-container-{table_id}">
-            {html}
-        </div>
-        """, unsafe_allow_html=True)
         st.markdown("---")
 
 if __name__ == "__main__":
