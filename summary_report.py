@@ -305,23 +305,21 @@ def style_dataframe_with_highlights(df: pd.DataFrame) -> str:
                      ("padding", "10px"),
                      ("position", "sticky"),
                      ("top", "0"),
-                     ("z-index", "2")
+                     ("z-index", "10")
                  ]},
                 {"selector": "td", 
                  "props": "text-align: right; padding: 8px; white-space: nowrap;"},
                 {"selector": "td:first-child", 
-                 "props": "text-align: left; font-weight: bold; position: sticky; left: 0; background-color: white; z-index: 1;"},
+                 "props": "text-align: left; font-weight: bold; position: sticky; left: 0; background-color: white; z-index: 5;"},
+                {"selector": "th:first-child",
+                 "props": "position: sticky; left: 0; z-index: 15; background-color: #4169E1;"},
                 {"selector": "tr:hover td", 
                  "props": "background-color: #f5f5f5;"},
             ])
-            .to_html())
+            .to_html(escape=False))
     
-    # Wrap in scrollable div
-    scrollable_html = f"""
-    <div style="overflow-x: auto; max-width: 100%; border: 1px solid #ddd; border-radius: 5px;">
-        {styled_html}
-    </div>
-    """
+    # Wrap in scrollable div with both horizontal and vertical scroll
+    scrollable_html = '<div style="overflow-x: auto; overflow-y: auto; max-height: 600px; max-width: 100%; border: 1px solid #ddd; border-radius: 5px;">' + styled_html + '</div>'
     
     return scrollable_html
 
