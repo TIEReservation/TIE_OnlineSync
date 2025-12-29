@@ -298,71 +298,92 @@ def style_dataframe_with_highlights(df: pd.DataFrame, table_id: str) -> str:
 
     numeric_cols = [c for c in df.columns if c != "Date"]
 
+    # Generate the styled HTML
     styled_html = (df.style
             .apply(highlight_row, axis=1)
             .format({c: "{:,.0f}" for c in numeric_cols})
-            .set_table_attributes(f'id="{table_id}"')
+            .set_table_attributes(f'class="dataframe {table_id}" id="{table_id}"')
             .to_html())
     
-    # Add scoped CSS for this specific table
+    # Add scoped CSS for this specific table with better specificity
     css = f"""
     <style>
-        /* Container for table {table_id} */
-        .table-container-{table_id} {{
-            overflow-x: auto;
-            overflow-y: auto;
-            max-height: 500px;
-            border: 1px solid #ddd;
-            position: relative;
+        /* Table-specific styles for {table_id} */
+        #{table_id} {{
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 14px;
         }}
         
-        /* Sticky header for table {table_id} */
+        /* Sticky header */
         #{table_id} thead th {{
             background-color: #4169E1 !important;
             color: white !important;
-            font-weight: bold;
-            text-align: center;
-            padding: 10px;
-            position: sticky;
-            top: 0;
-            z-index: 10;
+            font-weight: bold !important;
+            text-align: center !important;
+            padding: 12px 8px !important;
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 100 !important;
+            border: 1px solid white !important;
         }}
         
-        /* Sticky first column for table {table_id} */
-        #{table_id} tbody td:first-child,
-        #{table_id} tfoot td:first-child {{
-            position: sticky;
-            left: 0;
-            background-color: white;
-            font-weight: bold;
-            text-align: left;
-            padding: 8px;
-            z-index: 5;
-            border-right: 2px solid #ddd;
+        /* Sticky first column in body */
+        #{table_id} tbody td:first-child {{
+            position: sticky !important;
+            left: 0 !important;
+            background-color: white !important;
+            font-weight: bold !important;
+            text-align: left !important;
+            padding: 8px !important;
+            z-index: 50 !important;
+            border-right: 2px solid #ddd !important;
         }}
         
-        /* Corner cell (Date header) - sticky both ways */
+        /* Sticky first column in footer (Total row) */
+        #{table_id} tbody tr:last-child td:first-child {{
+            position: sticky !important;
+            left: 0 !important;
+            background-color: #f8f9fa !important;
+            font-weight: bold !important;
+            z-index: 50 !important;
+        }}
+        
+        /* Corner cell - Date header (sticky both ways) */
         #{table_id} thead th:first-child {{
-            position: sticky;
-            left: 0;
-            z-index: 15;
+            position: sticky !important;
+            left: 0 !important;
+            z-index: 150 !important;
             background-color: #4169E1 !important;
-            border-right: 2px solid white;
+            border-right: 2px solid white !important;
         }}
         
-        /* Data cells */
+        /* Regular data cells */
         #{table_id} td {{
-            text-align: right;
-            padding: 8px;
+            text-align: right !important;
+            padding: 8px !important;
+            border: 1px solid #ddd !important;
+        }}
+        
+        /* Total row styling */
+        #{table_id} tbody tr:last-child {{
+            background-color: #f8f9fa !important;
+            font-weight: bold !important;
+            border-top: 3px solid #4169E1 !important;
         }}
         
         /* Hover effect */
-        #{table_id} tr:hover td {{
-            background-color: #f5f5f5 !important;
+        #{table_id} tbody tr:hover td {{
+            background-color: #f0f0f0 !important;
         }}
         
-        /* Keep first column white on hover */
-        #{table_id} tr:hover td:first-child {{
+        /* Keep first column background on hover */
+        #{table_id} tbody tr:hover td:first-child {{
+            background-color: white !important;
+        }}
+        
+        /* Weekend rows - ensure first column stays white */
+        #{table_id} tbody tr td:first-child[style*="background-color: #d4edda"] {{
             background-color: white !important;
         }}
     </style>
