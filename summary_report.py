@@ -1,5 +1,5 @@
 # summary_report.py - FINAL FULL VERSION
-# Red zeros + Light green weekends + All original logic 100% working
+# Red zeros + Light green weekends + Frozen header & first column + All original logic 100% working
 
 import streamlit as st
 from datetime import date
@@ -263,8 +263,7 @@ def build_report(props: List[str], dates: List[date], bookings: Dict[str, List[D
     rows.append(total_row)
     return pd.DataFrame(rows)
 
-# -------------------------- Styling: Red Zeros + Green Weekends --------------------------
-# -------------------------- Styling: Royal Blue Headers + Red Zeros + Green Weekends --------------------------
+# -------------------------- Styling: Frozen Header & First Column + Red Zeros + Green Weekends --------------------------
 def style_dataframe_with_highlights(df: pd.DataFrame) -> str:
     def is_zero(val):
         if pd.isna(val):
@@ -302,29 +301,59 @@ def style_dataframe_with_highlights(df: pd.DataFrame) -> str:
             .apply(highlight_row, axis=1)
             .format({c: "{:,.0f}" for c in numeric_cols})
             .set_table_styles([
-                # === ROYAL BLUE HEADER with WHITE TEXT ===
+                # === ROYAL BLUE HEADER with WHITE TEXT + STICKY ===
                 {"selector": "th", 
                  "props": [
-                     ("background-color", "#4169E1"),   # Royal Blue
+                     ("background-color", "#4169E1"),
                      ("color", "white"),
                      ("font-weight", "bold"),
                      ("text-align", "center"),
-                     ("padding", "10px")
+                     ("padding", "10px"),
+                     ("position", "sticky"),
+                     ("top", "0"),
+                     ("z-index", "2")
+                 ]},
+                
+                # === STICKY FIRST COLUMN (Date) ===
+                {"selector": "td:first-child", 
+                 "props": [
+                     ("position", "sticky"),
+                     ("left", "0"),
+                     ("background-color", "white"),
+                     ("font-weight", "bold"),
+                     ("text-align", "left"),
+                     ("padding", "8px"),
+                     ("z-index", "1")
+                 ]},
+                
+                # First header cell (Date column header) - sticky both ways
+                {"selector": "th:first-child",
+                 "props": [
+                     ("position", "sticky"),
+                     ("left", "0"),
+                     ("z-index", "3"),
+                     ("background-color", "#4169E1")
                  ]},
                 
                 # Data cells
                 {"selector": "td", 
                  "props": "text-align: right; padding: 8px;"},
                 
-                # First column (Date) - left aligned & bold
-                {"selector": "td:first-child", 
-                 "props": "text-align: left; font-weight: bold;"},
-                
                 # Hover effect on rows
-                {"selector": "tr:hover", 
+                {"selector": "tr:hover td", 
                  "props": "background-color: #f5f5f5;"},
+                
+                # Ensure table has scrollable container
+                {"selector": "", 
+                 "props": [
+                     ("overflow-x", "auto"),
+                     ("overflow-y", "auto"),
+                     ("max-height", "600px"),
+                     ("display", "block")
+                 ]}
             ])
             .to_html())
+
 # -------------------------- UI --------------------------
 def show_summary_report():
     st.set_page_config(page_title="TIE Summary Report", layout="wide")
@@ -360,7 +389,13 @@ def show_summary_report():
         st.subheader(f"TIE Hotels & Resort {title}")
         df = build_report(properties, month_dates, bookings, metric)
         html = style_dataframe_with_highlights(df)
-        st.markdown(html, unsafe_allow_html=True)
+        
+        # Wrap in scrollable container with fixed dimensions
+        st.markdown(f"""
+        <div style="overflow-x: auto; overflow-y: auto; max-height: 600px; border: 1px solid #ddd;">
+            {html}
+        </div>
+        """, unsafe_allow_html=True)
         st.markdown("---")
 
 if __name__ == "__main__":
