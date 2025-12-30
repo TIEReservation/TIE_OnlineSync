@@ -414,7 +414,7 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     occupied["Balance"] = to_float("Balance")
     occupied["Total Pax"] = to_int("Total Pax")
 
-    mop_data = {m: 0.0 for m in ["UPI","Cash","Go-MMT","Agoda","NOT PAID","Expenses","Bank Transfer","Stayflexi","Card Payment","Expedia","Cleartrip","Website"]}
+    mop_data = {m: 0.0 for m in ["UPI","Cash","Go-MMT","Agoda","Not Paid","Expenses","Bank Transfer","Stayflexi","Card Payment","Expedia","Cleartrip","Website"]}
     total_cash = total = 0.0
 
     for _, row in occupied.iterrows():
