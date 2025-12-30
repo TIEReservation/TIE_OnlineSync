@@ -38,7 +38,7 @@ mop_mapping = {
     "Cash": ["Cash"],
     "Go-MMT": ["Goibibo", "MMT", "Go-MMT", "MAKEMYTRIP"],
     "Agoda": ["Agoda"],
-    "NOT PAID": ["NOT PAID", "", " "],
+    "NOT PAID": ["Not Paid", "", " "],
     "Bank Transfer": ["Bank Transfer"],
     "Stayflexi": ["STAYFLEXI_GHA"],
     "Card Payment": ["Card"],
