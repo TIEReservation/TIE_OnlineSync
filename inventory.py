@@ -38,7 +38,7 @@ mop_mapping = {
     "Cash": ["Cash"],
     "Go-MMT": ["Goibibo", "MMT", "Go-MMT", "MAKEMYTRIP"],
     "Agoda": ["Agoda"],
-    "NOT PAID": ["Not Paid", "", " "],
+    "NOT PAID": ["Not Paid", "", " ", "NOT PAID"],
     "Bank Transfer": ["Bank Transfer"],
     "Stayflexi": ["STAYFLEXI_GHA"],
     "Card Payment": ["Card"],
@@ -414,7 +414,7 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     occupied["Balance"] = to_float("Balance")
     occupied["Total Pax"] = to_int("Total Pax")
 
-    mop_data = {m: 0.0 for m in ["UPI","Cash","Go-MMT","Agoda","Not Paid","Airbnb","Expenses","Bank Transfer","Stayflexi","Card Payment","Expedia","Cleartrip","Website"]}
+    mop_data = {m: 0.0 for m in ["UPI","Cash","Go-MMT","Agoda","NOT PAID","Airbnb","Expenses","Bank Transfer","Stayflexi","Card Payment","Expedia","Cleartrip","Website"]}
     total_cash = total = 0.0
 
     for _, row in occupied.iterrows():
