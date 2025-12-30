@@ -263,7 +263,7 @@ def load_reservations_from_supabase():
                     "Modified By": record.get("modified_by", ""),
                     "Modified Comments": record.get("modified_comments", ""),
                     "Remarks": record.get("remarks", ""),
-                    "Payment Status": record.get("payment_status", "NOT PAID")
+                    "Payment Status": record.get("payment_status", "Not Paid")
                 }
                 reservations.append(reservation)
             
