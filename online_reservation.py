@@ -153,7 +153,7 @@ def process_and_sync_excel(uploaded_file):
             elif total_payment_made > 0:
                 payment_status = "Partially Paid"
             else:
-                payment_status = "NOT PAID"
+                payment_status = "Not Paid"
             remarks = truncate_string(row.get("special_requests", ""), 500)  # Longer limit for remarks
             submitted_by = ""  # Editable
             modified_by = ""  # Editable
