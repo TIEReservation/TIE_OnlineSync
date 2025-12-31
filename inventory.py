@@ -1,4 +1,4 @@
-# inventory.py – FIXED VERSION with column highlighting
+# inventory.py – FIXED VERSION with single editable table
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date
@@ -84,9 +84,9 @@ PROPERTY_INVENTORY = {
     "Happymates Forest Retreat": {"all": ["101","102","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]}  
 }
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
 # Helpers
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
 def normalize_property(name: str) -> str:
     return property_mapping.get(name.strip(), name.strip())
 
@@ -105,11 +105,11 @@ def safe_float(v: Any, default: float = 0) -> float:
     except:
         return default
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
 # Highlighting Function
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
 def highlight_columns(df):
-    """Apply sky blue background to Total, Advance, and Balance Mop columns"""
+    """Apply light gray background to Total, Advance, and Balance Mop columns"""
     styles = pd.DataFrame('', index=df.index, columns=df.columns)
     
     if 'Total' in df.columns:
@@ -121,9 +121,9 @@ def highlight_columns(df):
     
     return styles
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
 # Load Properties & Bookings
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
 @st.cache_data(ttl=3600)
 def load_properties() -> List[str]:
     try:
@@ -182,9 +182,9 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
 
     return combined
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
 # Normalize booking
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
 def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
     try:
         bid = sanitize_string(row.get("booking_id") or row.get("id"))
@@ -255,9 +255,9 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
         logging.warning(f"normalize failed: {e}")
         return None
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
 # Filter & Assign
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
 def filter_bookings_for_day(bookings: List[Dict], day: date) -> List[Dict]:
     return [b.copy() for b in bookings if date.fromisoformat(b["check_in"]) <= day < date.fromisoformat(b["check_out"])]
 
@@ -319,9 +319,9 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
 
     return assigned, over
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
 # Build Table
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
 def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date):
     visible_cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
                     "Check In","Check Out","Days","MOB","Room Charges","GST","TAX","Total","Commission",
@@ -393,9 +393,9 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
     full_df = df
     return display_df, full_df
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
 # Extract Stats
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
 def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     occupied = df[df["Booking ID"].fillna("").str.strip() != ""].copy()
 
@@ -466,9 +466,9 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
 
     return {"mop": mop_data, "dtd": dtd}
     
-# ═══════════════════════════════════════════════════════════════════════════════
-# UI – Dashboard with highlighted display + editable section
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+# UI – Dashboard with single table (editable for Accounts Team)
+# ═══════════════════════════════════════════════════════════════════════════
 def show_daily_status():
     st.title("Daily Status Dashboard")
     
@@ -504,7 +504,7 @@ def show_daily_status():
                 assigned, over = assign_inventory_numbers(daily, prop)
                 display_df, full_df = create_inventory_table(assigned, over, prop, day)
 
-                               if daily:
+                if daily:
                     is_accounts_team = st.session_state.get('role', '') == "Accounts Team"
 
                     # ✅ Single table with editable fields for Accounts Team
@@ -644,6 +644,8 @@ def show_daily_status():
                         # Read-only table for non-Accounts Team
                         styled_display = display_df.style.apply(highlight_columns, axis=None)
                         st.dataframe(styled_display, use_container_width=True, height=400, hide_index=True)
+                    
+                    st.markdown("---")
 
                     # ✅ Extract stats and display tables
                     stats = extract_stats_from_table(display_df, mob_types)
