@@ -511,7 +511,7 @@ def show_daily_status():
                     st.subheader("📊 Booking Overview")
                     
                     if is_accounts_team:
-                        # Editable table for Accounts Team
+                        # Editable table for Accounts Team with highlighted columns
                         col_config = {
                             "Inventory No": st.column_config.TextColumn(disabled=True, pinned=True),
                             "Room No": st.column_config.TextColumn(disabled=True, pinned=True),
@@ -547,9 +547,22 @@ def show_daily_status():
 
                         unique_key = f"{prop.replace(' ', '_')}_{day.strftime('%Y%m%d')}"
 
+                        # Apply highlighting styles
+                        def highlight_for_editor(row):
+                            styles = [''] * len(row)
+                            if 'Total' in display_df.columns:
+                                styles[display_df.columns.get_loc('Total')] = 'background-color: #D3D3D3'
+                            if 'Advance' in display_df.columns:
+                                styles[display_df.columns.get_loc('Advance')] = 'background-color: #D3D3D3'
+                            if 'Balance' in display_df.columns:
+                                styles[display_df.columns.get_loc('Balance')] = 'background-color: #D3D3D3'
+                            return styles
+
+                        styled_df = display_df.style.apply(highlight_for_editor, axis=1)
+
                         with st.form(key=f"form_{unique_key}"):
                             edited = st.data_editor(
-                                display_df,
+                                styled_df,
                                 column_config=col_config,
                                 hide_index=True,
                                 use_container_width=True,
