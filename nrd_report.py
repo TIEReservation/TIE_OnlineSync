@@ -12,6 +12,7 @@ from typing import Dict, List, Any, Optional
 import logging
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
 import os
 import io
 import calendar
@@ -28,7 +29,7 @@ PROPERTY_SHORT_NAMES = {
     "La Millionaire Resort": "LMR",
     "Le Poshe Luxury": "LePL",
     "Le Poshe Suite": "LPS",
-    "La Paradise Residency": "LPR",
+    "La Paradise Residency": "LaPR",
     "La Paradise Luxury": "LaPL",
     "La Villa Heritage": "LVH",
     "Le Pondy Beachside": "LPB",
@@ -365,175 +366,21 @@ def extract_stats_from_assigned(assigned: List[Dict], target_date: date, mob_typ
     return dtd
 
 # ============================================================================
-# PROPERTY METRICS CALCULATION
+# EXCEL EXPORT - NEW FORMAT
 # ============================================================================
 
-def calculate_property_metrics_for_day(supabase, property_name: str, target_date: date, mob_types: List[str]) -> Dict[str, Any]:
-    """Calculate metrics for a property on a specific day using inventory.py logic"""
-    
-    # Get total inventory (excluding Day Use and No Show)
-    inv_data = PROPERTY_INVENTORY.get(property_name, {"all": []})
-    all_rooms = inv_data["all"]
-    total_inventory = len([i for i in all_rooms if not i.startswith(("Day Use", "No Show"))])
-    
-    # Load bookings
-    start_date = target_date
-    end_date = target_date + timedelta(days=1)
-    bookings = load_combined_bookings(supabase, property_name, start_date, end_date)
-    
-    # Filter for target day
-    daily = filter_bookings_for_day(bookings, target_date)
-    
-    if not daily:
-        return {
-            "rooms_available": total_inventory,
-            "rooms_sold": 0,
-            "occupancy": 0.0,
-            "gst": 0.0,
-            "commission": 0.0,
-            "receivable": 0.0,
-            "receivable_per_night": 0.0,
-            "arr": 0.0
-        }
-    
-    # Assign inventory
-    assigned, over = assign_inventory_numbers(daily, property_name)
-    
-    # Extract stats
-    stats = extract_stats_from_assigned(assigned, target_date, mob_types)
-    total_stats = stats["Total"]
-    
-    rooms_sold = total_stats["rooms"]
-    occupancy = (rooms_sold / total_inventory * 100) if total_inventory > 0 else 0.0
-    
-    return {
-        "rooms_available": total_inventory,
-        "rooms_sold": rooms_sold,
-        "occupancy": occupancy,
-        "gst": total_stats["gst"],
-        "commission": total_stats["comm"],
-        "receivable": total_stats["value"],  # This is the per-night total
-        "receivable_per_night": total_stats["value"],
-        "arr": total_stats["arr"]
-    }
-
-# ============================================================================
-# AGGREGATION
-# ============================================================================
-
-def aggregate_totals(property_data: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-    """Calculate DTD and MTD totals"""
-    dtd_totals = {
-        "rooms_available": 0,
-        "rooms_sold": 0,
-        "gst": 0.0,
-        "commission": 0.0,
-        "receivable": 0.0,
-        "receivable_per_night": 0.0
-    }
-    
-    for prop_metrics in property_data.values():
-        dtd_totals["rooms_available"] += prop_metrics["rooms_available"]
-        dtd_totals["rooms_sold"] += prop_metrics["rooms_sold"]
-        dtd_totals["gst"] += prop_metrics["gst"]
-        dtd_totals["commission"] += prop_metrics["commission"]
-        dtd_totals["receivable"] += prop_metrics["receivable"]
-        dtd_totals["receivable_per_night"] += prop_metrics["receivable_per_night"]
-    
-    dtd_totals["occupancy"] = (
-        dtd_totals["rooms_sold"] / dtd_totals["rooms_available"] * 100
-        if dtd_totals["rooms_available"] > 0 else 0.0
-    )
-    dtd_totals["arr"] = (
-        dtd_totals["receivable_per_night"] / dtd_totals["rooms_sold"]
-        if dtd_totals["rooms_sold"] > 0 else 0.0
-    )
-    
-    mtd_totals = dtd_totals.copy()
-    
-    return {"dtd": dtd_totals, "mtd": mtd_totals}
-
-# ============================================================================
-# DATAFRAME BUILDER
-# ============================================================================
-
-def build_report_dataframe(property_data: Dict[str, Dict[str, Any]], totals: Dict[str, Any]) -> pd.DataFrame:
-    """Build the final report dataframe"""
-    sorted_props = sorted(property_data.keys(), key=lambda x: PROPERTY_SHORT_NAMES.get(x, x))
-    
-    rows = {
-        "Rooms Available": {},
-        "Rooms Sold": {},
-        "Occ %": {},
-        "GST": {},
-        "Commission": {},
-        "Receivable": {},
-        "Receivable Per Night": {},
-        "ARR": {}
-    }
-    
-    for prop in sorted_props:
-        short_name = PROPERTY_SHORT_NAMES.get(prop, prop)
-        metrics = property_data[prop]
-        
-        rows["Rooms Available"][short_name] = metrics["rooms_available"]
-        rows["Rooms Sold"][short_name] = metrics["rooms_sold"]
-        rows["Occ %"][short_name] = f"{metrics['occupancy']:.0f}%"
-        rows["GST"][short_name] = int(metrics["gst"])
-        rows["Commission"][short_name] = int(metrics["commission"])
-        rows["Receivable"][short_name] = int(metrics["receivable"])
-        rows["Receivable Per Night"][short_name] = int(metrics["receivable_per_night"])
-        rows["ARR"][short_name] = int(metrics["arr"])
-    
-    dtd = totals["dtd"]
-    mtd = totals["mtd"]
-    
-    for key in rows:
-        if key == "Rooms Available":
-            rows[key]["D.T.D"] = dtd["rooms_available"]
-            rows[key]["M.T.D"] = mtd["rooms_available"]
-        elif key == "Rooms Sold":
-            rows[key]["D.T.D"] = dtd["rooms_sold"]
-            rows[key]["M.T.D"] = mtd["rooms_sold"]
-        elif key == "Occ %":
-            rows[key]["D.T.D"] = f"{dtd['occupancy']:.0f}%"
-            rows[key]["M.T.D"] = f"{mtd['occupancy']:.0f}%"
-        elif key == "GST":
-            rows[key]["D.T.D"] = int(dtd["gst"])
-            rows[key]["M.T.D"] = int(mtd["gst"])
-        elif key == "Commission":
-            rows[key]["D.T.D"] = int(dtd["commission"])
-            rows[key]["M.T.D"] = int(mtd["commission"])
-        elif key == "Receivable":
-            rows[key]["D.T.D"] = int(dtd["receivable"])
-            rows[key]["M.T.D"] = int(mtd["receivable"])
-        elif key == "Receivable Per Night":
-            rows[key]["D.T.D"] = int(dtd["receivable_per_night"])
-            rows[key]["M.T.D"] = int(mtd["receivable_per_night"])
-        elif key == "ARR":
-            rows[key]["D.T.D"] = int(dtd["arr"])
-            rows[key]["M.T.D"] = int(mtd["arr"])
-    
-    df = pd.DataFrame(rows).T
-    df.index.name = ""
-    
-    return df
-
-# ============================================================================
-# EXCEL EXPORT
-# ============================================================================
-
-def export_to_excel(df: pd.DataFrame, report_date: date) -> bytes:
-    """Export dataframe to Excel and return as bytes"""
+def export_multiple_days_to_excel(all_dates_data: List[Dict], year: int, month: int) -> bytes:
+    """Export multiple days to Excel in the requested format"""
     wb = Workbook()
     ws = wb.active
-    ws.title = "Daily Report"
+    ws.title = f"{calendar.month_name[month]} {year}"
     
+    # Styles
     header_fill = PatternFill(start_color="00B8A9", end_color="00B8A9", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF", size=11)
-    title_font = Font(bold=True, size=14, color="FFFFFF")
+    title_font = Font(bold=True, size=12, color="FFFFFF")
     date_font = Font(bold=True, size=11, color="FFFFFF")
-    date_fill = PatternFill(start_color="00B8A9", end_color="00B8A9", fill_type="solid")
+    white_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
     
     center_align = Alignment(horizontal="center", vertical="center")
     right_align = Alignment(horizontal="right", vertical="center")
@@ -545,67 +392,164 @@ def export_to_excel(df: pd.DataFrame, report_date: date) -> bytes:
         bottom=Side(style='thin')
     )
     
-    ws.merge_cells('A1:Z1')
-    title_cell = ws['A1']
-    title_cell.value = "TIE Hotels & Resorts"
-    title_cell.font = title_font
-    title_cell.alignment = center_align
-    title_cell.fill = header_fill
+    # Get sorted property list
+    all_props = sorted(PROPERTY_SHORT_NAMES.keys(), key=lambda x: PROPERTY_SHORT_NAMES.get(x, x))
+    short_names = [PROPERTY_SHORT_NAMES[p] for p in all_props]
     
-    ws.merge_cells('A2:Z2')
-    report_cell = ws['A2']
-    report_cell.value = "Overall Report for the day"
-    report_cell.alignment = center_align
+    current_row = 1
     
-    date_col = len(df.columns) + 2
-    date_cell = ws.cell(row=1, column=date_col)
-    date_cell.value = report_date.strftime("%d-%b-%y")
-    date_cell.font = date_font
-    date_cell.fill = date_fill
-    date_cell.alignment = center_align
-    
-    start_row = 4
-    
-    ws.cell(row=start_row, column=1, value="")
-    for col_idx, col_name in enumerate(df.columns, start=2):
-        cell = ws.cell(row=start_row, column=col_idx, value=col_name)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = center_align
-        cell.border = thin_border
-    
-    for row_idx, (idx, row) in enumerate(df.iterrows(), start=start_row + 1):
-        label_cell = ws.cell(row=row_idx, column=1, value=idx)
-        label_cell.font = Font(bold=True)
-        label_cell.border = thin_border
+    # Process each date
+    for day_data in all_dates_data:
+        target_date = day_data["date"]
+        metrics = day_data["metrics"]
+        totals = day_data["totals"]
         
-        for col_idx, value in enumerate(row, start=2):
-            cell = ws.cell(row=row_idx, column=col_idx, value=value)
+        # Title row
+        ws.merge_cells(f'A{current_row}:{get_column_letter(len(short_names) + 4)}{current_row}')
+        title_cell = ws.cell(row=current_row, column=1, value="TIE Hotels & Resorts")
+        title_cell.font = title_font
+        title_cell.alignment = center_align
+        title_cell.fill = header_fill
+        
+        # Date in last column
+        date_cell = ws.cell(row=current_row, column=len(short_names) + 5)
+        date_cell.value = target_date.strftime("%d-%b-%y")
+        date_cell.font = date_font
+        date_cell.fill = header_fill
+        date_cell.alignment = center_align
+        current_row += 1
+        
+        # Subtitle row
+        ws.merge_cells(f'A{current_row}:{get_column_letter(len(short_names) + 5)}{current_row}')
+        subtitle_cell = ws.cell(row=current_row, column=1, value="Overall Report for the day")
+        subtitle_cell.alignment = center_align
+        subtitle_cell.fill = white_fill
+        current_row += 1
+        
+        # Header row with property names
+        header_row = current_row
+        ws.cell(row=header_row, column=1, value="")
+        
+        col_idx = 2
+        for short_name in short_names:
+            cell = ws.cell(row=header_row, column=col_idx, value=short_name)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_align
             cell.border = thin_border
+            col_idx += 1
+        
+        # D.T.D and M.T.D columns
+        dtd_cell = ws.cell(row=header_row, column=col_idx, value="D.T.D")
+        dtd_cell.font = header_font
+        dtd_cell.fill = header_fill
+        dtd_cell.alignment = center_align
+        dtd_cell.border = thin_border
+        col_idx += 1
+        
+        mtd_cell = ws.cell(row=header_row, column=col_idx, value="M.T.D")
+        mtd_cell.font = header_font
+        mtd_cell.fill = header_fill
+        mtd_cell.alignment = center_align
+        mtd_cell.border = thin_border
+        
+        current_row += 1
+        
+        # Data rows
+        row_labels = ["Rooms Available", "Rooms Sold", "Occ %", "GST", "Commission", 
+                     "Receivable", "Receivable Per Night", "ARR"]
+        
+        for label in row_labels:
+            label_cell = ws.cell(row=current_row, column=1, value=label)
+            label_cell.font = Font(bold=True)
+            label_cell.border = thin_border
             
-            if idx == "Occ %":
+            col_idx = 2
+            for prop in all_props:
+                m = metrics[prop]
+                
+                if label == "Rooms Available":
+                    value = m["rooms_available"]
+                elif label == "Rooms Sold":
+                    value = m["rooms_sold"]
+                elif label == "Occ %":
+                    value = f"{m['occupancy']:.0f}%"
+                elif label == "GST":
+                    value = int(m["gst"])
+                elif label == "Commission":
+                    value = int(m["commission"])
+                elif label == "Receivable":
+                    value = int(m["receivable"])
+                elif label == "Receivable Per Night":
+                    value = int(m["receivable_per_night"])
+                elif label == "ARR":
+                    value = int(m["arr"])
+                
+                cell = ws.cell(row=current_row, column=col_idx, value=value)
+                cell.border = thin_border
+                
+                if label == "Occ %":
+                    cell.alignment = center_align
+                elif isinstance(value, (int, float)):
+                    cell.alignment = right_align
+                    if value > 0:
+                        cell.number_format = '#,##0'
+                else:
+                    cell.alignment = center_align
+                
+                col_idx += 1
+            
+            # D.T.D column
+            if label == "Rooms Available":
+                dtd_val = totals["rooms_available"]
+            elif label == "Rooms Sold":
+                dtd_val = totals["rooms_sold"]
+            elif label == "Occ %":
+                dtd_val = f"{totals['occupancy']:.0f}%"
+            elif label == "GST":
+                dtd_val = int(totals["gst"])
+            elif label == "Commission":
+                dtd_val = int(totals["commission"])
+            elif label == "Receivable":
+                dtd_val = int(totals["receivable"])
+            elif label == "Receivable Per Night":
+                dtd_val = int(totals["receivable_per_night"])
+            elif label == "ARR":
+                dtd_val = int(totals["arr"])
+            
+            cell = ws.cell(row=current_row, column=col_idx, value=dtd_val)
+            cell.border = thin_border
+            if label == "Occ %":
                 cell.alignment = center_align
-            elif isinstance(value, (int, float)):
+            elif isinstance(dtd_val, (int, float)):
                 cell.alignment = right_align
-                if value > 0:
+                if dtd_val > 0:
                     cell.number_format = '#,##0'
             else:
                 cell.alignment = center_align
+            col_idx += 1
+            
+            # M.T.D column (same as D.T.D for now)
+            cell = ws.cell(row=current_row, column=col_idx, value=dtd_val)
+            cell.border = thin_border
+            if label == "Occ %":
+                cell.alignment = center_align
+            elif isinstance(dtd_val, (int, float)):
+                cell.alignment = right_align
+                if dtd_val > 0:
+                    cell.number_format = '#,##0'
+            else:
+                cell.alignment = center_align
+            
+            current_row += 1
+        
+        # Add spacing between days
+        current_row += 1
     
+    # Set column widths
     ws.column_dimensions['A'].width = 22
-    for col in df.columns:
-        col_letter = ws.cell(row=start_row, column=list(df.columns).index(col) + 2).column_letter
-        ws.column_dimensions[col_letter].width = 12
-    
-    total_fill = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")
-    dtd_col = list(df.columns).index("D.T.D") + 2 if "D.T.D" in df.columns else None
-    mtd_col = list(df.columns).index("M.T.D") + 2 if "M.T.D" in df.columns else None
-    
-    for row_idx in range(start_row + 1, start_row + len(df) + 1):
-        if dtd_col:
-            ws.cell(row=row_idx, column=dtd_col).fill = total_fill
-        if mtd_col:
-            ws.cell(row=row_idx, column=mtd_col).fill = total_fill
+    for i in range(2, len(short_names) + 6):
+        ws.column_dimensions[get_column_letter(i)].width = 10
     
     output = io.BytesIO()
     wb.save(output)
@@ -726,16 +670,32 @@ def show_nrd_report():
                 }
             
             # Calculate totals for this date
-            date_totals = aggregate_totals(date_metrics)
+            dtd_totals = {
+                "rooms_available": sum(m["rooms_available"] for m in date_metrics.values()),
+                "rooms_sold": sum(m["rooms_sold"] for m in date_metrics.values()),
+                "gst": sum(m["gst"] for m in date_metrics.values()),
+                "commission": sum(m["commission"] for m in date_metrics.values()),
+                "receivable": sum(m["receivable"] for m in date_metrics.values()),
+                "receivable_per_night": sum(m["receivable_per_night"] for m in date_metrics.values()),
+            }
+            dtd_totals["occupancy"] = (
+                dtd_totals["rooms_sold"] / dtd_totals["rooms_available"] * 100
+                if dtd_totals["rooms_available"] > 0 else 0.0
+            )
+            dtd_totals["arr"] = (
+                dtd_totals["receivable_per_night"] / dtd_totals["rooms_sold"]
+                if dtd_totals["rooms_sold"] > 0 else 0.0
+            )
+            
             all_dates_data.append({
                 "date": target_date,
                 "metrics": date_metrics,
-                "totals": date_totals["dtd"]
+                "totals": dtd_totals
             })
     
     st.success(f"✅ Loaded {len(month_dates)} days")
     
-    # Build summary table
+    # Build summary table for display
     summary_rows = []
     
     for day_data in all_dates_data:
@@ -751,20 +711,15 @@ def show_nrd_report():
         for prop in sorted(metrics.keys(), key=lambda x: PROPERTY_SHORT_NAMES.get(x, x)):
             short_name = PROPERTY_SHORT_NAMES.get(prop, prop)
             m = metrics[prop]
-            row[f"{short_name}_Avail"] = m["rooms_available"]
             row[f"{short_name}_Sold"] = m["rooms_sold"]
             row[f"{short_name}_Occ%"] = f"{m['occupancy']:.0f}%"
             row[f"{short_name}_Rev"] = f"₹{m['receivable']:,.0f}"
-            row[f"{short_name}_ARR"] = f"₹{m['arr']:.0f}"
         
         # Add totals
-        row["Total_Avail"] = totals["rooms_available"]
         row["Total_Sold"] = totals["rooms_sold"]
         row["Total_Occ%"] = f"{totals['occupancy']:.0f}%"
         row["Total_Revenue"] = f"₹{totals['receivable']:,.0f}"
         row["Total_ARR"] = f"₹{totals['arr']:.0f}"
-        row["Total_GST"] = f"₹{totals['gst']:,.0f}"
-        row["Total_Commission"] = f"₹{totals['commission']:,.0f}"
         
         summary_rows.append(row)
     
@@ -799,12 +754,25 @@ def show_nrd_report():
     st.subheader("📋 Daily Summary Table")
     st.dataframe(summary_df, use_container_width=True, height=600, hide_index=True)
     
-    # Download button
-    csv = summary_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download CSV Report",
-        data=csv,
-        file_name=f"TIE_NRD_Report_{year}_{month:02d}.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
+    # Download buttons
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        csv = summary_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download CSV Report",
+            data=csv,
+            file_name=f"TIE_NRD_Report_{year}_{month:02d}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+    
+    with col2:
+        excel_data = export_multiple_days_to_excel(all_dates_data, year, month)
+        st.download_button(
+            label="📥 Download Excel Report (Format)",
+            data=excel_data,
+            file_name=f"TIE_NRD_Report_{year}_{month:02d}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
