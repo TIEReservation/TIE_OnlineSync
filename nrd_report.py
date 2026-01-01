@@ -699,6 +699,7 @@ def show_nrd_report():
                         "gst": 0.0,
                         "commission": 0.0,
                         "receivable": 0.0,
+                        "receivable_per_night": 0.0,
                         "arr": 0.0
                     }
                     continue
@@ -720,6 +721,7 @@ def show_nrd_report():
                     "gst": total_stats["gst"],
                     "commission": total_stats["comm"],
                     "receivable": total_stats["value"],
+                    "receivable_per_night": total_stats["value"],
                     "arr": total_stats["arr"]
                 }
             
