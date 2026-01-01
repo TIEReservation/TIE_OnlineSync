@@ -370,10 +370,12 @@ def extract_stats_from_assigned(assigned: List[Dict], target_date: date, mob_typ
 # ============================================================================
 
 def export_multiple_days_to_excel(all_dates_data: List[Dict], year: int, month: int) -> bytes:
-    """Export multiple days to Excel in the requested format"""
+    """Export multiple days to Excel with separate sheet for each date"""
     wb = Workbook()
-    ws = wb.active
-    ws.title = f"{calendar.month_name[month]} {year}"
+    
+    # Remove default sheet
+    if "Sheet" in wb.sheetnames:
+        wb.remove(wb["Sheet"])
     
     # Styles
     header_fill = PatternFill(start_color="00B8A9", end_color="00B8A9", fill_type="solid")
@@ -396,23 +398,27 @@ def export_multiple_days_to_excel(all_dates_data: List[Dict], year: int, month: 
     all_props = sorted(PROPERTY_SHORT_NAMES.keys(), key=lambda x: PROPERTY_SHORT_NAMES.get(x, x))
     short_names = [PROPERTY_SHORT_NAMES[p] for p in all_props]
     
-    current_row = 1
-    
-    # Process each date
+    # Create a sheet for each date
     for day_data in all_dates_data:
         target_date = day_data["date"]
         metrics = day_data["metrics"]
         totals = day_data["totals"]
         
+        # Create sheet with date as name
+        sheet_name = target_date.strftime("%d-%b")
+        ws = wb.create_sheet(title=sheet_name)
+        
+        current_row = 1
+        
         # Title row
-        ws.merge_cells(f'A{current_row}:{get_column_letter(len(short_names) + 4)}{current_row}')
+        ws.merge_cells(f'A{current_row}:{get_column_letter(len(short_names) + 3)}{current_row}')
         title_cell = ws.cell(row=current_row, column=1, value="TIE Hotels & Resorts")
         title_cell.font = title_font
         title_cell.alignment = center_align
         title_cell.fill = header_fill
         
         # Date in last column
-        date_cell = ws.cell(row=current_row, column=len(short_names) + 5)
+        date_cell = ws.cell(row=current_row, column=len(short_names) + 4)
         date_cell.value = target_date.strftime("%d-%b-%y")
         date_cell.font = date_font
         date_cell.fill = header_fill
@@ -420,7 +426,7 @@ def export_multiple_days_to_excel(all_dates_data: List[Dict], year: int, month: 
         current_row += 1
         
         # Subtitle row
-        ws.merge_cells(f'A{current_row}:{get_column_letter(len(short_names) + 5)}{current_row}')
+        ws.merge_cells(f'A{current_row}:{get_column_letter(len(short_names) + 4)}{current_row}')
         subtitle_cell = ws.cell(row=current_row, column=1, value="Overall Report for the day")
         subtitle_cell.alignment = center_align
         subtitle_cell.fill = white_fill
@@ -543,13 +549,10 @@ def export_multiple_days_to_excel(all_dates_data: List[Dict], year: int, month: 
             
             current_row += 1
         
-        # Add spacing between days
-        current_row += 1
-    
-    # Set column widths
-    ws.column_dimensions['A'].width = 22
-    for i in range(2, len(short_names) + 6):
-        ws.column_dimensions[get_column_letter(i)].width = 10
+        # Set column widths
+        ws.column_dimensions['A'].width = 22
+        for i in range(2, len(short_names) + 5):
+            ws.column_dimensions[get_column_letter(i)].width = 10
     
     output = io.BytesIO()
     wb.save(output)
