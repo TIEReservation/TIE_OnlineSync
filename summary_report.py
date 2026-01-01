@@ -1,5 +1,5 @@
-# summary_report.py - FINAL FULL VERSION
-# Red zeros + Light green weekends + Scrollable tables
+# summary_report.py - FIXED VERSION
+# Corrected rooms_sold calculation to count all occupied rooms per day
 
 import streamlit as st
 from datetime import date
@@ -87,16 +87,16 @@ def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
     try:
         direct = (supabase.table("reservations").select("*")
                   .in_("property_name", query_props)
-                  .gte("check_in", str(start))
                   .lte("check_in", str(end))
+                  .gte("check_out", str(start))
                   .in_("plan_status", ["Confirmed", "Completed"])
                   .in_("payment_status", ["Partially Paid", "Fully Paid"])
                   .execute().data or [])
 
         online = (supabase.table("online_reservations").select("*")
                   .in_("property", query_props)
-                  .gte("check_in", str(start))
                   .lte("check_in", str(end))
+                  .gte("check_out", str(start))
                   .in_("booking_status", ["Confirmed", "Completed"])
                   .in_("payment_status", ["Partially Paid", "Fully Paid"])
                   .execute().data or [])
@@ -191,7 +191,11 @@ def safe_float(value, default=0.0):
 def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     daily = filter_bookings_for_day(bookings, day)
     assigned, _ = assign_inventory_numbers(daily, prop)
+    
+    # ✅ FIX: Count ALL occupied rooms on this day, not just check-ins
     rooms_sold = len(set(b.get("assigned_room") for b in assigned if b.get("assigned_room")))
+    
+    # Only calculate financial metrics for check-in day primaries
     check_in_primaries = [b for b in assigned if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day]
 
     room_charges = gst = commission = 0.0
@@ -208,6 +212,7 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     receivable = total - commission
     tax_deduction = receivable * 0.003
 
+    # Calculate per-night receivable for ALL occupied rooms on this day
     daily_per_night_sum = 0.0
     for b in assigned:
         if b.get("is_primary", True):
@@ -318,7 +323,6 @@ def style_dataframe_with_highlights(df: pd.DataFrame) -> str:
             ])
             .to_html(escape=False))
     
-    # Wrap in scrollable div with both horizontal and vertical scroll
     scrollable_html = '<div style="overflow-x: auto; overflow-y: auto; max-height: 600px; max-width: 100%; border: 1px solid #ddd; border-radius: 5px;">' + styled_html + '</div>'
     
     return scrollable_html
