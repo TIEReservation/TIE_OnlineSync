@@ -601,14 +601,11 @@ def show_nrd_report():
     
     st.markdown("---")
     
-    # Generate dates for the month
+    # Generate ALL dates for the month
     num_days = calendar.monthrange(year, month)[1]
-    month_dates = [date(year, month, d) for d in range(1, num_days + 1)]
+    all_month_dates = [date(year, month, d) for d in range(1, num_days + 1)]
     
-    # Only show dates up to today
-    month_dates = [d for d in month_dates if d <= today]
-    
-    if not month_dates:
+    if not all_month_dates:
         st.warning(f"No data available for {calendar.month_name[month]} {year}")
         return
     
@@ -624,8 +621,8 @@ def show_nrd_report():
         for prop in PROPERTY_SHORT_NAMES.keys():
             all_property_bookings[prop] = load_month_bookings(prop, year, month)
         
-        # Process each date
-        for target_date in month_dates:
+        # Process each date (ALL dates in the month)
+        for target_date in all_month_dates:
             date_metrics = {}
             
             for prop in PROPERTY_SHORT_NAMES.keys():
@@ -696,12 +693,13 @@ def show_nrd_report():
                 "totals": dtd_totals
             })
     
-    st.success(f"✅ Loaded {len(month_dates)} days")
+    st.success(f"✅ Loaded {len(all_month_dates)} days")
     
-    # Build summary table for display
+    # Build summary table for display - only show dates up to today
     summary_rows = []
+    dates_up_to_today = [d for d in all_dates_data if d["date"] <= today]
     
-    for day_data in all_dates_data:
+    for day_data in dates_up_to_today:
         target_date = day_data["date"]
         metrics = day_data["metrics"]
         totals = day_data["totals"]
@@ -729,13 +727,13 @@ def show_nrd_report():
     # Create DataFrame
     summary_df = pd.DataFrame(summary_rows)
     
-    # Display summary metrics
+    # Display summary metrics (only for dates up to today)
     st.subheader(f"📊 Month Summary - {calendar.month_name[month]} {year}")
     
-    total_rooms_sold = sum(d["totals"]["rooms_sold"] for d in all_dates_data)
-    total_revenue = sum(d["totals"]["receivable"] for d in all_dates_data)
-    total_gst = sum(d["totals"]["gst"] for d in all_dates_data)
-    avg_occupancy = sum(d["totals"]["occupancy"] for d in all_dates_data) / len(all_dates_data) if all_dates_data else 0
+    total_rooms_sold = sum(d["totals"]["rooms_sold"] for d in dates_up_to_today)
+    total_revenue = sum(d["totals"]["receivable"] for d in dates_up_to_today)
+    total_gst = sum(d["totals"]["gst"] for d in dates_up_to_today)
+    avg_occupancy = sum(d["totals"]["occupancy"] for d in dates_up_to_today) / len(dates_up_to_today) if dates_up_to_today else 0
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -749,7 +747,7 @@ def show_nrd_report():
         st.metric("MTD GST", f"₹{total_gst:,.0f}")
     
     with col4:
-        st.metric("Total Days", len(month_dates))
+        st.metric("Days", f"{len(dates_up_to_today)}/{len(all_month_dates)}")
     
     st.markdown("---")
     
@@ -771,9 +769,10 @@ def show_nrd_report():
         )
     
     with col2:
+        # Excel export includes ALL dates in the month (even future dates)
         excel_data = export_multiple_days_to_excel(all_dates_data, year, month)
         st.download_button(
-            label="📥 Download Excel Report",
+            label="📥 Download Excel Report (All Dates)",
             data=excel_data,
             file_name=f"TIE_NRD_Report_{year}_{month:02d}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
