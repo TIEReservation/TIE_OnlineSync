@@ -773,7 +773,7 @@ def show_nrd_report():
     with col2:
         excel_data = export_multiple_days_to_excel(all_dates_data, year, month)
         st.download_button(
-            label="📥 Download Excel Report (Format)",
+            label="📥 Download Excel Report",
             data=excel_data,
             file_name=f"TIE_NRD_Report_{year}_{month:02d}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
