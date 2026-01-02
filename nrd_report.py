@@ -726,87 +726,13 @@ def show_nrd_report():
         st.warning(f"No data available for {calendar.month_name[month]} {year}")
         return
     
-    # Date selector for individual day view
-    selected_date = st.selectbox(
-        "Select Date for Detailed View",
-        month_dates,
-        index=len(month_dates)-1,  # Default to most recent date
-        format_func=lambda x: x.strftime("%d %b %Y (%A)")
-    )
-    
     mob_types = list(mob_mapping.keys())
     
-    # Process the selected date
-    with st.spinner(f"Loading data for {selected_date.strftime('%d %b %Y')}..."):
-        # Pre-load all bookings for all properties for the selected date
-        date_metrics = {}
+    # Process all dates in the month
+    with st.spinner(f"Loading data for {calendar.month_name[month]} {year}..."):
+        all_dates_data = []
         
-        for prop in PROPERTY_SHORT_NAMES.keys():
-            # Get inventory count
-            inv_data = PROPERTY_INVENTORY.get(prop, {"all": []})
-            all_rooms = inv_data["all"]
-            total_inventory = len([i for i in all_rooms if not i.startswith(("Day Use", "No Show"))])
-            
-            # Load bookings
-            bookings = load_month_bookings(prop, year, month)
-            
-            # Filter bookings for this day
-            daily = filter_bookings_for_day(bookings, selected_date)
-            
-            if not daily:
-                date_metrics[prop] = {
-                    "rooms_available": total_inventory,
-                    "rooms_sold": 0,
-                    "occupancy": 0.0,
-                    "gst": 0.0,
-                    "commission": 0.0,
-                    "receivable": 0.0,
-                    "receivable_per_night": 0.0,
-                    "arr": 0.0
-                }
-                continue
-            
-            # Assign inventory
-            assigned, over = assign_inventory_numbers(daily, prop)
-            
-            # Extract stats
-            stats = extract_stats_from_assigned(assigned, selected_date, mob_types)
-            total_stats = stats["Total"]
-            
-            rooms_sold = total_stats["rooms"]
-            occupancy = (rooms_sold / total_inventory * 100) if total_inventory > 0 else 0.0
-            
-            date_metrics[prop] = {
-                "rooms_available": total_inventory,
-                "rooms_sold": rooms_sold,
-                "occupancy": occupancy,
-                "gst": total_stats["gst"],
-                "commission": total_stats["comm"],
-                "receivable": total_stats["value"],
-                "receivable_per_night": total_stats["value"],
-                "arr": total_stats["arr"]
-            }
-        
-        # Calculate D.T.D totals
-        dtd_totals = {
-            "rooms_available": sum(m["rooms_available"] for m in date_metrics.values()),
-            "rooms_sold": sum(m["rooms_sold"] for m in date_metrics.values()),
-            "gst": sum(m["gst"] for m in date_metrics.values()),
-            "commission": sum(m["commission"] for m in date_metrics.values()),
-            "receivable": sum(m["receivable"] for m in date_metrics.values()),
-            "receivable_per_night": sum(m["receivable_per_night"] for m in date_metrics.values()),
-        }
-        dtd_totals["occupancy"] = (
-            dtd_totals["rooms_sold"] / dtd_totals["rooms_available"] * 100
-            if dtd_totals["rooms_available"] > 0 else 0.0
-        )
-        dtd_totals["arr"] = (
-            dtd_totals["receivable_per_night"] / dtd_totals["rooms_sold"]
-            if dtd_totals["rooms_sold"] > 0 else 0.0
-        )
-        
-        # Calculate M.T.D totals (for all dates up to selected date)
-        mtd_dates = [d for d in month_dates if d <= selected_date]
+        # Calculate M.T.D totals
         mtd_totals = {
             "rooms_available": 0,
             "rooms_sold": 0,
@@ -816,117 +742,202 @@ def show_nrd_report():
             "receivable_per_night": 0.0,
         }
         
-        for mtd_date in mtd_dates:
+        for selected_date in month_dates:
+            # Pre-load all bookings for all properties for this date
+            date_metrics = {}
+            
             for prop in PROPERTY_SHORT_NAMES.keys():
+                # Get inventory count
                 inv_data = PROPERTY_INVENTORY.get(prop, {"all": []})
                 all_rooms = inv_data["all"]
                 total_inventory = len([i for i in all_rooms if not i.startswith(("Day Use", "No Show"))])
                 
+                # Load bookings
                 bookings = load_month_bookings(prop, year, month)
-                daily = filter_bookings_for_day(bookings, mtd_date)
                 
-                mtd_totals["rooms_available"] += total_inventory
+                # Filter bookings for this day
+                daily = filter_bookings_for_day(bookings, selected_date)
                 
-                if daily:
-                    assigned, over = assign_inventory_numbers(daily, prop)
-                    stats = extract_stats_from_assigned(assigned, mtd_date, mob_types)
-                    total_stats = stats["Total"]
-                    
-                    mtd_totals["rooms_sold"] += total_stats["rooms"]
-                    mtd_totals["gst"] += total_stats["gst"]
-                    mtd_totals["commission"] += total_stats["comm"]
-                    mtd_totals["receivable"] += total_stats["value"]
-                    mtd_totals["receivable_per_night"] += total_stats["value"]
+                if not daily:
+                    date_metrics[prop] = {
+                        "rooms_available": total_inventory,
+                        "rooms_sold": 0,
+                        "occupancy": 0.0,
+                        "gst": 0.0,
+                        "commission": 0.0,
+                        "receivable": 0.0,
+                        "receivable_per_night": 0.0,
+                        "arr": 0.0
+                    }
+                    continue
+                
+                # Assign inventory
+                assigned, over = assign_inventory_numbers(daily, prop)
+                
+                # Extract stats
+                stats = extract_stats_from_assigned(assigned, selected_date, mob_types)
+                total_stats = stats["Total"]
+                
+                rooms_sold = total_stats["rooms"]
+                occupancy = (rooms_sold / total_inventory * 100) if total_inventory > 0 else 0.0
+                
+                date_metrics[prop] = {
+                    "rooms_available": total_inventory,
+                    "rooms_sold": rooms_sold,
+                    "occupancy": occupancy,
+                    "gst": total_stats["gst"],
+                    "commission": total_stats["comm"],
+                    "receivable": total_stats["value"],
+                    "receivable_per_night": total_stats["value"],
+                    "arr": total_stats["arr"]
+                }
+            
+            # Calculate D.T.D totals for this date
+            dtd_totals = {
+                "rooms_available": sum(m["rooms_available"] for m in date_metrics.values()),
+                "rooms_sold": sum(m["rooms_sold"] for m in date_metrics.values()),
+                "gst": sum(m["gst"] for m in date_metrics.values()),
+                "commission": sum(m["commission"] for m in date_metrics.values()),
+                "receivable": sum(m["receivable"] for m in date_metrics.values()),
+                "receivable_per_night": sum(m["receivable_per_night"] for m in date_metrics.values()),
+            }
+            dtd_totals["occupancy"] = (
+                dtd_totals["rooms_sold"] / dtd_totals["rooms_available"] * 100
+                if dtd_totals["rooms_available"] > 0 else 0.0
+            )
+            dtd_totals["arr"] = (
+                dtd_totals["receivable_per_night"] / dtd_totals["rooms_sold"]
+                if dtd_totals["rooms_sold"] > 0 else 0.0
+            )
+            
+            # Update M.T.D running totals
+            mtd_totals["rooms_available"] += dtd_totals["rooms_available"]
+            mtd_totals["rooms_sold"] += dtd_totals["rooms_sold"]
+            mtd_totals["gst"] += dtd_totals["gst"]
+            mtd_totals["commission"] += dtd_totals["commission"]
+            mtd_totals["receivable"] += dtd_totals["receivable"]
+            mtd_totals["receivable_per_night"] += dtd_totals["receivable_per_night"]
+            
+            # Calculate M.T.D percentages
+            current_mtd = {
+                "rooms_available": mtd_totals["rooms_available"],
+                "rooms_sold": mtd_totals["rooms_sold"],
+                "gst": mtd_totals["gst"],
+                "commission": mtd_totals["commission"],
+                "receivable": mtd_totals["receivable"],
+                "receivable_per_night": mtd_totals["receivable_per_night"],
+            }
+            current_mtd["occupancy"] = (
+                current_mtd["rooms_sold"] / current_mtd["rooms_available"] * 100
+                if current_mtd["rooms_available"] > 0 else 0.0
+            )
+            current_mtd["arr"] = (
+                current_mtd["receivable_per_night"] / current_mtd["rooms_sold"]
+                if current_mtd["rooms_sold"] > 0 else 0.0
+            )
+            
+            # Store data for this date
+            all_dates_data.append({
+                "date": selected_date,
+                "metrics": date_metrics,
+                "dtd_totals": dtd_totals,
+                "mtd_totals": current_mtd.copy()
+            })
+    
+    st.success(f"✅ Data loaded for {len(month_dates)} days in {calendar.month_name[month]} {year}")
+    
+    # Display each date's report
+    for day_data in all_dates_data:
+        selected_date = day_data["date"]
+        date_metrics = day_data["metrics"]
+        dtd_totals = day_data["dtd_totals"]
+        mtd_totals = day_data["mtd_totals"]
         
-        mtd_totals["occupancy"] = (
-            mtd_totals["rooms_sold"] / mtd_totals["rooms_available"] * 100
-            if mtd_totals["rooms_available"] > 0 else 0.0
-        )
-        mtd_totals["arr"] = (
-            mtd_totals["receivable_per_night"] / mtd_totals["rooms_sold"]
-            if mtd_totals["rooms_sold"] > 0 else 0.0
-        )
+        # Display header
+        st.markdown(f"### 🏨 TIE Hotels & Resorts - {selected_date.strftime('%d %b %Y (%A)')}")
+        st.markdown("**Overall Report for the day**")
+        
+        # Create and display the summary table
+        summary_df = create_daily_summary_table(date_metrics, dtd_totals, mtd_totals)
+        
+        # Apply styling
+        styled_df = highlight_nrd_table(summary_df)
+        
+        # Display the table
+        st.dataframe(styled_df, use_container_width=True, height=400, hide_index=True)
+        
+        # Display summary metrics in columns
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric(
+                "D.T.D Rooms Sold", 
+                f"{dtd_totals['rooms_sold']:,}",
+                f"{dtd_totals['occupancy']:.1f}% Occupancy"
+            )
+        
+        with col2:
+            st.metric(
+                "D.T.D Revenue", 
+                f"₹{dtd_totals['receivable']:,.0f}",
+                f"₹{dtd_totals['arr']:,.0f} ARR"
+            )
+        
+        with col3:
+            st.metric(
+                "M.T.D Rooms Sold", 
+                f"{mtd_totals['rooms_sold']:,}",
+                f"{mtd_totals['occupancy']:.1f}% Occupancy"
+            )
+        
+        with col4:
+            st.metric(
+                "M.T.D Revenue", 
+                f"₹{mtd_totals['receivable']:,.0f}",
+                f"₹{mtd_totals['arr']:,.0f} ARR"
+            )
+        
+        st.markdown("---")
     
-    st.success(f"✅ Data loaded for {selected_date.strftime('%d %b %Y')}")
-    
-    # Display header
-    st.markdown(f"### 🏨 TIE Hotels & Resorts - {selected_date.strftime('%d %b %Y')}")
-    st.markdown("**Overall Report for the day**")
-    st.markdown("---")
-    
-    # Create and display the summary table
-    summary_df = create_daily_summary_table(date_metrics, dtd_totals, mtd_totals)
-    
-    # Apply styling
-    styled_df = highlight_nrd_table(summary_df)
-    
-    # Display the table
-    st.dataframe(styled_df, use_container_width=True, height=400, hide_index=True)
-    
-    st.markdown("---")
-    
-    # Display summary metrics in columns
-    st.subheader("📈 Quick Summary")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric(
-            "D.T.D Rooms Sold", 
-            f"{dtd_totals['rooms_sold']:,}",
-            f"{dtd_totals['occupancy']:.1f}% Occupancy"
-        )
-    
-    with col2:
-        st.metric(
-            "D.T.D Revenue", 
-            f"₹{dtd_totals['receivable']:,.0f}",
-            f"₹{dtd_totals['arr']:,.0f} ARR"
-        )
-    
-    with col3:
-        st.metric(
-            "M.T.D Rooms Sold", 
-            f"{mtd_totals['rooms_sold']:,}",
-            f"{mtd_totals['occupancy']:.1f}% Occupancy"
-        )
-    
-    with col4:
-        st.metric(
-            "M.T.D Revenue", 
-            f"₹{mtd_totals['receivable']:,.0f}",
-            f"₹{mtd_totals['arr']:,.0f} ARR"
-        )
-    
-    st.markdown("---")
-    
-    # Download buttons
+    # Download buttons at the end for all dates
+    st.subheader("📥 Download Reports")
     col1, col2 = st.columns(2)
     
     with col1:
-        # CSV export
-        csv = summary_df.to_csv(index=False).encode('utf-8')
+        # CSV export - combine all dates
+        all_csv_rows = []
+        for day_data in all_dates_data:
+            summary_df = create_daily_summary_table(
+                day_data["metrics"], 
+                day_data["dtd_totals"], 
+                day_data["mtd_totals"]
+            )
+            summary_df.insert(0, "Date", day_data["date"].strftime("%d-%b-%Y"))
+            all_csv_rows.append(summary_df)
+        
+        combined_csv_df = pd.concat(all_csv_rows, ignore_index=True)
+        csv = combined_csv_df.to_csv(index=False).encode('utf-8')
         st.download_button(
-            label="📥 Download CSV Report",
+            label="📥 Download Complete CSV Report",
             data=csv,
-            file_name=f"TIE_NRD_Report_{selected_date.strftime('%Y%m%d')}.csv",
+            file_name=f"TIE_NRD_Report_{year}_{month:02d}_Complete.csv",
             mime="text/csv",
             use_container_width=True
         )
     
     with col2:
-        # Excel export
-        all_dates_data = [{
-            "date": selected_date,
-            "metrics": date_metrics,
-            "totals": dtd_totals
-        }]
+        # Excel export - all dates in separate sheets
+        excel_export_data = [{
+            "date": d["date"],
+            "metrics": d["metrics"],
+            "totals": d["dtd_totals"]
+        } for d in all_dates_data]
         
-        excel_data = export_multiple_days_to_excel(all_dates_data, year, month)
+        excel_data = export_multiple_days_to_excel(excel_export_data, year, month)
         st.download_button(
-            label="📥 Download Excel Report",
+            label="📥 Download Complete Excel Report",
             data=excel_data,
-            file_name=f"TIE_NRD_Report_{selected_date.strftime('%Y%m%d')}.xlsx",
+            file_name=f"TIE_NRD_Report_{year}_{month:02d}_Complete.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
