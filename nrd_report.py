@@ -601,14 +601,11 @@ def show_nrd_report():
     
     st.markdown("---")
     
-    # Generate dates for the month
+    # Generate ALL dates for the month
     num_days = calendar.monthrange(year, month)[1]
-    month_dates = [date(year, month, d) for d in range(1, num_days + 1)]
+    all_month_dates = [date(year, month, d) for d in range(1, num_days + 1)]
     
-    # Only show dates up to today
-    month_dates = [d for d in month_dates if d <= today]
-    
-    if not month_dates:
+    if not all_month_dates:
         st.warning(f"No data available for {calendar.month_name[month]} {year}")
         return
     
@@ -624,8 +621,8 @@ def show_nrd_report():
         for prop in PROPERTY_SHORT_NAMES.keys():
             all_property_bookings[prop] = load_month_bookings(prop, year, month)
         
-        # Process each date
-        for target_date in month_dates:
+        # Process each date (ALL dates in the month)
+        for target_date in all_month_dates:
             date_metrics = {}
             
             for prop in PROPERTY_SHORT_NAMES.keys():
@@ -696,12 +693,13 @@ def show_nrd_report():
                 "totals": dtd_totals
             })
     
-    st.success(f"✅ Loaded {len(month_dates)} days")
+    st.success(f"✅ Loaded {len(all_month_dates)} days")
     
-    # Build summary table for display
+    # Build summary table for display - only show dates up to today
     summary_rows = []
+    dates_up_to_today = [d for d in all_dates_data if d["date"] <= today]
     
-    for day_data in all_dates_data:
+    for day_data in dates_up_to_today:
         target_date = day_data["date"]
         metrics = day_data["metrics"]
         totals = day_data["totals"]
@@ -729,13 +727,13 @@ def show_nrd_report():
     # Create DataFrame
     summary_df = pd.DataFrame(summary_rows)
     
-    # Display summary metrics
+    # Display summary metrics (only for dates up to today)
     st.subheader(f"📊 Month Summary - {calendar.month_name[month]} {year}")
     
-    total_rooms_sold = sum(d["totals"]["rooms_sold"] for d in all_dates_data)
-    total_revenue = sum(d["totals"]["receivable"] for d in all_dates_data)
-    total_gst = sum(d["totals"]["gst"] for d in all_dates_data)
-    avg_occupancy = sum(d["totals"]["occupancy"] for d in all_dates_data) / len(all_dates_data) if all_dates_data else 0
+    total_rooms_sold = sum(d["totals"]["rooms_sold"] for d in dates_up_to_today)
+    total_revenue = sum(d["totals"]["receivable"] for d in dates_up_to_today)
+    total_gst = sum(d["totals"]["gst"] for d in dates_up_to_today)
+    avg_occupancy = sum(d["totals"]["occupancy"] for d in dates_up_to_today) / len(dates_up_to_today) if dates_up_to_today else 0
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -749,15 +747,77 @@ def show_nrd_report():
         st.metric("MTD GST", f"₹{total_gst:,.0f}")
     
     with col4:
-        st.metric("Total Days", len(month_dates))
+        st.metric("Days", f"{len(dates_up_to_today)}/{len(all_month_dates)}")
     
     st.markdown("---")
     
-    # Display the table
-    st.subheader("📋 Daily Summary Table")
-    st.dataframe(summary_df, use_container_width=True, height=600, hide_index=True)
+    # Display individual tables for each date
+    st.subheader("📋 Daily Reports")
     
-    # Download buttons
+    # Create tabs for easier navigation
+    if len(dates_up_to_today) > 0:
+        # Show last 7 days by default, with option to see more
+        show_all = st.checkbox("Show all dates", value=False)
+        
+        if show_all:
+            dates_to_show = dates_up_to_today
+        else:
+            dates_to_show = dates_up_to_today[-7:]  # Last 7 days
+        
+        st.info(f"Showing {len(dates_to_show)} of {len(dates_up_to_today)} days")
+        
+        # Display each date as a separate table
+        for day_data in reversed(dates_to_show):  # Most recent first
+            target_date = day_data["date"]
+            metrics = day_data["metrics"]
+            totals = day_data["totals"]
+            
+            # Create expandable section for each date
+            with st.expander(f"📅 {target_date.strftime('%d %B %Y')} - {totals['rooms_sold']} rooms, {totals['occupancy']:.0f}% occupancy", expanded=(target_date == today)):
+                # Get sorted property list
+                all_props = sorted(metrics.keys(), key=lambda x: PROPERTY_SHORT_NAMES.get(x, x))
+                short_names = [PROPERTY_SHORT_NAMES.get(p, p) for p in all_props]
+                
+                # Build table data
+                table_data = {
+                    "Metric": ["Rooms Available", "Rooms Sold", "Occ %", "GST", "Commission", 
+                              "Receivable", "Receivable Per Night", "ARR"]
+                }
+                
+                # Add each property column
+                for prop in all_props:
+                    short_name = PROPERTY_SHORT_NAMES.get(prop, prop)
+                    m = metrics[prop]
+                    table_data[short_name] = [
+                        m["rooms_available"],
+                        m["rooms_sold"],
+                        f"{m['occupancy']:.0f}%",
+                        f"₹{m['gst']:,.0f}",
+                        f"₹{m['commission']:,.0f}",
+                        f"₹{m['receivable']:,.0f}",
+                        f"₹{m['receivable_per_night']:,.0f}",
+                        f"₹{m['arr']:,.0f}"
+                    ]
+                
+                # Add D.T.D and M.T.D columns
+                table_data["D.T.D"] = [
+                    totals["rooms_available"],
+                    totals["rooms_sold"],
+                    f"{totals['occupancy']:.0f}%",
+                    f"₹{totals['gst']:,.0f}",
+                    f"₹{totals['commission']:,.0f}",
+                    f"₹{totals['receivable']:,.0f}",
+                    f"₹{totals['receivable_per_night']:,.0f}",
+                    f"₹{totals['arr']:,.0f}"
+                ]
+                
+                table_data["M.T.D"] = table_data["D.T.D"].copy()
+                
+                # Create and display DataFrame
+                date_df = pd.DataFrame(table_data)
+                st.dataframe(date_df, use_container_width=True, hide_index=True)
+    
+    st.markdown("---")
     col1, col2 = st.columns(2)
     
     with col1:
@@ -771,9 +831,10 @@ def show_nrd_report():
         )
     
     with col2:
+        # Excel export includes ALL dates in the month (even future dates)
         excel_data = export_multiple_days_to_excel(all_dates_data, year, month)
         st.download_button(
-            label="📥 Download Excel Report (Format)",
+            label="📥 Download Excel Report (All Dates)",
             data=excel_data,
             file_name=f"TIE_NRD_Report_{year}_{month:02d}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
