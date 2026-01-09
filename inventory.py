@@ -545,9 +545,6 @@ def show_daily_status():
                             "Accounts Status": st.column_config.SelectboxColumn("✏️ Accounts Status", options=["Pending", "Completed"], disabled=False),
                         }
 
-                        styled_display = display_df.style.apply(highlight_columns, axis=None)
-                        st.dataframe(styled_display, column_config=col_config_readonly, use_container_width=True, height=400, hide_index=True)
-
                         unique_key = f"{prop.replace(' ', '_')}_{day.strftime('%Y%m%d')}"
 
                         # Apply highlighting styles
