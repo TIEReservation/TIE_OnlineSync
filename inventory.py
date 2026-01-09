@@ -516,7 +516,7 @@ def show_daily_status():
                             "Inventory No": st.column_config.TextColumn(disabled=True, pinned=True),
                             "Room No": st.column_config.TextColumn(disabled=True, pinned=True),
                             "Booking ID": st.column_config.TextColumn(disabled=True, pinned=True),
-                            "Guest Name": st.column_config.TextColumn(disabled=True),
+                            "Guest Name": st.column_config.TextColumn(disabled=True, pinned=True),
                             "Mobile No": st.column_config.TextColumn(disabled=True),
                             "Total Pax": st.column_config.NumberColumn(disabled=True),
                             "Check In": st.column_config.TextColumn(disabled=True),
