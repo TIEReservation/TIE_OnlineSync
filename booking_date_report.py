@@ -24,17 +24,18 @@ property_mapping = {
     "Le Teera": "Le Terra"
 }
 
-# Table CSS
+# Table CSS with frozen columns till Guest Name
 TABLE_CSS = """
 <style>
 .custom-scrollable-table {
     overflow-x: auto;
     max-width: 100%;
-    min-width: 800px;
+    position: relative;
 }
 .custom-scrollable-table table {
     table-layout: auto;
     border-collapse: collapse;
+    min-width: 100%;
 }
 .custom-scrollable-table td, .custom-scrollable-table th {
     white-space: nowrap;
@@ -43,6 +44,44 @@ TABLE_CSS = """
     max-width: 300px;
     padding: 8px;
     border: 1px solid #ddd;
+    background-color: white;
+}
+/* Freeze first 4 columns: Source, Booking ID, Booking Date, Guest Name */
+.custom-scrollable-table th:nth-child(1),
+.custom-scrollable-table td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background-color: #f8f9fa;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+.custom-scrollable-table th:nth-child(2),
+.custom-scrollable-table td:nth-child(2) {
+    position: sticky;
+    left: 80px;
+    z-index: 10;
+    background-color: #f8f9fa;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+.custom-scrollable-table th:nth-child(3),
+.custom-scrollable-table td:nth-child(3) {
+    position: sticky;
+    left: 200px;
+    z-index: 10;
+    background-color: #f8f9fa;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+.custom-scrollable-table th:nth-child(4),
+.custom-scrollable-table td:nth-child(4) {
+    position: sticky;
+    left: 330px;
+    z-index: 10;
+    background-color: #f8f9fa;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+.custom-scrollable-table th {
+    background-color: #e9ecef !important;
+    font-weight: bold;
 }
 .custom-scrollable-table a {
     color: #1E90FF;
