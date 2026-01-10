@@ -1,4 +1,4 @@
-# target_achievement_report.py - FIXED Current ARR Calculation
+# target_achievement_report.py - Multi-Month Support (Dec 2025 & Jan 2026)
 
 import streamlit as st
 from datetime import date, datetime
@@ -45,24 +45,44 @@ def normalize_property_name(prop_name: str) -> str:
         return ""
     return PROPERTY_MAPPING.get(prop_name.strip(), prop_name.strip())
 
-# -------------------------- December 2025 Targets --------------------------
-DECEMBER_2025_TARGETS = {
-    "La Millionaire Resort": 2009899,
-    "Le Poshe Beach view":   777120,
-    "Le Park Resort":        862113,
-    "La Tamara Luxury":     1784373,
-    "Le Poshe Luxury":      1100469,
-    "Le Poshe Suite":        545150,
-    "Eden Beach Resort":     413706,
-    "La Antilia Luxury":    1275000,
-    "La Coromandel Luxury":  738878,
-    "La Tamara Suite":       657956,
-    "Villa Shakti":          947947,
-    "La Paradise Luxury":    591102,
-    "La Villa Heritage":     494469,
-    "La Paradise Residency": 450824,
-    "Le Pondy Beachside":    238796,
-    "Le Royce Villa":        214916,
+# -------------------------- Monthly Targets --------------------------
+MONTHLY_TARGETS = {
+    "December 2025": {
+        "La Millionaire Resort": 2009899,
+        "Le Poshe Beach view": 777120,
+        "Le Park Resort": 862113,
+        "La Tamara Luxury": 1784373,
+        "Le Poshe Luxury": 1100469,
+        "Le Poshe Suite": 545150,
+        "Eden Beach Resort": 413706,
+        "La Antilia Luxury": 1275000,
+        "La Coromandel Luxury": 738878,
+        "La Tamara Suite": 657956,
+        "Villa Shakti": 947947,
+        "La Paradise Luxury": 591102,
+        "La Villa Heritage": 494469,
+        "La Paradise Residency": 450824,
+        "Le Pondy Beachside": 238796,
+        "Le Royce Villa": 214916,
+    },
+    "January 2026": {
+        "La Millionaire Resort": 1600000,
+        "Le Poshe Beach view": 750000,
+        "Le Park Resort": 650000,
+        "La Tamara Luxury": 1274000,
+        "Le Poshe Luxury": 861000,
+        "Le Poshe Suite": 338000,
+        "Eden Beach Resort": 355000,
+        "La Antilia Luxury": 859000,
+        "La Coromandel Luxury": 750000,
+        "La Tamara Suite": 575000,
+        "Villa Shakti": 618000,
+        "La Paradise Luxury": 397000,
+        "La Villa Heritage": 327000,
+        "La Paradise Residency": 462000,
+        "Le Pondy Beachside": 148000,
+        "Le Royce Villa": 130000,
+    }
 }
 
 # -------------------------- Property Inventory --------------------------
@@ -202,13 +222,13 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     }
 
 # -------------------------- MAIN REPORT --------------------------
-def build_target_achievement_report(props: List[str], dates: List[date], bookings_dict: Dict[str, List[Dict]], current_date: date) -> pd.DataFrame:
+def build_target_achievement_report(props: List[str], dates: List[date], bookings_dict: Dict[str, List[Dict]], current_date: date, targets: Dict) -> pd.DataFrame:
     rows = []
     balance_days = len([d for d in dates if d > current_date])
 
     for prop in props:
         try:
-            target = DECEMBER_2025_TARGETS.get(prop, 0)
+            target = targets.get(prop, 0)
             total_rooms = get_total_rooms(prop)
             total_room_nights = total_rooms * len(dates)
 
@@ -262,8 +282,8 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
     df.insert(0, "S.No", range(1, len(df) + 1))
     return df
 
-# -------------------------- TILL TODAY REPORT - FIXED ARR CALCULATION --------------------------
-def build_till_today_report(props: List[str], dates: List[date], bookings_dict: Dict[str, List[Dict]], current_date: date) -> pd.DataFrame:
+# -------------------------- TILL TODAY REPORT --------------------------
+def build_till_today_report(props: List[str], dates: List[date], bookings_dict: Dict[str, List[Dict]], current_date: date, targets: Dict) -> pd.DataFrame:
     """Calculate metrics only till current system date - ARR based on total room inventory"""
     rows = []
     dates_till_today = [d for d in dates if d <= current_date]
@@ -273,7 +293,7 @@ def build_till_today_report(props: List[str], dates: List[date], bookings_dict: 
 
     for prop in props:
         try:
-            target = DECEMBER_2025_TARGETS.get(prop, 0)
+            target = targets.get(prop, 0)
             total_rooms = get_total_rooms(prop)
             total_room_nights_till_today = total_rooms * len(dates_till_today)
 
@@ -288,8 +308,6 @@ def build_till_today_report(props: List[str], dates: List[date], bookings_dict: 
             unsold_rooms = total_room_nights_till_today - rooms_sold_till_today
             achieved_pct = (achieved_till_today / target * 100) if target > 0 else 0
             occupancy_pct = (rooms_sold_till_today / total_room_nights_till_today * 100) if total_room_nights_till_today > 0 else 0
-            
-            # FIXED: Current ARR = Achieved Revenue / Total Room Inventory (not just sold rooms)
             current_arr = (achieved_till_today / total_room_nights_till_today) if total_room_nights_till_today > 0 else 0
 
             rows.append({
@@ -311,12 +329,9 @@ def build_till_today_report(props: List[str], dates: List[date], bookings_dict: 
         totals["Property Name"] = "TOTAL"
         totals["Percent"] = round((totals["Achieved"] / totals["Target"] * 100) if totals["Target"] else 0, 1)
         
-        # Calculate total occupancy % correctly
         total_room_nights = sum(get_total_rooms(p) * len(dates_till_today) for p in props)
         total_sold = sum(r["Sold Rooms"] for r in rows)
         totals["Occupancy %"] = round((total_sold / total_room_nights * 100) if total_room_nights else 0, 1)
-        
-        # FIXED: Total ARR = Total Achieved / Total Room Inventory
         totals["Current ARR"] = int(totals["Achieved"] / total_room_nights) if total_room_nights else 0
         rows.append(totals)
 
@@ -344,26 +359,21 @@ def style_dataframe(df):
     try:
         styled = df.style.set_properties(**{"text-align": "center"})
         
-        # Apply balance coloring if Balance column exists
         if "Balance" in df.columns and "Achieved %" in df.columns:
             styled = styled.apply(color_balance, axis=1)
         
-        # Apply percentage coloring
         pct_cols = [col for col in df.columns if "%" in col or "Percent" in col]
         if pct_cols:
             styled = styled.applymap(color_pct, subset=pct_cols)
         
-        # Format currency columns
         currency_cols = ["Target", "Achieved", "Balance", "GST", "Commission", "Receivable", "Current ARR", "Per Day Needed"]
         for col in currency_cols:
             if col in df.columns:
                 styled = styled.format({col: "₹{:,.0f}"})
         
-        # Format percentage columns
         for col in pct_cols:
             styled = styled.format({col: "{:.1f}%"})
         
-        # Format number columns
         num_cols = ["Total Rooms", "Rooms Sold", "Balance Rooms", "Sold Rooms", "Unsold Rooms"]
         for col in num_cols:
             if col in df.columns:
@@ -376,31 +386,47 @@ def style_dataframe(df):
 
 # -------------------------- UI --------------------------
 def show_target_achievement_report():
-    st.set_page_config(page_title="Target vs Achievement - Dec 2025", layout="wide")
-    st.title("Target vs Achievement Report - December 2025")
+    st.set_page_config(page_title="Target vs Achievement Report", layout="wide")
+    st.title("📊 Target vs Achievement Report")
+
+    # Month Selector
+    selected_month = st.selectbox(
+        "Select Month",
+        options=["December 2025", "January 2026"],
+        index=1  # Default to January 2026
+    )
 
     current_date = date.today()
     
-    year = current_date.year
-    month = current_date.month
+    # Parse selected month
+    if selected_month == "December 2025":
+        report_year, report_month = 2025, 12
+    else:  # January 2026
+        report_year, report_month = 2026, 1
     
-    if month == 12:
-        balance_days = 31 - current_date.day
-    else:
-        _, days_in_month = calendar.monthrange(year, month)
+    # Calculate balance days
+    if current_date.year == report_year and current_date.month == report_month:
+        _, days_in_month = calendar.monthrange(report_year, report_month)
         balance_days = days_in_month - current_date.day
+    else:
+        _, days_in_month = calendar.monthrange(report_year, report_month)
+        if date(report_year, report_month, 1) > current_date:
+            balance_days = days_in_month  # Future month
+        else:
+            balance_days = 0  # Past month
     
-    report_year, report_month = 2025, 12
     _, days_in_month = calendar.monthrange(report_year, report_month)
     dates = [date(report_year, report_month, d) for d in range(1, days_in_month + 1)]
     
-    st.info(f"📅 Current Date: {current_date.strftime('%B %d, %Y')} | ⏳ Balance Days: {balance_days}")
+    targets = MONTHLY_TARGETS[selected_month]
+    
+    st.info(f"📅 Current Date: {current_date.strftime('%B %d, %Y')} | ⏳ Balance Days in {selected_month}: {balance_days}")
 
     db_props = load_properties()
-    properties = [p for p in DECEMBER_2025_TARGETS.keys() if p in db_props]
+    properties = [p for p in targets.keys() if p in db_props]
     if not properties:
         st.info("No data in DB yet. Showing all properties...")
-        properties = list(DECEMBER_2025_TARGETS.keys())
+        properties = list(targets.keys())
 
     with st.spinner("Generating report..."):
         bookings = {}
@@ -412,10 +438,10 @@ def show_target_achievement_report():
             except:
                 bookings[p] = []
         
-        st.info(f"📊 Loaded {total_bookings_count} total bookings across all properties for December 2025")
+        st.info(f"📊 Loaded {total_bookings_count} total bookings across all properties for {selected_month}")
 
         # Main Report
-        df = build_target_achievement_report(properties, dates, bookings, current_date)
+        df = build_target_achievement_report(properties, dates, bookings, current_date, targets)
         styled = style_dataframe(df)
 
     st.dataframe(styled, use_container_width=True, hide_index=True)
@@ -432,31 +458,46 @@ def show_target_achievement_report():
 
     # Till Today Report
     st.markdown("---")
-    st.subheader("📊 Values Till Today")
-    st.caption(f"Performance metrics calculated from Dec 1 to {current_date.strftime('%B %d, %Y')} | ARR = Revenue ÷ Total Room Inventory")
+    st.subheader(f"📊 Values Till Today - {selected_month}")
     
-    df_today = build_till_today_report(properties, dates, bookings, current_date)
-    styled_today = style_dataframe(df_today)
-    
-    st.dataframe(styled_today, use_container_width=True, hide_index=True)
+    if current_date >= dates[0]:
+        st.caption(f"Performance metrics calculated from {dates[0].strftime('%B %d, %Y')} to {min(current_date, dates[-1]).strftime('%B %d, %Y')} | ARR = Revenue ÷ Total Room Inventory")
+        
+        df_today = build_till_today_report(properties, dates, bookings, current_date, targets)
+        styled_today = style_dataframe(df_today)
+        
+        st.dataframe(styled_today, use_container_width=True, hide_index=True)
 
-    if not df_today.empty and "TOTAL" in df_today["Property Name"].values:
-        total_today = df_today[df_today["Property Name"] == "TOTAL"].iloc[0]
-        c1, c2, c3, c4, c5, c6 = st.columns(6)
-        with c1: st.metric("Target", f"₹{total_today.Target:,.0f}")
-        with c2: st.metric("Achieved", f"₹{total_today.Achieved:,.0f}", delta=f"{total_today['Percent']:.1f}%")
-        with c3: st.metric("Occupancy", f"{total_today['Occupancy %']:.1f}%")
-        with c4: st.metric("Sold Rooms", f"{total_today['Sold Rooms']:,.0f}")
-        with c5: st.metric("Unsold Rooms", f"{total_today['Unsold Rooms']:,.0f}")
-        with c6: st.metric("Current ARR", f"₹{total_today['Current ARR']:,.0f}")
+        if not df_today.empty and "TOTAL" in df_today["Property Name"].values:
+            total_today = df_today[df_today["Property Name"] == "TOTAL"].iloc[0]
+            c1, c2, c3, c4, c5, c6 = st.columns(6)
+            with c1: st.metric("Target", f"₹{total_today.Target:,.0f}")
+            with c2: st.metric("Achieved", f"₹{total_today.Achieved:,.0f}", delta=f"{total_today['Percent']:.1f}%")
+            with c3: st.metric("Occupancy", f"{total_today['Occupancy %']:.1f}%")
+            with c4: st.metric("Sold Rooms", f"{total_today['Sold Rooms']:,.0f}")
+            with c5: st.metric("Unsold Rooms", f"{total_today['Unsold Rooms']:,.0f}")
+            with c6: st.metric("Current ARR", f"₹{total_today['Current ARR']:,.0f}")
+    else:
+        st.info(f"📅 {selected_month} has not started yet. 'Till Today' report will be available from {dates[0].strftime('%B %d, %Y')} onwards.")
 
     # Download buttons
     st.markdown("---")
     col1, col2 = st.columns(2)
     with col1:
-        st.download_button("📥 Download Full Report (CSV)", df.to_csv(index=False), "Target_Achievement_Dec2025.csv", "text/csv")
+        st.download_button(
+            "📥 Download Full Report (CSV)", 
+            df.to_csv(index=False), 
+            f"Target_Achievement_{selected_month.replace(' ', '_')}.csv", 
+            "text/csv"
+        )
     with col2:
-        st.download_button("📥 Download Till Today Report (CSV)", df_today.to_csv(index=False), "Target_Achievement_TillToday.csv", "text/csv")
+        if current_date >= dates[0]:
+            st.download_button(
+                "📥 Download Till Today Report (CSV)", 
+                df_today.to_csv(index=False), 
+                f"Target_Achievement_TillToday_{selected_month.replace(' ', '_')}.csv", 
+                "text/csv"
+            )
 
 if __name__ == "__main__":
     show_target_achievement_report()
