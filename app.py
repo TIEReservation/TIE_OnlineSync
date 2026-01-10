@@ -3,6 +3,7 @@ import os
 from supabase import create_client, Client
 from directreservation import show_new_reservation_form, show_reservations, show_edit_reservations, show_analytics, load_reservations_from_supabase
 from online_reservation import show_online_reservations, load_online_reservations_from_supabase
+from booking_date_report import show_booking_date_report
 try:
     from editOnline import show_edit_online_reservations
     edit_online_available = True
@@ -130,7 +131,7 @@ def check_authentication():
             # Admin from database
             valid_screens = st.session_state.user_data.get("screens", ["User Management", "Log Report"])
         else:
-            valid_screens = ["Inventory Dashboard", "Direct Reservations", "Night Report Dashboard", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement"]
+            valid_screens = ["Inventory Dashboard",  "Booking Date Report", "Direct Reservations", "Night Report Dashboard", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement"]
        
         # Apply screen filtering for users with configured screens
         if st.session_state.user_data:
@@ -200,7 +201,7 @@ def show_user_management():
         ]
         new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties, key="create_properties")
        
-        all_screens = ["Inventory Dashboard", "Night Report Dashboard", "Accounts Report", "Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement", "User Management", "Log Report"]
+        all_screens = ["Inventory Dashboard", "Night Report Dashboard", "Accounts Report", "Booking Date Report","Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement", "User Management", "Log Report"]
        
         # Default screens based on role
         if new_role == "Admin":
@@ -453,6 +454,9 @@ def main():
     elif page == "Night Report Dashboard":
         show_nrd_report()
         log_activity(supabase, st.session_state.username, "Accessed Night Report Dashboard")
+    elif page == "Booking Date Report":
+        show_booking_date_report()
+        log_activity(supabase, st.session_state.username, "Accessed Booking Date Report")
     # === Footer: User Info & Logout ===
     if st.session_state.authenticated:
         st.sidebar.write(f"Logged in as: **{st.session_state.username}**")
