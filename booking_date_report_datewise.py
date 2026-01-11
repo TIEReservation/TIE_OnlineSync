@@ -408,9 +408,15 @@ def show_datewise_booking_report():
         st.success("Cache cleared! Refreshing bookings...")
         st.rerun()
 
-    current_year = date.today().year
-    year = st.selectbox("Select Year", list(range(current_year - 5, current_year + 6)), index=5)
-    month = st.selectbox("Select Month", list(range(1, 13)), index=date.today().month - 1)
+    # Filters Row
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        current_year = date.today().year
+        year = st.selectbox("Select Year", list(range(current_year - 5, current_year + 6)), index=5)
+    
+    with col2:
+        month = st.selectbox("Select Month", list(range(1, 13)), index=date.today().month - 1)
 
     # Load ALL bookings
     online_bookings = cached_load_online_reservations()
@@ -433,19 +439,39 @@ def show_datewise_booking_report():
     # Combine all bookings
     all_bookings = online_bookings + direct_bookings
 
-    st.subheader(f"Bookings Made in {calendar.month_name[month]} {year}")
-    
-    # Generate summary statistics
+    # Collect all bookings for the month first to get unique statuses
     month_dates = generate_month_dates(year, month)
-    total_bookings_month = 0
     all_month_bookings = []
-
-    # Collect all bookings for the month
+    
     for day in month_dates:
         daily_bookings = filter_bookings_by_booking_date(all_bookings, day)
         if daily_bookings:
             all_month_bookings.extend(daily_bookings)
-            total_bookings_month += len(daily_bookings)
+    
+    # Extract unique booking statuses from the month's bookings
+    unique_statuses = set()
+    for booking in all_month_bookings:
+        status = booking.get("booking_status") or booking.get("plan_status", "") or ""
+        if status:
+            unique_statuses.add(status)
+    
+    unique_statuses = sorted(list(unique_statuses))
+    
+    # Add Booking Status filter in col3
+    with col3:
+        status_options = ["All Statuses"] + unique_statuses
+        selected_status = st.selectbox("Filter by Status", status_options)
+    
+    st.subheader(f"Bookings Made in {calendar.month_name[month]} {year}")
+    
+    # Apply status filter
+    if selected_status != "All Statuses":
+        all_month_bookings = [
+            b for b in all_month_bookings 
+            if (b.get("booking_status") or b.get("plan_status", "") or "") == selected_status
+        ]
+    
+    total_bookings_month = len(all_month_bookings)
 
     # Download button for entire month
     if all_month_bookings:
@@ -475,9 +501,16 @@ def show_datewise_booking_report():
     st.markdown("---")
     st.markdown(TABLE_CSS, unsafe_allow_html=True)
 
-    # Display day-wise data
+    # Display day-wise data with status filter applied
     for day in month_dates:
         daily_bookings = filter_bookings_by_booking_date(all_bookings, day)
+        
+        # Apply status filter to daily bookings
+        if selected_status != "All Statuses":
+            daily_bookings = [
+                b for b in daily_bookings 
+                if (b.get("booking_status") or b.get("plan_status", "") or "") == selected_status
+            ]
         
         if daily_bookings:
             # Count cancelled vs active bookings
@@ -516,11 +549,23 @@ def show_datewise_booking_report():
                     )
 
     if total_bookings_month == 0:
-        st.info(f"No bookings made in {calendar.month_name[month]} {year}")
+        if selected_status != "All Statuses":
+            st.info(f"No bookings with status '{selected_status}' found in {calendar.month_name[month]} {year}")
+        else:
+            st.info(f"No bookings made in {calendar.month_name[month]} {year}")
 
     # Overall summary
     st.markdown("---")
-    st.metric(label=f"Total Bookings Made in {calendar.month_name[month]} {year}", value=total_bookings_month)
+    if selected_status != "All Statuses":
+        st.metric(
+            label=f"Total '{selected_status}' Bookings in {calendar.month_name[month]} {year}", 
+            value=total_bookings_month
+        )
+    else:
+        st.metric(
+            label=f"Total Bookings Made in {calendar.month_name[month]} {year}", 
+            value=total_bookings_month
+        )
 
 if __name__ == "__main__":
     show_datewise_booking_report()
