@@ -408,8 +408,8 @@ def show_datewise_booking_report():
         st.success("Cache cleared! Refreshing bookings...")
         st.rerun()
 
-    # Filters Row
-    col1, col2, col3 = st.columns(3)
+    # Filters Row 1
+    col1, col2 = st.columns(2)
     
     with col1:
         current_year = date.today().year
@@ -439,7 +439,7 @@ def show_datewise_booking_report():
     # Combine all bookings
     all_bookings = online_bookings + direct_bookings
 
-    # Collect all bookings for the month first to get unique statuses
+    # Collect all bookings for the month first to get unique statuses and properties
     month_dates = generate_month_dates(year, month)
     all_month_bookings = []
     
@@ -448,23 +448,44 @@ def show_datewise_booking_report():
         if daily_bookings:
             all_month_bookings.extend(daily_bookings)
     
-    # Extract unique booking statuses from the month's bookings
+    # Extract unique booking statuses and properties from the month's bookings
     unique_statuses = set()
+    unique_properties = set()
+    
     for booking in all_month_bookings:
         status = booking.get("booking_status") or booking.get("plan_status", "") or ""
         if status:
             unique_statuses.add(status)
+        
+        property_name = booking.get("property") or booking.get("property_name", "") or ""
+        if property_name:
+            unique_properties.add(property_name)
     
     unique_statuses = sorted(list(unique_statuses))
+    unique_properties = sorted(list(unique_properties))
     
-    # Add Booking Status filter in col3
+    # Filters Row 2
+    col3, col4 = st.columns(2)
+    
+    # Add Property filter
     with col3:
+        property_options = ["All Properties"] + unique_properties
+        selected_property = st.selectbox("Filter by Property", property_options)
+    
+    # Add Booking Status filter
+    with col4:
         status_options = ["All Statuses"] + unique_statuses
         selected_status = st.selectbox("Filter by Status", status_options)
     
     st.subheader(f"Bookings Made in {calendar.month_name[month]} {year}")
     
-    # Apply status filter
+    # Apply filters
+    if selected_property != "All Properties":
+        all_month_bookings = [
+            b for b in all_month_bookings 
+            if (b.get("property") or b.get("property_name", "") or "") == selected_property
+        ]
+    
     if selected_status != "All Statuses":
         all_month_bookings = [
             b for b in all_month_bookings 
@@ -501,9 +522,16 @@ def show_datewise_booking_report():
     st.markdown("---")
     st.markdown(TABLE_CSS, unsafe_allow_html=True)
 
-    # Display day-wise data with status filter applied
+    # Display day-wise data with filters applied
     for day in month_dates:
         daily_bookings = filter_bookings_by_booking_date(all_bookings, day)
+        
+        # Apply property filter to daily bookings
+        if selected_property != "All Properties":
+            daily_bookings = [
+                b for b in daily_bookings 
+                if (b.get("property") or b.get("property_name", "") or "") == selected_property
+            ]
         
         # Apply status filter to daily bookings
         if selected_status != "All Statuses":
@@ -549,23 +577,35 @@ def show_datewise_booking_report():
                     )
 
     if total_bookings_month == 0:
+        # Build helpful message based on active filters
+        filters_active = []
+        if selected_property != "All Properties":
+            filters_active.append(f"property '{selected_property}'")
         if selected_status != "All Statuses":
-            st.info(f"No bookings with status '{selected_status}' found in {calendar.month_name[month]} {year}")
+            filters_active.append(f"status '{selected_status}'")
+        
+        if filters_active:
+            filter_text = " and ".join(filters_active)
+            st.info(f"No bookings with {filter_text} found in {calendar.month_name[month]} {year}")
         else:
             st.info(f"No bookings made in {calendar.month_name[month]} {year}")
 
     # Overall summary
     st.markdown("---")
+    
+    # Build metric label based on active filters
+    metric_parts = []
+    if selected_property != "All Properties":
+        metric_parts.append(f"'{selected_property}'")
     if selected_status != "All Statuses":
-        st.metric(
-            label=f"Total '{selected_status}' Bookings in {calendar.month_name[month]} {year}", 
-            value=total_bookings_month
-        )
+        metric_parts.append(f"'{selected_status}'")
+    
+    if metric_parts:
+        metric_label = f"Total {' - '.join(metric_parts)} Bookings in {calendar.month_name[month]} {year}"
     else:
-        st.metric(
-            label=f"Total Bookings Made in {calendar.month_name[month]} {year}", 
-            value=total_bookings_month
-        )
+        metric_label = f"Total Bookings Made in {calendar.month_name[month]} {year}"
+    
+    st.metric(label=metric_label, value=total_bookings_month)
 
 if __name__ == "__main__":
     show_datewise_booking_report()
