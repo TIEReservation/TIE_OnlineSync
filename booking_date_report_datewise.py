@@ -44,7 +44,10 @@ TABLE_CSS = """
     max-width: 300px;
     padding: 8px;
     border: 1px solid #ddd;
-    background-color: white;
+}
+.custom-scrollable-table th {
+    background-color: #e9ecef !important;
+    font-weight: bold;
 }
 /* Freeze first 5 columns: Source, Property, Booking ID, Booking Date, Guest Name */
 .custom-scrollable-table th:nth-child(1),
@@ -87,10 +90,6 @@ TABLE_CSS = """
     background-color: #f8f9fa;
     box-shadow: 2px 0 5px rgba(0,0,0,0.1);
 }
-.custom-scrollable-table th {
-    background-color: #e9ecef !important;
-    font-weight: bold;
-}
 .custom-scrollable-table a {
     color: #1E90FF;
     text-decoration: none;
@@ -99,9 +98,6 @@ TABLE_CSS = """
     text-decoration: underline;
 }
 /* Highlight cancelled bookings */
-.cancelled-row {
-    background-color: #ffe6e6 !important;
-}
 .cancelled-row td {
     background-color: #ffe6e6 !important;
 }
@@ -200,14 +196,28 @@ def filter_bookings_by_booking_date(bookings, target_date):
     return filtered
 
 def create_bookings_table(bookings):
-    """Create HTML table from bookings"""
+    """Create HTML table from bookings with proper cancelled row styling"""
+    if not bookings:
+        return "<p>No bookings found.</p>"
+    
     columns = [
         "Source", "Property", "Booking ID", "Booking Date", "Guest Name", "Mobile No", 
         "Check-in Date", "Check-out Date", "Room No",
         "Advance MOP", "Balance MOP", "Total Tariff", "Advance Amount", 
         "Balance Due", "Booking Status", "Remarks"
     ]
-    df_data = []
+    
+    # Build HTML manually for better control
+    html_parts = ['<table border="1">']
+    
+    # Header row
+    html_parts.append('<thead><tr>')
+    for col in columns:
+        html_parts.append(f'<th>{col}</th>')
+    html_parts.append('</tr></thead>')
+    
+    # Body rows
+    html_parts.append('<tbody>')
     
     for booking in bookings:
         source = booking.get("source", "online")
@@ -221,32 +231,75 @@ def create_bookings_table(bookings):
         # Get booking status to check if cancelled
         booking_status = booking.get("booking_status") or booking.get("plan_status", "") or ""
         is_cancelled = "cancel" in str(booking_status).lower()
-
-        df_data.append({
-            "Source": source.capitalize(),
-            "Property": property_name,
-            "Booking ID": edit_link,
-            "Booking Date": str(booking.get("parsed_booking_date", "")),
-            "Guest Name": booking.get("guest_name") or booking.get("name", "") or "",
-            "Mobile No": booking.get("guest_phone") or booking.get("mobile_no", "") or "",
-            "Check-in Date": str(safe_date_parse(booking.get("check_in"))) if safe_date_parse(booking.get("check_in")) else "",
-            "Check-out Date": str(safe_date_parse(booking.get("check_out"))) if safe_date_parse(booking.get("check_out")) else "",
-            "Room No": booking.get("room_no", "") or "",
-            "Advance MOP": booking.get("advance_mop", "") or "",
-            "Balance MOP": booking.get("balance_mop", "") or "",
-            "Total Tariff": booking.get("booking_amount") or booking.get("total_tariff") or 0,
-            "Advance Amount": booking.get("total_payment_made") or booking.get("advance_amount") or 0,
-            "Balance Due": booking.get("balance_due") or 0,
-            "Booking Status": booking_status,
-            "Remarks": booking.get("remarks", "") or "",
-            "_is_cancelled": is_cancelled
-        })
+        
+        # Add cancelled class to row if needed
+        row_class = ' class="cancelled-row"' if is_cancelled else ''
+        html_parts.append(f'<tr{row_class}>')
+        
+        # Source
+        html_parts.append(f'<td>{source.capitalize()}</td>')
+        
+        # Property
+        html_parts.append(f'<td><span title="{property_name}">{property_name}</span></td>')
+        
+        # Booking ID with link
+        html_parts.append(f'<td>{edit_link}</td>')
+        
+        # Booking Date
+        html_parts.append(f'<td>{booking.get("parsed_booking_date", "")}</td>')
+        
+        # Guest Name
+        guest_name = booking.get("guest_name") or booking.get("name", "") or ""
+        html_parts.append(f'<td><span title="{guest_name}">{guest_name}</span></td>')
+        
+        # Mobile No
+        mobile = booking.get("guest_phone") or booking.get("mobile_no", "") or ""
+        html_parts.append(f'<td><span title="{mobile}">{mobile}</span></td>')
+        
+        # Check-in Date
+        checkin = str(safe_date_parse(booking.get("check_in"))) if safe_date_parse(booking.get("check_in")) else ""
+        html_parts.append(f'<td>{checkin}</td>')
+        
+        # Check-out Date
+        checkout = str(safe_date_parse(booking.get("check_out"))) if safe_date_parse(booking.get("check_out")) else ""
+        html_parts.append(f'<td>{checkout}</td>')
+        
+        # Room No
+        room_no = booking.get("room_no", "") or ""
+        html_parts.append(f'<td><span title="{room_no}">{room_no}</span></td>')
+        
+        # Advance MOP
+        adv_mop = booking.get("advance_mop", "") or ""
+        html_parts.append(f'<td>{adv_mop}</td>')
+        
+        # Balance MOP
+        bal_mop = booking.get("balance_mop", "") or ""
+        html_parts.append(f'<td>{bal_mop}</td>')
+        
+        # Total Tariff
+        total_tariff = booking.get("booking_amount") or booking.get("total_tariff") or 0
+        html_parts.append(f'<td>{total_tariff}</td>')
+        
+        # Advance Amount
+        advance = booking.get("total_payment_made") or booking.get("advance_amount") or 0
+        html_parts.append(f'<td>{advance}</td>')
+        
+        # Balance Due
+        balance = booking.get("balance_due") or 0
+        html_parts.append(f'<td>{balance}</td>')
+        
+        # Booking Status
+        html_parts.append(f'<td>{booking_status}</td>')
+        
+        # Remarks
+        remarks = booking.get("remarks", "") or ""
+        html_parts.append(f'<td><span title="{remarks}">{remarks}</span></td>')
+        
+        html_parts.append('</tr>')
     
-    df = pd.DataFrame(df_data, columns=columns + ["_is_cancelled"])
-    for col in ['Guest Name', 'Mobile No', 'Room No', 'Remarks', 'Property']:
-        if col in df.columns:
-            df[col] = df[col].apply(lambda x: f'<span title="{x}">{x}</span>' if pd.notna(x) and str(x).strip() else x)
-    return df
+    html_parts.append('</tbody></table>')
+    
+    return ''.join(html_parts)
 
 @st.cache_data(ttl=300)
 def cached_load_online_reservations():
@@ -309,29 +362,7 @@ def show_datewise_booking_report():
             active_count = len(daily_bookings) - cancelled_count
             
             with st.expander(f"📅 {day.strftime('%B %d, %Y')} - {len(daily_bookings)} booking(s) (Active: {active_count}, Cancelled: {cancelled_count})", expanded=False):
-                df = create_bookings_table(daily_bookings)
-                
-                # Convert to HTML and apply cancelled row styling
-                table_html = df.to_html(escape=False, index=False)
-                
-                # Add row classes for cancelled bookings
-                rows = table_html.split('<tr>')
-                new_rows = [rows[0]]  # Keep header
-                
-                for i, row in enumerate(rows[1:], 0):
-                    if i < len(df) and df.iloc[i]["_is_cancelled"]:
-                        row = row.replace('<tr>', '<tr class="cancelled-row">', 1)
-                        new_rows.append(row)
-                    else:
-                        new_rows.append('<tr>' + row)
-                
-                table_html = ''.join(new_rows)
-                
-                # Remove the _is_cancelled column from display
-                table_html = table_html.replace('<th>_is_cancelled</th>', '')
-                import re
-                table_html = re.sub(r'<td>(True|False)</td>(?=</tr>)', '', table_html)
-                
+                table_html = create_bookings_table(daily_bookings)
                 st.markdown(f'<div class="custom-scrollable-table">{table_html}</div>', unsafe_allow_html=True)
 
     if total_bookings_month == 0:
