@@ -1,4 +1,4 @@
-# booking_date_report.py - Date-wise Booking Made Report (All Properties)
+# booking_date_report_datewise.py - Date-wise Booking Made Report (All Properties)
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date, datetime
@@ -100,6 +100,9 @@ TABLE_CSS = """
 }
 /* Highlight cancelled bookings */
 .cancelled-row {
+    background-color: #ffe6e6 !important;
+}
+.cancelled-row td {
     background-color: #ffe6e6 !important;
 }
 </style>
@@ -210,7 +213,7 @@ def create_bookings_table(bookings):
         source = booking.get("source", "online")
         booking_id = booking.get("booking_id", "") or booking.get("id", "")
         edit_link = f'<a href="?page=Edit Online Reservations&booking_id={booking_id}" target="_self">{booking_id}</a>' if source == "online" else \
-                    f'<a href="?page=Edit Reservations&booking_id={booking_id}" target="_self">{booking_id}</a>'
+                    f'<a href="?page=Edit Direct Reservation&booking_id={booking_id}" target="_self">{booking_id}</a>'
         
         # Get property name
         property_name = booking.get("property") or booking.get("property_name", "") or ""
@@ -253,7 +256,8 @@ def cached_load_online_reservations():
 def cached_load_direct_reservations():
     return load_direct_reservations_from_supabase()
 
-def show_booking_date_report():
+def show_datewise_booking_report():
+    """Main function to display the date-wise booking report"""
     st.title("Date-wise Booking Made Report (All Properties)")
     st.markdown("**This report shows all bookings across all properties based on when they were created/booked.**")
 
@@ -338,4 +342,4 @@ def show_booking_date_report():
     st.metric(label=f"Total Bookings Made in {calendar.month_name[month]} {year}", value=total_bookings_month)
 
 if __name__ == "__main__":
-    show_booking_date_report()
+    show_datewise_booking_report()
