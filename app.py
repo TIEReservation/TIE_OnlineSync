@@ -460,8 +460,8 @@ def main():
         show_booking_date_report()
         log_activity(supabase, st.session_state.username, "Accessed Booking Date Report")
     elif page == "Date-wise Booking Report":  # ADD THIS BLOCK
-    show_datewise_booking_report()
-    log_activity(supabase, st.session_state.username, "Accessed Date-wise Booking Report")
+        show_datewise_booking_report()
+        log_activity(supabase, st.session_state.username, "Accessed Date-wise Booking Report")
     
     # === Footer: User Info & Logout ===
     if st.session_state.authenticated:
