@@ -404,7 +404,9 @@ def show_datewise_booking_report():
     st.markdown("**This report shows all bookings across all properties based on when they were created/booked.**")
 
     if st.button("Refresh Bookings"):
-        st.cache_data.clear()
+        # Clear only the specific cached functions instead of all cache
+        cached_load_online_reservations.clear()
+        cached_load_direct_reservations.clear()
         st.success("Cache cleared! Refreshing bookings...")
         st.rerun()
 
