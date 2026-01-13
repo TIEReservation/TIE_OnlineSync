@@ -70,15 +70,28 @@ def get_short_name(prop_name: str) -> str:
 
 # -------------------------- Helpers --------------------------
 def load_properties() -> List[str]:
-    try:
-        direct = supabase.table("reservations").select("property_name").execute().data or []
-        online = supabase.table("online_reservations").select("property").execute().data or []
-        props = {normalize_property_name(r.get("property_name") or r.get("property"))
-                 for r in direct + online if r.get("property_name") or r.get("property")}
-        return sorted(props)
-    except Exception as e:
-        st.error(f"Error loading properties: {e}")
-        return []
+    """Return all 18 properties from PROPERTY_INVENTORY"""
+    PROPERTY_INVENTORY = {
+        "Le Poshe Beach view": {},
+        "La Millionaire Resort": {},
+        "Le Poshe Luxury": {},
+        "Le Poshe Suite": {},
+        "La Paradise Residency": {},
+        "La Paradise Luxury": {},
+        "La Villa Heritage": {},
+        "Le Pondy Beachside": {},
+        "Le Royce Villa": {},
+        "La Tamara Luxury": {},
+        "La Antilia Luxury": {},
+        "La Tamara Suite": {},
+        "Le Park Resort": {},
+        "Villa Shakti": {},
+        "Eden Beach Resort": {},
+        "Le Terra": {},
+        "La Coromandel Luxury": {},
+        "Happymates Forest Retreat": {}
+    }
+    return sorted(list(PROPERTY_INVENTORY.keys()))
 
 @st.cache_data(ttl=1800)
 def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
