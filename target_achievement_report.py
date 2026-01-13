@@ -1,3 +1,4 @@
+
 # target_achievement_report.py - Multi-Month Support (Dec 2025 & Jan 2026)
 
 import streamlit as st
@@ -64,6 +65,8 @@ MONTHLY_TARGETS = {
         "La Paradise Residency": 450824,
         "Le Pondy Beachside": 238796,
         "Le Royce Villa": 214916,
+        "Le Terra": 0,
+        "Happymates Forest Retreat": 0,
     },
     "January 2026": {
         "La Millionaire Resort": 1600000,
@@ -82,6 +85,8 @@ MONTHLY_TARGETS = {
         "La Paradise Residency": 462000,
         "Le Pondy Beachside": 148000,
         "Le Royce Villa": 130000,
+        "Le Terra": 0,
+        "Happymates Forest Retreat": 0,
     }
 }
 
@@ -103,6 +108,8 @@ PROPERTY_INVENTORY = {
     "Villa Shakti": {"all": ["101","102","201","201A","202","203","301","301A","302","303","401","Day Use 1","Day Use 2","No Show"]},
     "Eden Beach Resort": {"all": ["101","102","103","201","202","Day Use 1","Day Use 2","No Show"]},
     "La Coromandel Luxury": {"all": ["101","102","103","201","202","203","204","205","206","301","Day Use 1","Day Use 2","No Show"]},
+    "Le Terra": {"all": ["101","102","103","104","105","106","107","Day Use 1","Day Use 2","No Show"]},
+    "Happymates Forest Retreat": {"all": ["101","102","Day Use 1","Day Use 2","No Show"]}
 }
 
 def get_total_rooms(prop: str) -> int:
@@ -110,16 +117,9 @@ def get_total_rooms(prop: str) -> int:
     return len([r for r in inv if not r.startswith(("Day Use", "No Show"))])
 
 # -------------------------- Safe Property Loading --------------------------
-@st.cache_data(ttl=3600)
 def load_properties() -> List[str]:
-    try:
-        direct = supabase.table("reservations").select("property_name").execute().data or []
-        online = supabase.table("online_reservations").select("property").execute().data or []
-        names = [r.get("property_name") or r.get("property") for r in direct + online]
-        return sorted({normalize_property_name(n) for n in names if n})
-    except Exception as e:
-        st.warning(f"DB load failed: {e}")
-        return []
+    """Return all 18 properties from PROPERTY_INVENTORY"""
+    return sorted(list(PROPERTY_INVENTORY.keys()))
 
 # -------------------------- Booking Functions --------------------------
 @st.cache_data(ttl=1800)
@@ -422,11 +422,7 @@ def show_target_achievement_report():
     
     st.info(f"📅 Current Date: {current_date.strftime('%B %d, %Y')} | ⏳ Balance Days in {selected_month}: {balance_days}")
 
-    db_props = load_properties()
-    properties = [p for p in targets.keys() if p in db_props]
-    if not properties:
-        st.info("No data in DB yet. Showing all properties...")
-        properties = list(targets.keys())
+    properties = load_properties()
 
     with st.spinner("Generating report..."):
         bookings = {}
