@@ -136,7 +136,7 @@ def load_properties() -> List[str]:
         for r in online.data or []:
             p = normalize_property(r.get("property", ""))
             if p: props.add(p)
-        return sorted(props)
+        return sorted(list(PROPERTY_INVENTORY.keys()))
     except Exception as e:
         logging.error(f"load_properties: {e}")
         return []
