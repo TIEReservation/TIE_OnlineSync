@@ -323,7 +323,7 @@ def show_edit_online_reservations(selected_booking_id=None):
             status_index = 0
         booking_status = st.selectbox("Booking Status", booking_status_options, index=status_index)
     with col3:
-        payment_status = st.selectbox("Payment Status", ["Not Pai", "Fully Paid", "Partially Paid"], index=["Not Paid", "Fully Paid", "Partially Paid"].index(reservation.get("payment_status", "Not Paid")))
+        payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], index=["Not Paid", "Fully Paid", "Partially Paid"].index(reservation.get("payment_status", "Not Paid")))
 
     # Row 8: Remarks
     remarks = st.text_area("Remarks", value=reservation.get("remarks", ""))
