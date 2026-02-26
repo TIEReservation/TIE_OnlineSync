@@ -1,4 +1,3 @@
-
 # target_achievement_report.py - Multi-Month Support (Dec 2025 & Jan 2026)
 
 import streamlit as st
@@ -87,7 +86,47 @@ MONTHLY_TARGETS = {
         "Le Royce Villa": 130000,
         "Le Terra": 0,
         "Happymates Forest Retreat": 0,
-    }
+    },
+    "February 2026": {
+        "La Millionaire Resort": 1400000,
+        "Le Poshe Beach view": 650000,
+        "Le Park Resort": 550000,
+        "La Tamara Luxury": 1174000,
+        "Le Poshe Luxury": 761000,
+        "Le Poshe Suite": 338000,
+        "Eden Beach Resort": 355000,
+        "La Antilia Luxury": 800000,
+        "La Coromandel Luxury": 650000,
+        "La Tamara Suite": 535000,
+        "Villa Shakti": 518000,
+        "La Paradise Luxury": 350000,
+        "La Villa Heritage": 290000,
+        "La Paradise Residency": 400000,
+        "Le Pondy Beachside": 148000,
+        "Le Royce Villa": 130000,
+        "Le Terra": 0,
+        "Happymates Forest Retreat": 0,
+    },
+    "March 2026": {
+        "La Millionaire Resort": 1500000,
+        "Le Poshe Beach view": 650000,
+        "Le Park Resort": 600000,
+        "La Tamara Luxury": 1250000,
+        "Le Poshe Luxury": 850000,
+        "Le Poshe Suite": 338000,
+        "Eden Beach Resort": 355000,
+        "La Antilia Luxury": 800000,
+        "La Coromandel Luxury": 650000,
+        "La Tamara Suite": 535000,
+        "Villa Shakti": 550000,
+        "La Paradise Luxury": 370000,
+        "La Villa Heritage": 290000,
+        "La Paradise Residency": 450000,
+        "Le Pondy Beachside": 148000,
+        "Le Royce Villa": 130000,
+        "Le Terra": 0,
+        "Happymates Forest Retreat": 0,
+    },
 }
 
 # -------------------------- Property Inventory --------------------------
@@ -392,8 +431,8 @@ def show_target_achievement_report():
     # Month Selector
     selected_month = st.selectbox(
         "Select Month",
-        options=["December 2025", "January 2026"],
-        index=1  # Default to January 2026
+        options=["December 2025", "January 2026", "February 2026", "March 2026"],
+        index=2  # Default to February 2026
     )
 
     current_date = date.today()
@@ -401,8 +440,12 @@ def show_target_achievement_report():
     # Parse selected month
     if selected_month == "December 2025":
         report_year, report_month = 2025, 12
-    else:  # January 2026
+    elif selected_month == "January 2026":
         report_year, report_month = 2026, 1
+    elif selected_month == "February 2026":
+        report_year, report_month = 2026, 2
+    else:  # March 2026
+        report_year, report_month = 2026, 3
     
     # Calculate balance days
     if current_date.year == report_year and current_date.month == report_month:
