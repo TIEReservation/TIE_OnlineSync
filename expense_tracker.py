@@ -1,27 +1,39 @@
-import datetime
-from flask import Flask, render_template, request
+import streamlit as st
+import supabase
 
-app = Flask(__name__)
+# Initialize Supabase client
+url = 'your_supabase_url'
+key = 'your_supabase_anon_key'
+supabase_client = supabase.create_client(url, key)
 
-# Dummy data for expenses
-data = []
+# Streamlit configuration
+def main():
+    st.title('Editable Expense Tracker')
 
-@app.route('/expense_tracker', methods=['GET', 'POST'])
-def expense_tracker():
-    if request.method == 'POST':
-        # If the request is POST, add the new expense to the data
-        expense = {
-            'sl_no': len(data) + 1,
-            'date': request.form['date'],
-            'person': request.form['person'],
-            'particulars': request.form['particulars'],
-            'property_name': request.form['property_name'],
-            'comments': request.form['comments'],
-            'submitted_by': request.form['submitted_by'],
-        }
-        data.append(expense)
-        return render_template('expense_tracker.html', data=data)
-    return render_template('expense_tracker.html', data=data)
+    # Field definitions
+    fields = ['Sl No', 'Expense made Date', 'Person who made expense', 'Particulars', 'Property Name', 'Other comments', 'Submitted by']
+    data = []
+
+    # Role-based access
+    roles = ['Management', 'Accounts Team']
+    user_role = st.selectbox('Select Your Role', roles)
+
+    if user_role in roles:
+        # Add new entry
+        if st.button('Add Entry'):
+            new_entry = {}
+            for field in fields:
+                new_entry[field] = st.text_input(f'Enter {field}')
+            data.append(new_entry)
+
+            # Insert data to Supabase
+            supabase_client.table('expenses').insert(new_entry).execute()
+
+        # Display entries
+        st.write('Current Entries:')
+        st.write(data)
+    else:
+        st.warning('You do not have access to this expense tracker.')
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    main()
