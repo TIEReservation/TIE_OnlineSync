@@ -457,9 +457,9 @@ def main():
         show_accounts_report()
         log_activity(supabase, st.session_state.username, "Accessed Accounts Report")
     elif page == "Expense Tracker":
-    if st.session_state.role in ["Management", "Accounts Team"]:
-        display_expense_tracker()
-        log_activity(supabase, st.session_state.username, "Accessed Expense Tracker")
+        if st.session_state.role in ["Management", "Accounts Team"]:
+            display_expense_tracker()
+            log_activity(supabase, st.session_state.username, "Accessed Expense Tracker")
     else:
         st.error("Access Denied: You do not have permission to view Expense Tracker.")
     elif page == "Night Report Dashboard":
