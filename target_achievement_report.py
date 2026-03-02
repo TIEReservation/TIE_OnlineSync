@@ -35,16 +35,13 @@ PROPERTY_MAPPING = {
     "La Paradise Luxury Resort": "La Paradise Luxury",
     "Villa Shakti Resort": "Villa Shakti",
 }
-
 reverse_mapping = {c: [] for c in set(PROPERTY_MAPPING.values())}
 for v, c in PROPERTY_MAPPING.items():
     reverse_mapping[c].append(v)
-
 def normalize_property_name(prop_name: str) -> str:
     if not prop_name:
         return ""
     return PROPERTY_MAPPING.get(prop_name.strip(), prop_name.strip())
-
 # -------------------------- Monthly Targets --------------------------
 MONTHLY_TARGETS = {
     "December 2025": {
@@ -64,8 +61,6 @@ MONTHLY_TARGETS = {
         "La Paradise Residency": 450824,
         "Le Pondy Beachside": 238796,
         "Le Royce Villa": 214916,
-        "Le Terra": 0,
-        "Happymates Forest Retreat": 0,
     },
     "January 2026": {
         "La Millionaire Resort": 1600000,
@@ -84,8 +79,6 @@ MONTHLY_TARGETS = {
         "La Paradise Residency": 462000,
         "Le Pondy Beachside": 148000,
         "Le Royce Villa": 130000,
-        "Le Terra": 0,
-        "Happymates Forest Retreat": 0,
     },
     "February 2026": {
         "La Millionaire Resort": 1200000,
@@ -104,31 +97,26 @@ MONTHLY_TARGETS = {
         "La Paradise Residency": 400000,
         "Le Pondy Beachside": 100000,
         "Le Royce Villa": 127000,
-        "Le Terra": 0,
-        "Happymates Forest Retreat": 0,
     },
     "March 2026": {
-        "La Millionaire Resort": 1500000,
-        "Le Poshe Beach view": 650000,
+        "La Millionaire Resort": 1200000,
+        "Le Poshe Beach view": 460000,
         "Le Park Resort": 600000,
-        "La Tamara Luxury": 1250000,
-        "Le Poshe Luxury": 850000,
-        "Le Poshe Suite": 338000,
-        "Eden Beach Resort": 355000,
-        "La Antilia Luxury": 800000,
-        "La Coromandel Luxury": 650000,
-        "La Tamara Suite": 535000,
-        "Villa Shakti": 550000,
-        "La Paradise Luxury": 370000,
-        "La Villa Heritage": 290000,
-        "La Paradise Residency": 450000,
-        "Le Pondy Beachside": 148000,
-        "Le Royce Villa": 130000,
-        "Le Terra": 0,
-        "Happymates Forest Retreat": 0,
+        "La Tamara Luxury": 974000,
+        "Le Poshe Luxury": 692000,
+        "Le Poshe Suite": 263000,
+        "Eden Beach Resort": 350000,
+        "La Antilia Luxury": 674000,
+        "La Coromandel Luxury": 550000,
+        "La Tamara Suite": 361000,
+        "Villa Shakti": 430000,
+        "La Paradise Luxury": 280000,
+        "La Villa Heritage": 276000,
+        "La Paradise Residency": 365000,
+        "Le Pondy Beachside": 130000,
+        "Le Royce Villa": 120000,
     },
 }
-
 # -------------------------- Property Inventory --------------------------
 PROPERTY_INVENTORY = {
     "Le Poshe Beach view": {"all": ["101","102","201","202","203","204","301","302","303","304","Day Use 1","Day Use 2","No Show"]},
@@ -147,8 +135,6 @@ PROPERTY_INVENTORY = {
     "Villa Shakti": {"all": ["101","102","201","201A","202","203","301","301A","302","303","401","Day Use 1","Day Use 2","No Show"]},
     "Eden Beach Resort": {"all": ["101","102","103","201","202","Day Use 1","Day Use 2","No Show"]},
     "La Coromandel Luxury": {"all": ["101","102","103","201","202","203","204","205","206","301","Day Use 1","Day Use 2","No Show"]},
-    "Le Terra": {"all": ["101","102","103","104","105","106","107","Day Use 1","Day Use 2","No Show"]},
-    "Happymates Forest Retreat": {"all": ["101","102","Day Use 1","Day Use 2","No Show"]}
 }
 
 def get_total_rooms(prop: str) -> int:
