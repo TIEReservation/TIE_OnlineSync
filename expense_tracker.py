@@ -27,19 +27,10 @@ EXPENSE_CATEGORY_MAP = {
         "Raw Materials (Vegetables, Meat, Groceries)",
         "Kitchen Supplies",
         "Gas / LPG",
-        "Water Cans",
-        "Restaurant Consumables",
-        "Crockery & Cutlery",
-        "Bar Supplies",
     ],
     "Staff & Payroll": [
         "Salaries",
         "Wages (Daily Labour)",
-        "Overtime",
-        "Staff Food",
-        "Staff Uniform",
-        "Incentives / Bonus",
-        "PF / ESI / Compliance",
     ],
     "Maintenance & Repairs": [
         "Electrical Repairs",
@@ -78,9 +69,7 @@ EXPENSE_CATEGORY_MAP = {
     ],
     "Transport & Travel": [
         "Fuel",
-        "Cab Charges",
         "Staff Travel",
-        "Airport Pickup Expenses",
         "Vehicle Maintenance",
     ],
     "Property Specific": [
@@ -102,7 +91,7 @@ EXPENSE_CATEGORY_MAP = {
         "Equipment Purchase",
         "Kitchen Equipment",
         "Electronics",
-        "Generator Purchase",
+        "Generator diesel Purchase",
     ],
     "Miscellaneous": [
         "Miscellaneous Expense",
