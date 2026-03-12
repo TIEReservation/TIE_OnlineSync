@@ -550,7 +550,8 @@ def show_new_reservation_form():
 
         row7_col1, row7_col2 = st.columns(2)
         with row7_col1:
-            booking_date = st.date_input("Booking Date", value=date.today(), key=f"{form_key}_booking")
+            booking_date = date.today()
+            st.text_input("Booking Date", value=booking_date.strftime("%Y-%m-%d"), disabled=True, key=f"{form_key}_booking", help="Automatically set to today's date")
         with row7_col2:
             invoice_no = st.text_input("Invoice No", key=f"{form_key}_invoice")
 
@@ -862,7 +863,9 @@ def show_edit_form(edit_index):
 
         row7_col1, row7_col2, row7_col3 = st.columns(3)
         with row7_col1:
-            booking_date = st.date_input("Booking Date", value=reservation["Booking Date"], key=f"{form_key}_booking")
+            booking_date = reservation["Booking Date"]
+            booking_date_display = booking_date.strftime("%Y-%m-%d") if booking_date else ""
+            st.text_input("Booking Date", value=booking_date_display, disabled=True, key=f"{form_key}_booking", help="Booking date is set automatically and cannot be edited")
         with row7_col2:
             invoice_no = st.text_input("Invoice No", value=reservation["Invoice No"], key=f"{form_key}_invoice")
         with row7_col3:
