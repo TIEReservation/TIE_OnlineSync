@@ -239,7 +239,7 @@ def display_expense_tracker():
     st.markdown("---")
 
     # ─────────────────────────────────────────────
-    # EDIT AN EXPENSE  (all roles can see; restrict if needed)
+    # EDIT AN EXPENSE
     # ─────────────────────────────────────────────
     st.subheader("✏️ Edit an Expense")
     try:
@@ -250,18 +250,59 @@ def display_expense_tracker():
         editable = edit_result.data if edit_result.data else []
 
         if editable:
-            edit_options = {
-                f"#{r['id']} | {r['expense_date']} | {r.get('expense_category','')}: "
-                f"{r.get('expense_subcategory','')} | {r.get('person','')} | Rs.{r['amount']}": r
-                for r in editable
-            }
+            # ── Search controls ────────────────────────────────────────────
+            sc1, sc2 = st.columns(2)
+            with sc1:
+                search_id = st.text_input(
+                    "🔍 Search by ID",
+                    placeholder="e.g. 42",
+                    key="edit_search_id"
+                )
+            with sc2:
+                search_text = st.text_input(
+                    "🔍 Free-text Search  (person / particulars / category / property)",
+                    placeholder="e.g. electricity, John, Le Poshe...",
+                    key="edit_search_text"
+                )
 
-            selected_edit_label = st.selectbox(
-                "Select Expense to Edit",
-                list(edit_options.keys()),
-                key="edit_select"
-            )
-            rec = edit_options[selected_edit_label]
+            # ── Filter records based on search inputs ──────────────────────
+            filtered_editable = editable
+
+            if search_id.strip():
+                filtered_editable = [
+                    r for r in filtered_editable
+                    if str(r["id"]) == search_id.strip()
+                ]
+
+            if search_text.strip():
+                kw = search_text.strip().lower()
+                filtered_editable = [
+                    r for r in filtered_editable
+                    if kw in str(r.get("person", "")).lower()
+                    or kw in str(r.get("particulars", "")).lower()
+                    or kw in str(r.get("expense_category", "")).lower()
+                    or kw in str(r.get("expense_subcategory", "")).lower()
+                    or kw in str(r.get("property_name", "")).lower()
+                    or kw in str(r.get("other_comments", "")).lower()
+                ]
+
+            if not filtered_editable:
+                st.warning("No matching expenses found. Try a different search.")
+            else:
+                st.caption(f"{len(filtered_editable)} record(s) matched")
+
+                edit_options = {
+                    f"#{r['id']} | {r['expense_date']} | {r.get('expense_category','')}: "
+                    f"{r.get('expense_subcategory','')} | {r.get('person','')} | Rs.{r['amount']}": r
+                    for r in filtered_editable
+                }
+
+                selected_edit_label = st.selectbox(
+                    "Select Expense to Edit",
+                    list(edit_options.keys()),
+                    key="edit_select"
+                )
+                rec = edit_options[selected_edit_label]
 
             # ── resolve current category / subcategory safely ──────────────
             current_category = rec.get("expense_category", list(EXPENSE_CATEGORY_MAP.keys())[0])
