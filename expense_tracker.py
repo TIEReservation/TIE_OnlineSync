@@ -116,6 +116,9 @@ def display_expense_tracker():
     st.header("Expense Tracker")
     st.markdown("---")
 
+    # ─────────────────────────────────────────────
+    # ADD NEW EXPENSE
+    # ─────────────────────────────────────────────
     st.subheader("Add New Expense")
     with st.form("add_expense_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
@@ -157,6 +160,9 @@ def display_expense_tracker():
 
     st.markdown("---")
 
+    # ─────────────────────────────────────────────
+    # ALL EXPENSES (view + filters)
+    # ─────────────────────────────────────────────
     st.subheader("All Expenses")
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
@@ -232,21 +238,159 @@ def display_expense_tracker():
 
     st.markdown("---")
 
+    # ─────────────────────────────────────────────
+    # EDIT AN EXPENSE  (all roles can see; restrict if needed)
+    # ─────────────────────────────────────────────
+    st.subheader("✏️ Edit an Expense")
+    try:
+        edit_result = supabase.table("expenses").select(
+            "id, expense_date, person, particulars, expense_category, expense_subcategory, "
+            "property_name, amount, other_comments, submitted_by"
+        ).order("expense_date", desc=True).execute()
+        editable = edit_result.data if edit_result.data else []
+
+        if editable:
+            edit_options = {
+                f"#{r['id']} | {r['expense_date']} | {r.get('expense_category','')}: "
+                f"{r.get('expense_subcategory','')} | {r.get('person','')} | Rs.{r['amount']}": r
+                for r in editable
+            }
+
+            selected_edit_label = st.selectbox(
+                "Select Expense to Edit",
+                list(edit_options.keys()),
+                key="edit_select"
+            )
+            rec = edit_options[selected_edit_label]
+
+            # ── resolve current category / subcategory safely ──────────────
+            current_category = rec.get("expense_category", list(EXPENSE_CATEGORY_MAP.keys())[0])
+            if current_category not in EXPENSE_CATEGORY_MAP:
+                current_category = list(EXPENSE_CATEGORY_MAP.keys())[0]
+            cat_index = list(EXPENSE_CATEGORY_MAP.keys()).index(current_category)
+
+            current_subcategory = rec.get("expense_subcategory", "")
+            sub_list_for_current = EXPENSE_CATEGORY_MAP[current_category]
+            sub_index = sub_list_for_current.index(current_subcategory) if current_subcategory in sub_list_for_current else 0
+
+            # ── resolve property safely ─────────────────────────────────────
+            current_property = rec.get("property_name", PROPERTIES[0])
+            prop_index = PROPERTIES.index(current_property) if current_property in PROPERTIES else 0
+
+            # ── resolve date safely ─────────────────────────────────────────
+            try:
+                current_date = date.fromisoformat(str(rec.get("expense_date", date.today())))
+            except Exception:
+                current_date = date.today()
+
+            with st.form("edit_expense_form"):
+                st.markdown(f"**Editing record ID: {rec['id']}**")
+                ecol1, ecol2 = st.columns(2)
+
+                with ecol1:
+                    edit_date = st.date_input(
+                        "Expense Date", value=current_date, key="edit_date"
+                    )
+                    edit_person = st.text_input(
+                        "Person Who Made Expense",
+                        value=rec.get("person", ""),
+                        key="edit_person"
+                    )
+                    edit_particulars = st.text_input(
+                        "Particulars",
+                        value=rec.get("particulars", ""),
+                        key="edit_particulars"
+                    )
+                    edit_category = st.selectbox(
+                        "Expense Category",
+                        list(EXPENSE_CATEGORY_MAP.keys()),
+                        index=cat_index,
+                        key="edit_category"
+                    )
+                    # Sub-category list updates based on the chosen category widget value
+                    edit_subcategory = st.selectbox(
+                        "Sub-Category",
+                        EXPENSE_CATEGORY_MAP[edit_category],
+                        index=sub_index if edit_category == current_category else 0,
+                        key="edit_subcategory"
+                    )
+
+                with ecol2:
+                    edit_property = st.selectbox(
+                        "Property Name",
+                        PROPERTIES,
+                        index=prop_index,
+                        key="edit_property"
+                    )
+                    edit_amount = st.number_input(
+                        "Amount (Rs.)",
+                        min_value=0.0,
+                        value=float(rec.get("amount", 0.0)),
+                        format="%.2f",
+                        key="edit_amount"
+                    )
+                    edit_comments = st.text_area(
+                        "Other Comments",
+                        value=rec.get("other_comments", "") or "",
+                        height=120,
+                        key="edit_comments"
+                    )
+
+                edit_submitted_by = st.text_input(
+                    "Submitted By",
+                    value=rec.get("submitted_by", "") or "",
+                    key="edit_submitted_by"
+                )
+
+                save_btn = st.form_submit_button("💾 Save Changes")
+                if save_btn:
+                    if not edit_person or not edit_particulars:
+                        st.error("Please fill in at least 'Person' and 'Particulars'.")
+                    else:
+                        updated_row = {
+                            "expense_date":        str(edit_date),
+                            "person":              edit_person,
+                            "particulars":         edit_particulars,
+                            "expense_category":    edit_category,
+                            "expense_subcategory": edit_subcategory,
+                            "property_name":       edit_property,
+                            "amount":              edit_amount,
+                            "other_comments":      edit_comments,
+                            "submitted_by":        edit_submitted_by,
+                        }
+                        try:
+                            supabase.table("expenses").update(updated_row).eq("id", rec["id"]).execute()
+                            st.success(f"Expense #{rec['id']} updated successfully!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to update expense: {e}")
+        else:
+            st.info("No expenses available to edit.")
+
+    except Exception as e:
+        st.error(f"Could not load expenses for editing: {e}")
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────
+    # DELETE AN EXPENSE  (Management / Admin only)
+    # ─────────────────────────────────────────────
     if st.session_state.get("role") in ["Management", "Admin"]:
-        st.subheader("Delete an Expense")
+        st.subheader("🗑️ Delete an Expense")
         try:
-            result = supabase.table("expenses").select(
+            del_result = supabase.table("expenses").select(
                 "id, expense_date, person, particulars, expense_category, expense_subcategory, amount"
             ).order("expense_date", desc=True).execute()
-            deletable = result.data if result.data else []
+            deletable = del_result.data if del_result.data else []
             if deletable:
-                options = {
-                    f"#{r['id']} | {r['expense_date']} | {r.get('expense_category','')}: {r.get('expense_subcategory','')} | {r['person']} | Rs.{r['amount']}": r["id"]
+                del_options = {
+                    f"#{r['id']} | {r['expense_date']} | {r.get('expense_category','')}: "
+                    f"{r.get('expense_subcategory','')} | {r['person']} | Rs.{r['amount']}": r["id"]
                     for r in deletable
                 }
-                selected_label = st.selectbox("Select Expense to Delete", list(options.keys()))
+                selected_label = st.selectbox("Select Expense to Delete", list(del_options.keys()))
                 if st.button("Delete Selected Expense"):
-                    expense_id = options[selected_label]
+                    expense_id = del_options[selected_label]
                     supabase.table("expenses").delete().eq("id", expense_id).execute()
                     st.success("Expense deleted.")
                     st.rerun()
