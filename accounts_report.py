@@ -152,7 +152,7 @@ def load_all_bookings_for_month(year: int, month: int) -> List[Dict]:
                         "property_name": normalize_property(record.get("property", "")),
                         "guest_name": sanitize_string(record.get("guest_name")),
                         "booking_id": sanitize_string(record.get("booking_id") or record.get("id")),
-                        "total_amount": receivable,  # Use hotel receivable for online bookings
+                        "total_amount": total_amount,  # Use hotel receivable for online bookings
                         "advance": safe_float(record.get("total_payment_made")),
                         "balance": safe_float(record.get("balance_due")),
                         "check_in": str(check_in),
