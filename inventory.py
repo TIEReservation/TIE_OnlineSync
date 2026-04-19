@@ -766,15 +766,31 @@ def show_daily_status():
     # ═══════════════════════════════════════════════════════
     with st.expander("📥 Download Monthly Report", expanded=False):
         st.markdown("#### Generate & Download Excel Reports")
-        st.caption("Select a property and one or more months to download. Each report contains one sheet per day + a Monthly Summary.")
+        st.caption("Select one or more properties and months. One Excel file is generated per property × month combination.")
 
         dl_col1, dl_col2, dl_col3 = st.columns([3, 2, 2])
+
         with dl_col1:
-            dl_prop = st.selectbox(
-                "Property",
-                options=["— Select Property —"] + props,
-                key="dl_prop"
-            )
+            select_all_props = st.checkbox("Select All Properties", key="dl_select_all_props")
+            if select_all_props:
+                dl_props_selected = props
+                st.multiselect(
+                    "Properties",
+                    options=props,
+                    default=props,
+                    key="dl_props_multi",
+                    disabled=True,
+                    help="All properties selected"
+                )
+            else:
+                dl_props_selected = st.multiselect(
+                    "Properties",
+                    options=props,
+                    default=[],
+                    key="dl_props_multi",
+                    placeholder="Choose one or more properties…"
+                )
+
         with dl_col2:
             dl_year = st.selectbox(
                 "Year",
@@ -782,10 +798,11 @@ def show_daily_status():
                 index=5,
                 key="dl_year"
             )
+
         with dl_col3:
             dl_month_mode = st.radio(
                 "Month Selection",
-                options=["Single Month", "All Months"],
+                options=["Single Month", "Multiple Months"],
                 key="dl_month_mode",
                 horizontal=True
             )
@@ -800,65 +817,61 @@ def show_daily_status():
             )
             months_to_download = [dl_month]
         else:
-            dl_months_selected = st.multiselect(
-                "Select Months (leave blank = all 12)",
-                options=list(range(1, 13)),
-                format_func=lambda m: month_names[m],
-                default=list(range(1, 13)),
-                key="dl_months_multi"
-            )
-            months_to_download = dl_months_selected if dl_months_selected else list(range(1, 13))
-
-        if dl_prop and dl_prop != "— Select Property —":
-            if len(months_to_download) == 1:
-                # Single month → direct download button
-                m = months_to_download[0]
-                month_label = month_names[m]
-                start_d = date(dl_year, m, 1)
-                end_d = date(dl_year, m, calendar.monthrange(dl_year, m)[1])
-
-                if st.button(f"📥 Generate {month_label} {dl_year} Report for {dl_prop}", key="dl_single_btn"):
-                    with st.spinner(f"Generating {month_label} {dl_year} report for {dl_prop}…"):
-                        try:
-                            bkgs = load_combined_bookings(dl_prop, start_d, end_d)
-                            report_bytes = generate_monthly_report(dl_prop, dl_year, m, bkgs)
-                            filename = f"{dl_prop.replace(' ', '_')}_{month_label}_{dl_year}_Report.xlsx"
-                            st.download_button(
-                                label=f"⬇️ Download {month_label} {dl_year} — {dl_prop}",
-                                data=report_bytes,
-                                file_name=filename,
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                key="dl_single_save"
-                            )
-                            st.success(f"✅ {calendar.monthrange(dl_year, m)[1]} day sheets + Summary ready.")
-                        except Exception as e:
-                            st.error(f"Failed: {e}")
-                            logging.error(f"Report error {dl_prop} {m}/{dl_year}: {e}")
+            select_all_months = st.checkbox("Select All Months", key="dl_select_all_months")
+            if select_all_months:
+                months_to_download = list(range(1, 13))
+                st.multiselect(
+                    "Months",
+                    options=list(range(1, 13)),
+                    default=list(range(1, 13)),
+                    format_func=lambda m: month_names[m],
+                    key="dl_months_multi",
+                    disabled=True,
+                    help="All months selected"
+                )
             else:
-                # Multiple months → generate each separately
-                st.info(f"This will generate **{len(months_to_download)}** separate Excel files (one per month). Click each download button after generation.")
-                if st.button(f"📥 Generate {len(months_to_download)} Reports for {dl_prop}", key="dl_multi_btn"):
+                dl_months_selected = st.multiselect(
+                    "Months",
+                    options=list(range(1, 13)),
+                    format_func=lambda m: month_names[m],
+                    default=[today.month],
+                    key="dl_months_multi",
+                    placeholder="Choose one or more months…"
+                )
+                months_to_download = dl_months_selected if dl_months_selected else []
+
+        # ── Summary of what will be generated ──
+        total_reports = len(dl_props_selected) * len(months_to_download)
+        if dl_props_selected and months_to_download:
+            st.info(
+                f"**{total_reports} report(s)** will be generated: "
+                f"**{len(dl_props_selected)}** propert{'y' if len(dl_props_selected)==1 else 'ies'} × "
+                f"**{len(months_to_download)}** month{'s' if len(months_to_download)>1 else ''}."
+            )
+
+            if st.button(f"📥 Generate {total_reports} Report(s)", key="dl_generate_btn", type="primary"):
+                for dl_prop in dl_props_selected:
                     for m in months_to_download:
                         month_label = month_names[m]
                         start_d = date(dl_year, m, 1)
                         end_d = date(dl_year, m, calendar.monthrange(dl_year, m)[1])
-                        with st.spinner(f"Generating {month_label} {dl_year}…"):
+                        with st.spinner(f"Generating {dl_prop} — {month_label} {dl_year}…"):
                             try:
                                 bkgs = load_combined_bookings(dl_prop, start_d, end_d)
                                 report_bytes = generate_monthly_report(dl_prop, dl_year, m, bkgs)
                                 filename = f"{dl_prop.replace(' ', '_')}_{month_label}_{dl_year}_Report.xlsx"
                                 st.download_button(
-                                    label=f"⬇️ {month_label} {dl_year} — {dl_prop}",
+                                    label=f"⬇️ {dl_prop} — {month_label} {dl_year}",
                                     data=report_bytes,
                                     file_name=filename,
                                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                    key=f"dl_multi_save_{m}"
+                                    key=f"dl_save_{dl_prop.replace(' ','_')}_{m}_{dl_year}"
                                 )
                             except Exception as e:
-                                st.error(f"Failed for {month_label}: {e}")
+                                st.error(f"❌ Failed: {dl_prop} — {month_label}: {e}")
                                 logging.error(f"Report error {dl_prop} {m}/{dl_year}: {e}")
         else:
-            st.warning("Please select a property to enable downloads.")
+            st.warning("Please select at least one property and one month to enable downloads.")
 
     st.markdown("---")
 
