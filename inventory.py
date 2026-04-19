@@ -1,4 +1,4 @@
-# inventory.py – FIXED VERSION with single editable table
+# inventory.py – FIXED VERSION with single editable table + Monthly Report Download
 import streamlit as st
 from supabase import create_client, Client
 from datetime import date
@@ -6,6 +6,10 @@ import calendar
 import pandas as pd
 from typing import Any, List, Dict, Optional
 import logging
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
 # ────── Logging ──────
 logging.basicConfig(filename="app.log", level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -81,7 +85,7 @@ PROPERTY_INVENTORY = {
     "Eden Beach Resort": {"all": ["101","102","103","201","202","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
     "Le Terra": {"all": ["101","102","103","104","105","106","107","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
     "La Coromandel Luxury": {"all": ["101","102","103","201","202","203","204","205","206","301","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "Happymates Forest Retreat": {"all": ["101","102","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]}  
+    "Happymates Forest Retreat": {"all": ["101","102","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]}
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -109,16 +113,13 @@ def safe_float(v: Any, default: float = 0) -> float:
 # Highlighting Function
 # ═══════════════════════════════════════════════════════════════════════════
 def highlight_columns(df):
-    """Apply light gray background to Total, Advance, and Balance Mop columns"""
     styles = pd.DataFrame('', index=df.index, columns=df.columns)
-    
     if 'Total' in df.columns:
         styles['Total'] = 'background-color: #D3D3D3'
     if 'Advance' in df.columns:
         styles['Advance'] = 'background-color: #D3D3D3'
     if 'Balance Mop' in df.columns:
         styles['Balance Mop'] = 'background-color: #D3D3D3'
-    
     return styles
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -141,9 +142,8 @@ def load_properties() -> List[str]:
         logging.error(f"load_properties: {e}")
         return []
 
-@st.cache_data(ttl=600)  
+@st.cache_data(ttl=600)
 def load_combined_bookings(property: str, start_date: date, end_date: date) -> List[Dict]:
-    """Load bookings with correct date filtering."""
     prop = normalize_property(property)
     query_props = [prop] + reverse_mapping.get(prop, [])
     combined: List[Dict] = []
@@ -157,7 +157,6 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
             .in_("plan_status", ["Confirmed", "Completed"])\
             .in_("payment_status", ["Partially Paid", "Fully Paid"])\
             .execute()
-        
         for r in q.data or []:
             norm = normalize_booking(r, is_online=False)
             if norm: combined.append(norm)
@@ -173,7 +172,6 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
             .in_("booking_status", ["Confirmed", "Completed"])\
             .in_("payment_status", ["Partially Paid", "Fully Paid"])\
             .execute()
-        
         for r in q.data or []:
             norm = normalize_booking(r, is_online=True)
             if norm: combined.append(norm)
@@ -265,14 +263,14 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     assigned, over = [], []
     inv = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
     inv_lookup = {i.strip().lower(): i for i in inv}
-    
+
     room_bookings = {}
     sorted_bookings = sorted(daily_bookings, key=lambda x: (x.get("check_in", ""), x.get("booking_id", "")))
 
     for b in sorted_bookings:
         raw_room = str(b.get("room_no", "") or "").strip()
         booking_id = b.get("booking_id", "Unknown")
-        
+
         if not raw_room:
             over.append(b)
             continue
@@ -287,7 +285,6 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
                 is_overbooking = True
                 break
             room_name = inv_lookup[key]
-            
             if room_name in room_bookings and room_bookings[room_name] != booking_id:
                 is_overbooking = True
                 break
@@ -338,7 +335,7 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
         row["Inventory No"] = inventory_no
 
         match = next((a for a in assigned if str(a.get("assigned_room", "")).strip() == inventory_no.strip()), None)
-        
+
         if match:
             check_in_date = date.fromisoformat(match["check_in"])
             is_check_in_day = (target_date == check_in_date)
@@ -346,7 +343,6 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
 
             row["type"] = match["type"]
             row["db_id"] = str(match["db_id"]) if match["db_id"] else ""
-
             row["Room No"] = match["room_no"]
             row["Booking ID"] = match["booking_id"]
             row["Guest Name"] = match["guest_name"]
@@ -465,20 +461,300 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
     }
 
     return {"mop": mop_data, "dtd": dtd}
-    
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Monthly Report Excel Generator
+# ═══════════════════════════════════════════════════════════════════════════
+def generate_monthly_report(prop: str, year: int, month: int, bookings: List[Dict]) -> bytes:
+    """Generate a full monthly Excel report with one sheet per day + Summary sheet."""
+    mob_types = list(mob_mapping.keys())
+    month_dates = [date(year, month, d) for d in range(1, calendar.monthrange(year, month)[1] + 1)]
+    month_name = calendar.month_name[month]
+
+    wb = Workbook()
+    wb.remove(wb.active)  # remove default sheet
+
+    # ── Style helpers ──
+    HEADER_FILL  = PatternFill("solid", fgColor="1F4E79")
+    SUBHDR_FILL  = PatternFill("solid", fgColor="2E75B6")
+    GRAY_FILL    = PatternFill("solid", fgColor="D3D3D3")
+    YELLOW_FILL  = PatternFill("solid", fgColor="FFF2CC")
+    GREEN_FILL   = PatternFill("solid", fgColor="E2EFDA")
+    ORANGE_FILL  = PatternFill("solid", fgColor="FCE4D6")
+    WHITE_FILL   = PatternFill("solid", fgColor="FFFFFF")
+
+    HEADER_FONT  = Font(bold=True, color="FFFFFF", name="Arial", size=10)
+    BOLD_FONT    = Font(bold=True, name="Arial", size=9)
+    NORMAL_FONT  = Font(name="Arial", size=9)
+    TITLE_FONT   = Font(bold=True, name="Arial", size=13, color="1F4E79")
+
+    CENTER_ALIGN = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    LEFT_ALIGN   = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    thin = Side(style="thin", color="BFBFBF")
+    THIN_BORDER  = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    visible_cols = [
+        "Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No", "Total Pax",
+        "Check In", "Check Out", "Days", "MOB", "Room Charges", "GST", "TAX", "Total",
+        "Commission", "Hotel Receivable", "Per Night", "Advance", "Advance Mop",
+        "Balance", "Balance Mop", "Plan", "Booking Status", "Payment Status",
+        "Submitted by", "Modified by", "Remarks", "Advance Remarks", "Balance Remarks",
+        "Accounts Status"
+    ]
+    highlight_cols = {"Total", "Advance", "Balance Mop"}
+
+    # ── MTD accumulators ──
+    mtd = {m: {"rooms": 0, "value": 0.0, "comm": 0.0} for m in mob_types}
+    mtd_rooms = 0; mtd_value = 0.0; mtd_comm = 0.0
+    mtd_mop = {m: 0.0 for m in ["UPI","Cash","Go-MMT","Agoda","NOT PAID","Airbnb",
+                                  "Expenses","Bank Transfer","Stayflexi","Card Payment",
+                                  "Expedia","Cleartrip","Website"]}
+    mtd_mop["Total Cash"] = 0.0
+    mtd_mop["Total"] = 0.0
+
+    daily_summary_rows = []  # for Summary sheet
+
+    # ── One sheet per day ──
+    for day in month_dates:
+        daily = filter_bookings_for_day(bookings, day)
+        assigned, over = assign_inventory_numbers(daily, prop)
+        display_df, _ = create_inventory_table(assigned, over, prop, day)
+
+        sheet_name = day.strftime("%d-%b")
+        ws = wb.create_sheet(title=sheet_name)
+
+        # Title row
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(visible_cols))
+        title_cell = ws.cell(row=1, column=1, value=f"{prop} — {day.strftime('%d %B %Y')}")
+        title_cell.font = TITLE_FONT
+        title_cell.alignment = CENTER_ALIGN
+        ws.row_dimensions[1].height = 22
+
+        # Column headers (row 2)
+        for col_idx, col_name in enumerate(visible_cols, start=1):
+            cell = ws.cell(row=2, column=col_idx, value=col_name)
+            cell.font = HEADER_FONT
+            cell.fill = SUBHDR_FILL if col_name in highlight_cols else HEADER_FILL
+            cell.alignment = CENTER_ALIGN
+            cell.border = THIN_BORDER
+        ws.row_dimensions[2].height = 28
+
+        # Data rows
+        for row_idx, df_row in enumerate(display_df.itertuples(index=False), start=3):
+            row_data = list(df_row)
+            has_booking = str(row_data[2]).strip() != ""  # Booking ID at index 2
+            for col_idx, (col_name, value) in enumerate(zip(visible_cols, row_data), start=1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                cell.font = BOLD_FONT if has_booking else NORMAL_FONT
+                cell.alignment = LEFT_ALIGN
+                cell.border = THIN_BORDER
+                if col_name in highlight_cols:
+                    cell.fill = GRAY_FILL
+                elif has_booking:
+                    cell.fill = YELLOW_FILL if row_idx % 2 == 0 else GREEN_FILL
+                else:
+                    cell.fill = WHITE_FILL
+
+        # Auto-width columns
+        col_widths = {
+            "Inventory No": 12, "Room No": 10, "Booking ID": 14, "Guest Name": 20,
+            "Mobile No": 14, "Total Pax": 9, "Check In": 11, "Check Out": 11,
+            "Days": 6, "MOB": 14, "Room Charges": 13, "GST": 10, "TAX": 10,
+            "Total": 12, "Commission": 12, "Hotel Receivable": 16, "Per Night": 11,
+            "Advance": 12, "Advance Mop": 14, "Balance": 12, "Balance Mop": 14,
+            "Plan": 14, "Booking Status": 15, "Payment Status": 15,
+            "Submitted by": 15, "Modified by": 15, "Remarks": 22,
+            "Advance Remarks": 22, "Balance Remarks": 22, "Accounts Status": 15
+        }
+        for col_idx, col_name in enumerate(visible_cols, start=1):
+            ws.column_dimensions[get_column_letter(col_idx)].width = col_widths.get(col_name, 14)
+
+        ws.freeze_panes = "D3"  # Freeze first 3 columns + header
+
+        # ── Stats for this day ──
+        if daily:
+            stats = extract_stats_from_table(display_df, mob_types)
+            dtd = stats["dtd"]
+            mop_data = stats["mop"]
+            total_inventory = len([i for i in PROPERTY_INVENTORY.get(prop, {}).get("all", [])
+                                    if not i.startswith(("Day Use", "No Show"))])
+            occ_pct = (dtd["Total"]["rooms"] / total_inventory * 100) if total_inventory else 0.0
+
+            # Accumulate MTD
+            for m in mob_types:
+                mtd[m]["rooms"] += dtd[m]["rooms"]
+                mtd[m]["value"] += dtd[m]["value"]
+                mtd[m]["comm"] += dtd[m]["comm"]
+            mtd_rooms += dtd["Total"]["rooms"]
+            mtd_value += dtd["Total"]["value"]
+            mtd_comm += dtd["Total"]["comm"]
+            for k in mtd_mop:
+                if k in mop_data:
+                    mtd_mop[k] += mop_data[k]
+
+            daily_summary_rows.append({
+                "Date": day.strftime("%d-%b-%Y"),
+                "Rooms Sold": dtd["Total"]["rooms"],
+                "Total Inventory": total_inventory,
+                "Occupancy %": round(occ_pct, 1),
+                "Revenue (Per Night)": round(dtd["Total"]["value"], 2),
+                "ARR": round(dtd["Total"]["arr"], 2),
+                "GST": round(dtd["Total"]["gst"], 2),
+                "TAX": round(dtd["Total"]["tax"], 2),
+                "Commission": round(dtd["Total"]["comm"], 2),
+                "Total Pax": dtd["Total"]["pax"],
+            })
+
+            # ── Mini stats block below the booking table ──
+            last_data_row = len(display_df) + 3
+            stats_start = last_data_row + 2
+
+            def write_mini_table(ws, start_row, start_col, title, headers, data_rows, title_fill, hdr_fill):
+                ws.merge_cells(start_row=start_row, start_column=start_col,
+                                end_row=start_row, end_column=start_col + len(headers) - 1)
+                tc = ws.cell(row=start_row, column=start_col, value=title)
+                tc.font = Font(bold=True, name="Arial", size=10, color="FFFFFF")
+                tc.fill = title_fill
+                tc.alignment = CENTER_ALIGN
+                for ci, h in enumerate(headers, start=start_col):
+                    hc = ws.cell(row=start_row + 1, column=ci, value=h)
+                    hc.font = HEADER_FONT
+                    hc.fill = hdr_fill
+                    hc.alignment = CENTER_ALIGN
+                    hc.border = THIN_BORDER
+                for ri, dr in enumerate(data_rows, start=start_row + 2):
+                    for ci, val in enumerate(dr, start=start_col):
+                        dc = ws.cell(row=ri, column=ci, value=val)
+                        dc.font = NORMAL_FONT
+                        dc.alignment = LEFT_ALIGN
+                        dc.border = THIN_BORDER
+
+            # MOP mini table
+            mop_rows = [(m, f"₹{v:,.2f}") for m, v in mop_data.items() if v != 0]
+            write_mini_table(ws, stats_start, 1, "💳 Mode of Payment",
+                             ["MOP", "Amount"], mop_rows,
+                             PatternFill("solid", fgColor="1F4E79"),
+                             PatternFill("solid", fgColor="2E75B6"))
+
+            # DTD mini table
+            dtd_rows = [(m, dtd[m]["rooms"], f"₹{dtd[m]['value']:,.2f}", f"₹{dtd[m]['arr']:,.2f}", f"₹{dtd[m]['comm']:,.2f}")
+                        for m in mob_types if dtd[m]["rooms"] > 0]
+            dtd_rows.append(("Total", dtd["Total"]["rooms"], f"₹{dtd['Total']['value']:,.2f}",
+                              f"₹{dtd['Total']['arr']:,.2f}", f"₹{dtd['Total']['comm']:,.2f}"))
+            write_mini_table(ws, stats_start, 4, "📊 Day Revenue by MOB",
+                             ["MOB", "Rooms", "Revenue", "ARR", "Commission"], dtd_rows,
+                             PatternFill("solid", fgColor="375623"),
+                             PatternFill("solid", fgColor="548235"))
+
+    # ═══════════════════════════════════════════════════════
+    # SUMMARY SHEET (first sheet)
+    # ═══════════════════════════════════════════════════════
+    ws_sum = wb.create_sheet(title="📋 Monthly Summary", index=0)
+
+    # Title
+    ws_sum.merge_cells("A1:K1")
+    t = ws_sum.cell(row=1, column=1, value=f"{prop} — {month_name} {year} Monthly Report")
+    t.font = Font(bold=True, name="Arial", size=15, color="1F4E79")
+    t.alignment = CENTER_ALIGN
+    ws_sum.row_dimensions[1].height = 30
+
+    # ── Section 1: Daily Summary ──
+    ws_sum.cell(row=3, column=1, value="📅 Daily Occupancy & Revenue Summary").font = Font(bold=True, name="Arial", size=11, color="1F4E79")
+    ds_headers = ["Date", "Rooms Sold", "Total Inventory", "Occupancy %", "Revenue (Per Night)", "ARR", "GST", "TAX", "Commission", "Total Pax"]
+    for ci, h in enumerate(ds_headers, 1):
+        c = ws_sum.cell(row=4, column=ci, value=h)
+        c.font = HEADER_FONT
+        c.fill = HEADER_FILL
+        c.alignment = CENTER_ALIGN
+        c.border = THIN_BORDER
+
+    for ri, row_d in enumerate(daily_summary_rows, start=5):
+        for ci, key in enumerate(ds_headers, 1):
+            val = row_d.get(key, "")
+            c = ws_sum.cell(row=ri, column=ci, value=val)
+            c.font = NORMAL_FONT
+            c.alignment = LEFT_ALIGN
+            c.border = THIN_BORDER
+            c.fill = YELLOW_FILL if ri % 2 == 0 else WHITE_FILL
+
+    # Totals row
+    tr = len(daily_summary_rows) + 5
+    ws_sum.cell(row=tr, column=1, value="TOTAL / AVG").font = BOLD_FONT
+    ws_sum.cell(row=tr, column=2, value=mtd_rooms).font = BOLD_FONT
+    if daily_summary_rows:
+        avg_occ = sum(r["Occupancy %"] for r in daily_summary_rows) / len(daily_summary_rows)
+        ws_sum.cell(row=tr, column=4, value=round(avg_occ, 1)).font = BOLD_FONT
+    ws_sum.cell(row=tr, column=5, value=round(mtd_value, 2)).font = BOLD_FONT
+    ws_sum.cell(row=tr, column=6, value=round(mtd_value / mtd_rooms, 2) if mtd_rooms else 0).font = BOLD_FONT
+    for ci in range(1, 11):
+        ws_sum.cell(row=tr, column=ci).fill = PatternFill("solid", fgColor="BDD7EE")
+        ws_sum.cell(row=tr, column=ci).border = THIN_BORDER
+
+    # ── Section 2: MTD MOB Revenue ──
+    mob_start = tr + 3
+    ws_sum.cell(row=mob_start, column=1, value="📊 MTD Revenue by Mode of Booking (MOB)").font = Font(bold=True, name="Arial", size=11, color="1F4E79")
+    mob_headers = ["MOB", "Rooms", "Revenue", "ARR", "Commission"]
+    for ci, h in enumerate(mob_headers, 1):
+        c = ws_sum.cell(row=mob_start + 1, column=ci, value=h)
+        c.font = HEADER_FONT; c.fill = SUBHDR_FILL; c.alignment = CENTER_ALIGN; c.border = THIN_BORDER
+
+    for ri, m in enumerate(mob_types, start=mob_start + 2):
+        d = mtd[m]
+        arr = d["value"] / d["rooms"] if d["rooms"] > 0 else 0.0
+        for ci, val in enumerate([m, d["rooms"], round(d["value"], 2), round(arr, 2), round(d["comm"], 2)], 1):
+            c = ws_sum.cell(row=ri, column=ci, value=val)
+            c.font = NORMAL_FONT; c.alignment = LEFT_ALIGN; c.border = THIN_BORDER
+            c.fill = GREEN_FILL if ri % 2 == 0 else WHITE_FILL
+
+    total_ri = mob_start + 2 + len(mob_types)
+    total_arr = mtd_value / mtd_rooms if mtd_rooms else 0.0
+    for ci, val in enumerate(["Total", mtd_rooms, round(mtd_value, 2), round(total_arr, 2), round(mtd_comm, 2)], 1):
+        c = ws_sum.cell(row=total_ri, column=ci, value=val)
+        c.font = BOLD_FONT; c.fill = PatternFill("solid", fgColor="BDD7EE"); c.border = THIN_BORDER
+
+    # ── Section 3: MTD MOP ──
+    mop_start = total_ri + 3
+    ws_sum.cell(row=mop_start, column=1, value="💳 MTD Mode of Payment (MOP) Breakdown").font = Font(bold=True, name="Arial", size=11, color="1F4E79")
+    for ci, h in enumerate(["Payment Method", "Total Amount (₹)"], 1):
+        c = ws_sum.cell(row=mop_start + 1, column=ci, value=h)
+        c.font = HEADER_FONT; c.fill = PatternFill("solid", fgColor="7030A0"); c.alignment = CENTER_ALIGN; c.border = THIN_BORDER
+
+    mop_items = [(k, v) for k, v in mtd_mop.items() if v != 0]
+    for ri, (mop_name, amount) in enumerate(mop_items, start=mop_start + 2):
+        ws_sum.cell(row=ri, column=1, value=mop_name).font = NORMAL_FONT
+        ws_sum.cell(row=ri, column=2, value=round(amount, 2)).font = NORMAL_FONT
+        for ci in [1, 2]:
+            ws_sum.cell(row=ri, column=ci).border = THIN_BORDER
+            ws_sum.cell(row=ri, column=ci).fill = ORANGE_FILL if ri % 2 == 0 else WHITE_FILL
+
+    # Summary sheet column widths
+    sum_widths = [18, 12, 15, 13, 18, 14, 10, 10, 13, 12]
+    for i, w in enumerate(sum_widths, 1):
+        ws_sum.column_dimensions[get_column_letter(i)].width = w
+    ws_sum.freeze_panes = "A5"
+
+    # ── Save to bytes ──
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # UI – Dashboard with single table (editable for Accounts Team)
 # ═══════════════════════════════════════════════════════════════════════════
 def show_daily_status():
     st.title("Daily Status Dashboard")
-    
+
     if st.button("Refresh Data"):
         st.cache_data.clear()
         st.rerun()
 
     today = date.today()
-    year = st.selectbox("Year", list(range(today.year-5, today.year+6)), index=5)
-    month = st.selectbox("Month", list(range(1,13)), index=today.month-1)
+    year = st.selectbox("Year", list(range(today.year - 5, today.year + 6)), index=5)
+    month = st.selectbox("Month", list(range(1, 13)), index=today.month - 1)
 
     props = load_properties()
     if not props:
@@ -489,12 +765,37 @@ def show_daily_status():
 
     for prop in props:
         if st.checkbox(f"**{prop}**", key=f"expand_{prop}"):
-            month_dates = [date(year, month, d) for d in range(1, calendar.monthrange(year, month)[1]+1)]
+            month_dates = [date(year, month, d) for d in range(1, calendar.monthrange(year, month)[1] + 1)]
             start, end = month_dates[0], month_dates[-1]
             bookings = load_combined_bookings(prop, start, end)
 
+            # ── Monthly Report Download Button ──
+            st.markdown("---")
+            col_dl, col_info = st.columns([2, 5])
+            with col_dl:
+                month_label = calendar.month_name[month]
+                if st.button(f"📥 Download {month_label} {year} Report", key=f"dl_{prop}_{year}_{month}"):
+                    with st.spinner(f"Generating report for {prop}…"):
+                        try:
+                            report_bytes = generate_monthly_report(prop, year, month, bookings)
+                            filename = f"{prop.replace(' ', '_')}_{month_label}_{year}_Report.xlsx"
+                            st.download_button(
+                                label="⬇️ Click to Save Excel File",
+                                data=report_bytes,
+                                file_name=filename,
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                key=f"save_{prop}_{year}_{month}"
+                            )
+                            st.success(f"✅ Report ready! {calendar.monthrange(year, month)[1]} day sheets + Summary.")
+                        except Exception as e:
+                            st.error(f"Failed to generate report: {e}")
+                            logging.error(f"Report generation error for {prop}: {e}")
+            with col_info:
+                st.info(f"📊 The Excel report includes one sheet per day with full booking details, plus a **Monthly Summary** sheet with occupancy, revenue by MOB, and MOP breakdown.")
+            st.markdown("---")
+
             # MTD aggregation
-            mtd = {m: {"rooms":0,"value":0.0,"comm":0.0} for m in mob_types}
+            mtd = {m: {"rooms": 0, "value": 0.0, "comm": 0.0} for m in mob_types}
             mtd_rooms = mtd_value = mtd_comm = 0
 
             for day in month_dates:
@@ -507,11 +808,9 @@ def show_daily_status():
                 if daily:
                     is_accounts_team = st.session_state.get('role', '') == "Accounts Team"
 
-                    # ✅ Single table with editable fields for Accounts Team
                     st.subheader("📊 Booking Overview")
-                    
+
                     if is_accounts_team:
-                        # Editable table for Accounts Team with highlighted AND frozen columns
                         col_config = {
                             "Inventory No": st.column_config.TextColumn(disabled=True, pinned=True),
                             "Room No": st.column_config.TextColumn(disabled=True, pinned=True),
@@ -544,12 +843,10 @@ def show_daily_status():
                             "Balance Remarks": st.column_config.TextColumn("✏️ Balance Remarks", disabled=False, max_chars=500),
                             "Accounts Status": st.column_config.SelectboxColumn("✏️ Accounts Status", options=["Pending", "Completed"], disabled=False),
                         }
-                    
+
                         unique_key = f"{prop.replace(' ', '_')}_{day.strftime('%Y%m%d')}"
-                    
-                        # Create a copy of dataframe with background colors applied via CSS
+
                         def apply_highlight_to_df(df):
-                            # Create a styled dataframe copy
                             def highlight_row(row):
                                 styles = [''] * len(row)
                                 col_names = df.columns.tolist()
@@ -560,11 +857,10 @@ def show_daily_status():
                                 if 'Balance Mop' in col_names:
                                     styles[col_names.index('Balance Mop')] = 'background-color: #D3D3D3'
                                 return styles
-                            
                             return df.style.apply(highlight_row, axis=1)
-                    
+
                         styled_df = apply_highlight_to_df(display_df)
-                    
+
                         with st.form(key=f"form_{unique_key}"):
                             edited = st.data_editor(
                                 styled_df,
@@ -575,31 +871,23 @@ def show_daily_status():
                                 key=f"editor_{unique_key}",
                                 height=400
                             )
-                            
+
                             submitted = st.form_submit_button("💾 Save Changes", use_container_width=False)
-                    
+
                             if submitted:
                                 updates = {}
                                 for i in range(len(edited)):
                                     er = edited.iloc[i]
                                     fr = full_df.iloc[i]
-                                    
                                     bid = str(er.get("Booking ID", "")).strip()
-                                    if not bid:
-                                        continue
-                    
+                                    if not bid: continue
                                     db_id = str(fr.get("db_id", "")).strip()
                                     btype = str(fr.get("type", "")).strip()
-                    
-                                    if not db_id or not btype:
-                                        continue
-                    
+                                    if not db_id or not btype: continue
                                     update_key = f"{bid}_{i}"
-                                    
                                     advance_remarks = str(er.get("Advance Remarks", "") or "").strip()
                                     balance_remarks = str(er.get("Balance Remarks", "") or "").strip()
                                     accounts_status = str(er.get("Accounts Status", "Pending")).strip()
-                                    
                                     updates[update_key] = {
                                         "advance_remarks": advance_remarks if advance_remarks else None,
                                         "balance_remarks": balance_remarks if balance_remarks else None,
@@ -608,47 +896,37 @@ def show_daily_status():
                                         "db_id": db_id,
                                         "booking_id": bid
                                     }
-                    
+
                                 success = error = 0
                                 error_details = []
                                 processed_bookings = set()
-                    
+
                                 for update_key, data in updates.items():
                                     bid = data["booking_id"]
-                                    
-                                    if bid in processed_bookings:
-                                        continue
-                                    
+                                    if bid in processed_bookings: continue
                                     processed_bookings.add(bid)
-                                    
                                     update_data = {
                                         "advance_remarks": data["advance_remarks"],
                                         "balance_remarks": data["balance_remarks"],
                                         "accounts_status": data["accounts_status"],
                                     }
-                                    
                                     update_data = {k: v for k, v in update_data.items() if v is not None}
-                                    
-                                    logging.info(f"Saving {data['type']} booking {bid} | Key: {data['db_id'] if data['type']=='online' else bid} | Data: {update_data}")
-                    
+                                    logging.info(f"Saving {data['type']} booking {bid} | Data: {update_data}")
                                     try:
                                         if data["type"] == "online":
                                             res = supabase.table("online_reservations").update(update_data).eq("id", data["db_id"]).execute()
                                         else:
                                             res = supabase.table("reservations").update(update_data).eq("booking_id", bid).execute()
-                    
                                         if res.data:
                                             success += 1
-                                            logging.info(f"Successfully updated {bid}")
                                         else:
                                             error += 1
                                             error_details.append(f"{bid}: No rows updated")
-                                            logging.warning(f"No rows updated for {bid}")
                                     except Exception as e:
                                         error += 1
                                         error_details.append(f"{bid}: {str(e)}")
                                         logging.error(f"Save failed {bid}: {e}")
-                    
+
                                 if success:
                                     st.success(f"✅ Saved {success} booking(s)!")
                                     st.cache_data.clear()
@@ -659,61 +937,54 @@ def show_daily_status():
                                         for msg in error_details:
                                             st.code(msg)
                     else:
-                        # Read-only table for non-Accounts Team with frozen columns AND highlighting
                         col_config_readonly = {
                             "Inventory No": st.column_config.TextColumn(disabled=True, pinned=True),
                             "Room No": st.column_config.TextColumn(disabled=True, pinned=True),
                             "Booking ID": st.column_config.TextColumn(disabled=True, pinned=True),
                             "Guest Name": st.column_config.TextColumn(disabled=True, pinned=True),
                         }
-                        
                         styled_display = display_df.style.apply(highlight_columns, axis=None)
                         st.dataframe(styled_display, column_config=col_config_readonly, use_container_width=True, height=400, hide_index=True)
-                        
+
                     st.markdown("---")
 
-                    # ✅ Extract stats and display tables
                     stats = extract_stats_from_table(display_df, mob_types)
                     dtd = stats["dtd"]
                     mop_data = stats["mop"]
 
-                    # Accumulate MTD
                     for m in mob_types:
                         mtd[m]["rooms"] += dtd[m]["rooms"]
                         mtd[m]["value"] += dtd[m]["value"]
                         mtd[m]["comm"] += dtd[m]["comm"]
-                    
+
                     mtd_rooms += dtd["Total"]["rooms"]
                     mtd_value += dtd["Total"]["value"]
                     mtd_comm += dtd["Total"]["comm"]
 
-                    # DTD Table
                     dtd_df = pd.DataFrame([
                         {"MOB": m, "D.T.D Rooms": d["rooms"], "D.T.D Value": f"₹{d['value']:,.2f}",
-                         "D.T.D ARR": f"₹{d['arr']:,.2f}", "D.T.D Comm": f"₹{d['comm']:,.2f}"} 
+                         "D.T.D ARR": f"₹{d['arr']:,.2f}", "D.T.D Comm": f"₹{d['comm']:,.2f}"}
                         for m, d in dtd.items() if m != "Total"
-                    ] + [{"MOB": "Total", "D.T.D Rooms": dtd["Total"]["rooms"], 
+                    ] + [{"MOB": "Total", "D.T.D Rooms": dtd["Total"]["rooms"],
                           "D.T.D Value": f"₹{dtd['Total']['value']:,.2f}",
-                          "D.T.D ARR": f"₹{dtd['Total']['arr']:,.2f}", 
+                          "D.T.D ARR": f"₹{dtd['Total']['arr']:,.2f}",
                           "D.T.D Comm": f"₹{dtd['Total']['comm']:,.2f}"}],
-                        columns=["MOB","D.T.D Rooms","D.T.D Value","D.T.D ARR","D.T.D Comm"])
+                        columns=["MOB", "D.T.D Rooms", "D.T.D Value", "D.T.D ARR", "D.T.D Comm"])
 
-                    # MOP Table
-                    mop_df = pd.DataFrame([{"MOP": m, "Amount": f"₹{v:,.2f}"} for m, v in mop_data.items()], 
-                                         columns=["MOP", "Amount"])
+                    mop_df = pd.DataFrame([{"MOP": m, "Amount": f"₹{v:,.2f}"} for m, v in mop_data.items()],
+                                          columns=["MOP", "Amount"])
 
-                    # MTD Table
                     mtd_df = pd.DataFrame([
                         {"MOB": m, "M.T.D Rooms": mtd[m]["rooms"], "M.T.D Value": f"₹{mtd[m]['value']:,.2f}",
-                         "M.T.D ARR": f"₹{mtd[m]['value']/mtd[m]['rooms']:,.2f}" if mtd[m]["rooms"] > 0 else "₹0.00",
+                         "M.T.D ARR": f"₹{mtd[m]['value'] / mtd[m]['rooms']:,.2f}" if mtd[m]["rooms"] > 0 else "₹0.00",
                          "M.T.D Comm": f"₹{mtd[m]['comm']:,.2f}"} for m in mob_types
                     ] + [{"MOB": "Total", "M.T.D Rooms": mtd_rooms, "M.T.D Value": f"₹{mtd_value:,.2f}",
-                          "M.T.D ARR": f"₹{mtd_value/mtd_rooms:,.2f}" if mtd_rooms > 0 else "₹0.00",
-                          "M.T.D Comm": f"₹{mtd_comm:,.2f}"}], 
-                        columns=["MOB","M.T.D Rooms","M.T.D Value","M.T.D ARR","M.T.D Comm"])
+                          "M.T.D ARR": f"₹{mtd_value / mtd_rooms:,.2f}" if mtd_rooms > 0 else "₹0.00",
+                          "M.T.D Comm": f"₹{mtd_comm:,.2f}"}],
+                        columns=["MOB", "M.T.D Rooms", "M.T.D Value", "M.T.D ARR", "M.T.D Comm"])
 
-                    # Summary Stats
-                    total_inventory = len([i for i in PROPERTY_INVENTORY.get(prop,{}).get("all",[]) if not i.startswith(("Day Use","No Show"))])
+                    total_inventory = len([i for i in PROPERTY_INVENTORY.get(prop, {}).get("all", [])
+                                           if not i.startswith(("Day Use", "No Show"))])
                     occ_pct = (dtd["Total"]["rooms"] / total_inventory * 100) if total_inventory else 0.0
                     mtd_occ_pct = (mtd_rooms / (total_inventory * day.day) * 100) if total_inventory and day.day > 0 else 0.0
 
@@ -731,20 +1002,20 @@ def show_daily_status():
                         "MTD Revenue": f"₹{mtd_value:,.2f}",
                     }
 
-                    # Display Tables in 4 columns
                     c1, c2, c3, c4 = st.columns(4)
-                    with c1: 
+                    with c1:
                         st.subheader("MOP")
                         st.dataframe(mop_df, use_container_width=True, hide_index=True)
-                    with c2: 
+                    with c2:
                         st.subheader("Day Revenue")
                         st.dataframe(dtd_df, use_container_width=True, hide_index=True)
-                    with c3: 
+                    with c3:
                         st.subheader("Month Revenue")
                         st.dataframe(mtd_df, use_container_width=True, hide_index=True)
                     with c4:
                         st.subheader("Summary")
-                        st.dataframe(pd.DataFrame([{"Metric": k, "Value": v} for k, v in summary.items()]), use_container_width=True, hide_index=True)
+                        st.dataframe(pd.DataFrame([{"Metric": k, "Value": v} for k, v in summary.items()]),
+                                     use_container_width=True, hide_index=True)
                 else:
                     st.info("No active bookings.")
 
