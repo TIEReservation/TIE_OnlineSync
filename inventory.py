@@ -464,46 +464,39 @@ def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Monthly Report Excel Generator — Single Sheet Version
+# Monthly Report Excel Generator — ONE single sheet
 # ═══════════════════════════════════════════════════════════════════════════
 def generate_monthly_report(props_list: List[str], year: int, month: int, bookings_by_prop: Dict[str, List[Dict]]) -> bytes:
     """
-    Generate a combined monthly Excel report for one or more properties.
-    Structure:
-      - Sheet 1: All Data  — every property × every date in one flat table
-      - Sheet 2: Summary   — one row per property with MTD totals + grand total row
+    All properties × all dates in a single sheet.
+    Columns: Property, Date, + all 30 booking columns.
+    Rows are color-coded by property for easy scanning.
     """
-    mob_types = list(mob_mapping.keys())
     month_dates = [date(year, month, d) for d in range(1, calendar.monthrange(year, month)[1] + 1)]
     month_label = calendar.month_name[month]
 
     wb = Workbook()
-    wb.remove(wb.active)
+    ws = wb.active
+    ws.title = f"{month_label} {year}"
 
-    # ── Shared styles ──
+    # ── Styles ──
     HEADER_FILL = PatternFill("solid", fgColor="1F4E79")
     SUBHDR_FILL = PatternFill("solid", fgColor="2E75B6")
     GRAY_FILL   = PatternFill("solid", fgColor="D3D3D3")
     WHITE_FILL  = PatternFill("solid", fgColor="FFFFFF")
-    BLUE_FILL   = PatternFill("solid", fgColor="BDD7EE")
-    YELLOW_FILL = PatternFill("solid", fgColor="FFF2CC")
-    ORANGE_FILL = PatternFill("solid", fgColor="FCE4D6")
-
-    # Six rotating pastel fills — one per property for easy visual grouping
-    PROP_FILLS = [
-        PatternFill("solid", fgColor="DAEEF3"),  # light blue
-        PatternFill("solid", fgColor="EBF1DE"),  # light green
-        PatternFill("solid", fgColor="FDE9D9"),  # light orange
-        PatternFill("solid", fgColor="E6E0EC"),  # light purple
-        PatternFill("solid", fgColor="FDEBD0"),  # light peach
-        PatternFill("solid", fgColor="D5E8D4"),  # mint green
+    PROP_FILLS  = [
+        PatternFill("solid", fgColor="DAEEF3"),
+        PatternFill("solid", fgColor="EBF1DE"),
+        PatternFill("solid", fgColor="FDE9D9"),
+        PatternFill("solid", fgColor="E6E0EC"),
+        PatternFill("solid", fgColor="FDEBD0"),
+        PatternFill("solid", fgColor="D5E8D4"),
     ]
 
     HEADER_FONT = Font(bold=True, color="FFFFFF", name="Arial", size=10)
     BOLD_FONT   = Font(bold=True, name="Arial", size=9)
     NORMAL_FONT = Font(name="Arial", size=9)
     BIG_TITLE   = Font(bold=True, name="Arial", size=15, color="1F4E79")
-    SEC_TITLE   = Font(bold=True, name="Arial", size=11, color="1F4E79")
 
     CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
     LEFT   = Alignment(horizontal="left",   vertical="center", wrap_text=True)
@@ -519,8 +512,7 @@ def generate_monthly_report(props_list: List[str], year: int, month: int, bookin
         "Accounts Status"
     ]
     highlight_cols = {"Total", "Advance", "Balance Mop"}
-
-    all_sheet_cols = ["Property", "Date"] + visible_cols
+    all_cols = ["Property", "Date"] + visible_cols
 
     col_widths = {
         "Property": 26, "Date": 13,
@@ -531,106 +523,52 @@ def generate_monthly_report(props_list: List[str], year: int, month: int, bookin
         "Advance": 12, "Advance Mop": 14, "Balance": 12, "Balance Mop": 14,
         "Plan": 14, "Booking Status": 15, "Payment Status": 15,
         "Submitted by": 15, "Modified by": 15, "Remarks": 22,
-        "Advance Remarks": 22, "Balance Remarks": 22, "Accounts Status": 15
+        "Advance Remarks": 22, "Balance Remarks": 22, "Accounts Status": 15,
     }
 
-    # ═══════════════════════════════════════════════════════
-    # Sheet 1 — All Data
-    # ═══════════════════════════════════════════════════════
-    ws_all = wb.create_sheet(title="All Data")
+    # ── Row 1: Title ──
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(all_cols))
+    title_cell = ws.cell(row=1, column=1,
+                         value=f"All Properties — {month_label} {year} — Complete Booking Data")
+    title_cell.font      = BIG_TITLE
+    title_cell.alignment = CENTER
+    ws.row_dimensions[1].height = 30
 
-    # Title
-    ws_all.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(all_sheet_cols))
-    t = ws_all.cell(row=1, column=1,
-                    value=f"All Properties — {month_label} {year} — Complete Booking Data")
-    t.font = BIG_TITLE
-    t.alignment = CENTER
-    ws_all.row_dimensions[1].height = 30
-
-    # Header row
-    for ci, col_name in enumerate(all_sheet_cols, start=1):
-        c = ws_all.cell(row=2, column=ci, value=col_name)
+    # ── Row 2: Headers ──
+    for ci, col_name in enumerate(all_cols, start=1):
+        c = ws.cell(row=2, column=ci, value=col_name)
         c.font      = HEADER_FONT
         c.fill      = SUBHDR_FILL if col_name in highlight_cols else HEADER_FILL
         c.alignment = CENTER
         c.border    = BORDER
-        ws_all.column_dimensions[get_column_letter(ci)].width = col_widths.get(col_name, 14)
-    ws_all.row_dimensions[2].height = 28
-    ws_all.freeze_panes = "E3"  # freeze Property, Date, Inventory No, Room No
+        ws.column_dimensions[get_column_letter(ci)].width = col_widths.get(col_name, 14)
+    ws.row_dimensions[2].height = 28
+    ws.freeze_panes = "E3"   # freeze Property, Date, Inventory No, Room No
 
-    # ═══════════════════════════════════════════════════════
-    # Sheet 2 — Summary (created now, filled after loop)
-    # ═══════════════════════════════════════════════════════
-    ws_sum = wb.create_sheet(title="Summary")
-
-    ws_sum.merge_cells("A1:L1")
-    ts = ws_sum.cell(row=1, column=1,
-                     value=f"All Properties — {month_label} {year} — Monthly Summary")
-    ts.font      = BIG_TITLE
-    ts.alignment = CENTER
-    ws_sum.row_dimensions[1].height = 30
-
-    ws_sum.cell(row=3, column=1,
-                value="📊 Monthly Performance by Property").font = SEC_TITLE
-
-    sum_headers = [
-        "Property", "Days w/ Bookings", "Total Rooms Sold", "Total Inventory (Rooms)",
-        "Avg Occupancy %", "MTD Revenue (₹)", "ARR (₹)", "MTD Commission (₹)",
-        "Total GST (₹)", "Total TAX (₹)", "Total Pax", "Total Cash Collected (₹)"
-    ]
-    for ci, h in enumerate(sum_headers, 1):
-        c = ws_sum.cell(row=4, column=ci, value=h)
-        c.font      = HEADER_FONT
-        c.fill      = HEADER_FILL
-        c.alignment = CENTER
-        c.border    = BORDER
-    ws_sum.row_dimensions[4].height = 30
-
-    # ═══════════════════════════════════════════════════════
-    # Iterate properties × dates → write all rows to All Data
-    # ═══════════════════════════════════════════════════════
-    prop_fill_map  = {p: PROP_FILLS[i % len(PROP_FILLS)] for i, p in enumerate(props_list)}
-    write_row      = 3      # next empty row in ws_all
-    summary_rows   = []     # one entry per property for Summary sheet
+    # ── Data rows ──
+    prop_fill_map = {p: PROP_FILLS[i % len(PROP_FILLS)] for i, p in enumerate(props_list)}
+    write_row = 3
 
     for prop in props_list:
-        bookings       = bookings_by_prop.get(prop, [])
-        prop_fill      = prop_fill_map[prop]
-        total_inventory = len([
-            i for i in PROPERTY_INVENTORY.get(prop, {}).get("all", [])
-            if not i.startswith(("Day Use", "No Show"))
-        ])
-
-        # Per-property MTD accumulators
-        prop_mtd_rooms = 0
-        prop_mtd_value = 0.0
-        prop_mtd_comm  = 0.0
-        prop_mtd_gst   = 0.0
-        prop_mtd_tax   = 0.0
-        prop_mtd_pax   = 0
-        prop_mtd_cash  = 0.0
-        days_active    = 0
-        occ_pct_list   = []
+        bookings  = bookings_by_prop.get(prop, [])
+        prop_fill = prop_fill_map[prop]
 
         for day in month_dates:
             daily = filter_bookings_for_day(bookings, day)
             assigned, over = assign_inventory_numbers(daily, prop)
             display_df, _ = create_inventory_table(assigned, over, prop, day)
+            day_label = day.strftime("%d-%b-%Y")
 
-            day_label   = day.strftime("%d-%b-%Y")
-            has_bookings = daily and (display_df["Booking ID"].str.strip() != "").any()
-
-            # Write every inventory row for this property+date
             for df_row in display_df.itertuples(index=False):
                 row_data = list(df_row)
-                has_bk   = str(row_data[2]).strip() != ""   # index 2 = Booking ID
+                has_bk   = str(row_data[2]).strip() != ""  # Booking ID at index 2
                 full_row = [prop, day_label] + row_data
 
-                for ci, (col_name, value) in enumerate(zip(all_sheet_cols, full_row), start=1):
-                    cell            = ws_all.cell(row=write_row, column=ci, value=value)
-                    cell.font       = BOLD_FONT if has_bk else NORMAL_FONT
-                    cell.alignment  = LEFT
-                    cell.border     = BORDER
+                for ci, (col_name, value) in enumerate(zip(all_cols, full_row), start=1):
+                    cell           = ws.cell(row=write_row, column=ci, value=value)
+                    cell.font      = BOLD_FONT if has_bk else NORMAL_FONT
+                    cell.alignment = LEFT
+                    cell.border    = BORDER
                     if col_name in highlight_cols:
                         cell.fill = GRAY_FILL
                     elif has_bk:
@@ -639,83 +577,6 @@ def generate_monthly_report(props_list: List[str], year: int, month: int, bookin
                         cell.fill = WHITE_FILL
 
                 write_row += 1
-
-            # Accumulate MTD stats
-            if has_bookings:
-                stats  = extract_stats_from_table(display_df, mob_types)
-                dtd    = stats["dtd"]
-                mop_d  = stats["mop"]
-                rooms  = dtd["Total"]["rooms"]
-                occ    = (rooms / total_inventory * 100) if total_inventory else 0.0
-
-                prop_mtd_rooms += rooms
-                prop_mtd_value += dtd["Total"]["value"]
-                prop_mtd_comm  += dtd["Total"]["comm"]
-                prop_mtd_gst   += dtd["Total"]["gst"]
-                prop_mtd_tax   += dtd["Total"]["tax"]
-                prop_mtd_pax   += dtd["Total"]["pax"]
-                prop_mtd_cash  += mop_d.get("Cash", 0.0)
-                days_active    += 1
-                occ_pct_list.append(occ)
-
-        avg_occ = round(sum(occ_pct_list) / len(occ_pct_list), 1) if occ_pct_list else 0.0
-        arr     = round(prop_mtd_value / prop_mtd_rooms, 2) if prop_mtd_rooms else 0.0
-
-        summary_rows.append([
-            prop,
-            days_active,
-            prop_mtd_rooms,
-            total_inventory,
-            avg_occ,
-            round(prop_mtd_value, 2),
-            arr,
-            round(prop_mtd_comm, 2),
-            round(prop_mtd_gst, 2),
-            round(prop_mtd_tax, 2),
-            prop_mtd_pax,
-            round(prop_mtd_cash, 2),
-        ])
-
-    # ── Write summary data rows ──
-    for ri, row_d in enumerate(summary_rows, start=5):
-        prop_name = row_d[0]
-        fill      = prop_fill_map.get(prop_name, WHITE_FILL)
-        for ci, val in enumerate(row_d, start=1):
-            c           = ws_sum.cell(row=ri, column=ci, value=val)
-            c.font      = NORMAL_FONT
-            c.alignment = LEFT
-            c.border    = BORDER
-            c.fill      = fill
-
-    # ── Grand totals row ──
-    if summary_rows:
-        total_row_idx  = len(summary_rows) + 5
-        total_rooms    = sum(r[2] for r in summary_rows)
-        total_inv      = sum(r[3] for r in summary_rows)
-        avg_occ_all    = round(sum(r[4] for r in summary_rows) / len(summary_rows), 1)
-        total_rev      = round(sum(r[5] for r in summary_rows), 2)
-        total_arr      = round(total_rev / total_rooms, 2) if total_rooms else 0.0
-        total_comm     = round(sum(r[7] for r in summary_rows), 2)
-        total_gst      = round(sum(r[8] for r in summary_rows), 2)
-        total_tax      = round(sum(r[9] for r in summary_rows), 2)
-        total_pax      = sum(r[10] for r in summary_rows)
-        total_cash     = round(sum(r[11] for r in summary_rows), 2)
-        totals         = [
-            "GRAND TOTAL", "—", total_rooms, total_inv, avg_occ_all,
-            total_rev, total_arr, total_comm, total_gst,
-            total_tax, total_pax, total_cash
-        ]
-        for ci, val in enumerate(totals, start=1):
-            c           = ws_sum.cell(row=total_row_idx, column=ci, value=val)
-            c.font      = BOLD_FONT
-            c.fill      = BLUE_FILL
-            c.border    = BORDER
-
-    # ── Summary column widths ──
-    sum_col_widths = [28, 18, 18, 22, 17, 20, 14, 22, 14, 14, 12, 24]
-    for i, w in enumerate(sum_col_widths, 1):
-        ws_sum.column_dimensions[get_column_letter(i)].width = w
-    ws_sum.freeze_panes = "B5"
 
     # ── Save ──
     buffer = io.BytesIO()
