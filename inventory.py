@@ -247,6 +247,7 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
             "advance_remarks": sanitize_string(row.get("advance_remarks", "")),
             "balance_remarks": sanitize_string(row.get("balance_remarks", "")),
             "accounts_status": sanitize_string(row.get("accounts_status", "Pending")).title(),
+            "ota_booking_id": sanitize_string(row.get("ota_booking_id", "")) if is_online else "",
             "db_id": identifier_str,
         }
     except Exception as e:
@@ -320,7 +321,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
 # Build Table
 # ═══════════════════════════════════════════════════════════════════════════
 def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date):
-    visible_cols = ["Inventory No","Room No","Booking ID","Guest Name","Mobile No","Total Pax",
+    visible_cols = ["Inventory No","Room No","Booking ID","OTA Booking ID","Guest Name","Mobile No","Total Pax",
                     "Check In","Check Out","Days","MOB","Room Charges","GST","TAX","Total","Commission",
                     "Hotel Receivable","Per Night","Advance","Advance Mop","Balance","Balance Mop",
                     "Plan","Booking Status","Payment Status","Submitted by","Modified by","Remarks",
@@ -345,6 +346,7 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
             row["db_id"] = str(match["db_id"]) if match["db_id"] else ""
             row["Room No"] = match["room_no"]
             row["Booking ID"] = match["booking_id"]
+            row["OTA Booking ID"] = match.get("ota_booking_id", "")
             row["Guest Name"] = match["guest_name"]
             row["Mobile No"] = match["mobile_no"]
             row["Total Pax"] = match["total_pax"]
@@ -504,7 +506,7 @@ def generate_monthly_report(props_list: List[str], year: int, month: int, bookin
     BORDER = Border(left=thin, right=thin, top=thin, bottom=thin)
 
     visible_cols = [
-        "Inventory No", "Room No", "Booking ID", "Guest Name", "Mobile No", "Total Pax",
+        "Inventory No", "Room No", "Booking ID", "OTA Booking ID", "Guest Name", "Mobile No", "Total Pax",
         "Check In", "Check Out", "Days", "MOB", "Room Charges", "GST", "TAX", "Total",
         "Commission", "Hotel Receivable", "Per Night", "Advance", "Advance Mop",
         "Balance", "Balance Mop", "Plan", "Booking Status", "Payment Status",
@@ -516,7 +518,7 @@ def generate_monthly_report(props_list: List[str], year: int, month: int, bookin
 
     col_widths = {
         "Property": 26, "Date": 13,
-        "Inventory No": 12, "Room No": 10, "Booking ID": 14, "Guest Name": 20,
+        "Inventory No": 12, "Room No": 10, "Booking ID": 14, "OTA Booking ID": 16, "Guest Name": 20,
         "Mobile No": 14, "Total Pax": 9, "Check In": 11, "Check Out": 11,
         "Days": 6, "MOB": 14, "Room Charges": 13, "GST": 10, "TAX": 10,
         "Total": 12, "Commission": 12, "Hotel Receivable": 16, "Per Night": 11,
