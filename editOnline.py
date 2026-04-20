@@ -1,403 +1,1018 @@
+# inventory.py – FIXED VERSION with single editable table + Monthly Report Download
 import streamlit as st
-import pandas as pd
-from datetime import date
 from supabase import create_client, Client
-from utils import safe_int, safe_float
+from datetime import date
+import calendar
+import pandas as pd
+from typing import Any, List, Dict, Optional
+import logging
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
-# Initialize Supabase client
+# ────── Logging ──────
+logging.basicConfig(filename="app.log", level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# ────── Supabase client ──────
 try:
     supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
 except KeyError as e:
-    st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets configuration.")
+    st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets.")
     st.stop()
 
-def update_online_reservation_in_supabase(booking_id, updated_reservation):
-    """Update an online reservation in Supabase."""
-    try:
-        # Trim booking_id before update
-        booking_id = booking_id.strip()
-        
-        # Truncate and trim string fields to prevent database errors
-        truncated_reservation = updated_reservation.copy()
-        string_fields_50 = [
-            "property", "booking_id", "guest_name", "guest_phone", "room_no", 
-            "room_type", "rate_plans", "booking_source", "segment", "staflexi_status",
-            "mode_of_booking", "booking_status", "payment_status", "submitted_by", 
-            "modified_by", "advance_mop", "balance_mop"
-        ]
-        for field in string_fields_50:
-            if field in truncated_reservation:
-                value = truncated_reservation[field]
-                # Trim whitespace and limit length
-                truncated_reservation[field] = str(value).strip()[:50] if value else ""
-        
-        if "remarks" in truncated_reservation:
-            truncated_reservation["remarks"] = str(truncated_reservation["remarks"]).strip()[:500] if truncated_reservation["remarks"] else ""
-        
-        response = supabase.table("online_reservations").update(truncated_reservation).eq("booking_id", booking_id).execute()
-        return bool(response.data)
-    except Exception as e:
-        st.error(f"Error updating online reservation {booking_id}: {e}")
-        return False
+# ────── Property synonym mapping ──────
+property_mapping = {
+    "La Millionaire Luxury Resort": "La Millionaire Resort",
+    "Le Poshe Beach View": "Le Poshe Beach view",
+    "Le Poshe Beach view": "Le Poshe Beach view",
+    "Le Poshe Beach VIEW": "Le Poshe Beach view",
+    "Le Poshe Beachview": "Le Poshe Beach view",
+    "Millionaire": "La Millionaire Resort",
+    "Le Pondy Beach Side": "Le Pondy Beachside",
+    "Le Teera": "Le Terra"
+}
+reverse_mapping = {c: [] for c in set(property_mapping.values())}
+for v, c in property_mapping.items():
+    reverse_mapping[c].append(v)
 
-def delete_online_reservation_in_supabase(booking_id):
-    """Delete an online reservation from Supabase."""
-    try:
-        # Trim booking_id before delete
-        booking_id = booking_id.strip()
-        response = supabase.table("online_reservations").delete().eq("booking_id", booking_id).execute()
-        return bool(response.data)
-    except Exception as e:
-        st.error(f"Error deleting online reservation {booking_id}: {e}")
-        return False
+# ────── MOP / MOB mappings ──────
+mop_mapping = {
+    "UPI": ["UPI"],
+    "Cash": ["Cash"],
+    "Go-MMT": ["Goibibo", "MMT", "Go-MMT", "MAKEMYTRIP"],
+    "Agoda": ["Agoda"],
+    "NOT PAID": ["Not Paid", "", " ", "NOT PAID", "Pending"],
+    "Bank Transfer": ["Bank Transfer"],
+    "Stayflexi": ["STAYFLEXI_GHA"],
+    "Card Payment": ["Card"],
+    "Expedia": ["Expedia"],
+    "Cleartrip": ["Cleartrip"],
+    "Website": ["Stayflexi Booking Engine"],
+}
+mob_mapping = {
+    "Booking": ["BOOKING"],
+    "Direct": ["Direct"],
+    "Bkg-Direct": ["Bkg-Direct"],
+    "Agoda": ["Agoda"],
+    "Go-MMT": ["Goibibo", "MMT", "Go-MMT", "MAKEMYTRIP"],
+    "Walk-In": ["Walk-In"],
+    "TIE Group": ["TIE Group"],
+    "Stayflexi": ["STAYFLEXI_GHA"],
+    "Airbnb": ["Airbnb"],
+    "Social Media": ["Social Media"],
+    "Expedia": ["Expedia"],
+    "Cleartrip": ["Cleartrip"],
+    "Website": ["Stayflexi Booking Engine"],
+}
 
-def load_online_reservations_from_supabase():
-    """Load ALL online reservations from Supabase without any limit using pagination."""
+# ────── Full inventory ──────
+PROPERTY_INVENTORY = {
+    "Le Poshe Beach view": {"all": ["101","102","201","202","203","204","301","302","303","304","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204"]},
+    "La Millionaire Resort": {"all": ["101","102","103","105","201","202","203","204","205","206","207","208","301","302","303","304","305","306","307","308","401","402","Day Use 1","Day Use 2","Day Use 3","Day Use 4","Day Use 5","No Show"],"three_bedroom":["203","204","205"]},
+    "Le Poshe Luxury": {"all": ["101","102","201","202","203","204","205","301","302","303","304","305","401","402","403","404","405","501","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204","205"]},
+    "Le Poshe Suite": {"all": ["601","602","603","604","701","702","703","704","801","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
+    "La Paradise Residency": {"all": ["101","102","103","201","202","203","301","302","303","304","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
+    "La Paradise Luxury": {"all": ["101","102","103","201","202","203","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
+    "La Villa Heritage": {"all": ["101","102","103","201","202","203","301","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
+    "Le Pondy Beachside": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
+    "Le Royce Villa": {"all": ["101","102","201","202","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
+    "La Tamara Luxury": {"all": ["101","102","103","104","105","106","201","202","203","204","205","206","301","302","303","304","305","306","401","402","403","404","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204","205","206"]},
+    "La Antilia Luxury": {"all": ["101","201","202","203","204","301","302","303","304","401","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204"]},
+    "La Tamara Suite": {"all": ["101","102","103","104","201","202","203","204","205","206","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203","204","205","206"]},
+    "Le Park Resort": {"all": ["111","222","333","444","555","666","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
+    "Villa Shakti": {"all": ["101","102","201","201A","202","203","301","301A","302","303","401","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
+    "Eden Beach Resort": {"all": ["101","102","103","201","202","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
+    "Le Terra": {"all": ["101","102","103","104","105","106","107","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
+    "La Coromandel Luxury": {"all": ["101","102","103","201","202","203","204","205","206","301","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
+    "Happymates Forest Retreat": {"all": ["101","102","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]}
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Helpers
+# ═══════════════════════════════════════════════════════════════════════════
+def normalize_property(name: str) -> str:
+    return property_mapping.get(name.strip(), name.strip())
+
+def sanitize_string(v: Any, default: str = "") -> str:
+    return str(v).strip() if v is not None else default
+
+def safe_int(v: Any, default: int = 0) -> int:
     try:
-        all_data = []
-        page_size = 1000
-        offset = 0
-        
-        while True:
-            response = supabase.table("online_reservations")\
-                .select("*")\
-                .range(offset, offset + page_size - 1)\
-                .execute()
-            
-            if response.data:
-                all_data.extend(response.data)
-                if len(response.data) < page_size:
-                    break
-                offset += page_size
-            else:
-                break
-        
-        if not all_data:
-            st.warning("No online reservations found in the database.")
-        
-        return all_data
+        return int(float(v)) if v not in [None, "", " "] else default
+    except:
+        return default
+
+def safe_float(v: Any, default: float = 0) -> float:
+    try:
+        return float(v) if v not in [None, "", " "] else default
+    except:
+        return default
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Highlighting Function
+# ═══════════════════════════════════════════════════════════════════════════
+def highlight_columns(df):
+    styles = pd.DataFrame('', index=df.index, columns=df.columns)
+    if 'Total' in df.columns:
+        styles['Total'] = 'background-color: #D3D3D3'
+    if 'Advance' in df.columns:
+        styles['Advance'] = 'background-color: #D3D3D3'
+    if 'Balance Mop' in df.columns:
+        styles['Balance Mop'] = 'background-color: #D3D3D3'
+    return styles
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Load Properties & Bookings
+# ═══════════════════════════════════════════════════════════════════════════
+@st.cache_data(ttl=3600)
+def load_properties() -> List[str]:
+    try:
+        direct = supabase.table("reservations").select("property_name").execute()
+        online = supabase.table("online_reservations").select("property").execute()
+        props = set()
+        for r in direct.data or []:
+            p = normalize_property(r.get("property_name", ""))
+            if p: props.add(p)
+        for r in online.data or []:
+            p = normalize_property(r.get("property", ""))
+            if p: props.add(p)
+        return sorted(list(PROPERTY_INVENTORY.keys()))
     except Exception as e:
-        st.error(f"Error loading online reservations: {e}")
+        logging.error(f"load_properties: {e}")
         return []
 
-def search_booking_by_id(booking_id):
-    """Search for a specific booking by ID directly from database with fuzzy matching."""
+@st.cache_data(ttl=600)
+def load_combined_bookings(property: str, start_date: date, end_date: date) -> List[Dict]:
+    prop = normalize_property(property)
+    query_props = [prop] + reverse_mapping.get(prop, [])
+    combined: List[Dict] = []
+
     try:
-        # First, try exact match with trimmed input
-        booking_id_clean = booking_id.strip()
-        
-        response = supabase.table("online_reservations")\
+        q = supabase.table("reservations")\
             .select("*")\
-            .eq("booking_id", booking_id_clean)\
+            .in_("property_name", query_props)\
+            .lte("check_in", str(end_date))\
+            .gte("check_out", str(start_date))\
+            .in_("plan_status", ["Confirmed", "Completed"])\
+            .in_("payment_status", ["Partially Paid", "Fully Paid"])\
             .execute()
-        
-        if response.data and len(response.data) > 0:
-            return response.data[0]
-        
-        # If exact match fails, try case-insensitive LIKE search
-        response = supabase.table("online_reservations")\
-            .select("*")\
-            .ilike("booking_id", f"%{booking_id_clean}%")\
-            .execute()
-        
-        if response.data and len(response.data) > 0:
-            for record in response.data:
-                if record.get("booking_id", "").strip().upper() == booking_id_clean.upper():
-                    return record
-            st.warning(f"Found {len(response.data)} similar booking(s). Showing first match.")
-            return response.data[0]
-        
-        return None
+        for r in q.data or []:
+            norm = normalize_booking(r, is_online=False)
+            if norm: combined.append(norm)
     except Exception as e:
-        st.error(f"Error searching for booking {booking_id}: {e}")
+        logging.error(f"Direct query error: {e}")
+
+    try:
+        q = supabase.table("online_reservations")\
+            .select("*")\
+            .in_("property", query_props)\
+            .lte("check_in", str(end_date))\
+            .gte("check_out", str(start_date))\
+            .in_("booking_status", ["Confirmed", "Completed"])\
+            .in_("payment_status", ["Partially Paid", "Fully Paid"])\
+            .execute()
+        for r in q.data or []:
+            norm = normalize_booking(r, is_online=True)
+            if norm: combined.append(norm)
+    except Exception as e:
+        logging.error(f"Online query error: {e}")
+
+    return combined
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Normalize booking
+# ═══════════════════════════════════════════════════════════════════════════
+def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
+    try:
+        bid = sanitize_string(row.get("booking_id") or row.get("id"))
+        status_field = "booking_status" if is_online else "plan_status"
+        status = sanitize_string(row.get(status_field, "")).title()
+        if status not in ["Confirmed", "Completed"]: return None
+        pay = sanitize_string(row.get("payment_status")).title()
+        if pay not in ["Fully Paid", "Partially Paid"]: return None
+        ci = date.fromisoformat(row["check_in"])
+        co = date.fromisoformat(row["check_out"])
+        if co <= ci: return None
+        days_field = "room_nights" if is_online else "no_of_days"
+        days = safe_int(row.get(days_field)) or (co - ci).days
+        if days <= 0: days = 1
+        p = normalize_property(row.get("property_name") if not is_online else row.get("property"))
+
+        if is_online:
+            total_amount = safe_float(row.get("booking_amount")) or 0.0
+            gst = safe_float(row.get("gst")) or 0.0
+            tax = safe_float(row.get("ota_tax")) or 0.0
+            commission = safe_float(row.get("ota_commission")) or 0.0
+            room_charges = total_amount - gst - tax
+        else:
+            total_amount = safe_float(row.get("total_tariff")) or 0.0
+            gst = tax = commission = 0.0
+            room_charges = total_amount
+
+        receivable = total_amount - gst - tax - commission
+        if receivable < 0: receivable = 0.0
+
+        identifier = row.get("id") if is_online else row.get("booking_id")
+        identifier_str = str(identifier) if identifier is not None else ""
+
+        return {
+            "type": "online" if is_online else "direct",
+            "property": p,
+            "booking_id": bid,
+            "guest_name": sanitize_string(row.get("guest_name")),
+            "mobile_no": sanitize_string(row.get("guest_phone") if is_online else row.get("mobile_no")),
+            "total_pax": safe_int(row.get("total_pax")),
+            "check_in": str(ci),
+            "check_out": str(co),
+            "days": days,
+            "room_no": sanitize_string(row.get("room_no")).title(),
+            "mob": sanitize_string(row.get("mode_of_booking") if is_online else row.get("mob")),
+            "plan": sanitize_string(row.get("rate_plans") if is_online else row.get("breakfast")),
+            "room_charges": room_charges,
+            "gst": gst,
+            "tax": tax,
+            "total_amount": total_amount,
+            "commission": commission,
+            "receivable": receivable,
+            "advance": safe_float(row.get("total_payment_made") if is_online else row.get("advance_amount")),
+            "advance_mop": sanitize_string(row.get("advance_mop")),
+            "balance": safe_float(row.get("balance_due") if is_online else row.get("balance_amount")),
+            "balance_mop": sanitize_string(row.get("balance_mop")),
+            "booking_status": status,
+            "payment_status": pay,
+            "submitted_by": sanitize_string(row.get("submitted_by")),
+            "modified_by": sanitize_string(row.get("modified_by")),
+            "remarks": sanitize_string(row.get("remarks")),
+            "advance_remarks": sanitize_string(row.get("advance_remarks", "")),
+            "balance_remarks": sanitize_string(row.get("balance_remarks", "")),
+            "accounts_status": sanitize_string(row.get("accounts_status", "Pending")).title(),
+            "ota_booking_id": sanitize_string(row.get("ota_booking_id", "")) if is_online else "",
+            "db_id": identifier_str,
+        }
+    except Exception as e:
+        logging.warning(f"normalize failed: {e}")
         return None
 
-def load_properties():
-    """Load unique properties from reservations table (direct reservations)."""
-    try:
-        all_data = []
-        page_size = 1000
-        offset = 0
-        
-        while True:
-            response = supabase.table("reservations")\
-                .select("property_name")\
-                .range(offset, offset + page_size - 1)\
-                .execute()
-            
-            if response.data:
-                all_data.extend(response.data)
-                if len(response.data) < page_size:
-                    break
-                offset += page_size
-            else:
+# ═══════════════════════════════════════════════════════════════════════════
+# Filter & Assign
+# ═══════════════════════════════════════════════════════════════════════════
+def filter_bookings_for_day(bookings: List[Dict], day: date) -> List[Dict]:
+    return [b.copy() for b in bookings if date.fromisoformat(b["check_in"]) <= day < date.fromisoformat(b["check_out"])]
+
+def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
+    assigned, over = [], []
+    inv = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
+    inv_lookup = {i.strip().lower(): i for i in inv}
+
+    room_bookings = {}
+    sorted_bookings = sorted(daily_bookings, key=lambda x: (x.get("check_in", ""), x.get("booking_id", "")))
+
+    for b in sorted_bookings:
+        raw_room = str(b.get("room_no", "") or "").strip()
+        booking_id = b.get("booking_id", "Unknown")
+
+        if not raw_room:
+            over.append(b)
+            continue
+
+        requested = [r.strip() for r in raw_room.split(",") if r.strip()]
+        assigned_rooms = []
+        is_overbooking = False
+
+        for r in requested:
+            key = r.lower()
+            if key not in inv_lookup:
+                is_overbooking = True
                 break
-        
-        properties = set()
-        for r in all_data:
-            prop = r.get('property_name')
-            if prop:
-                properties.add(prop)
-        return sorted(properties)
-    except Exception as e:
-        st.error(f"Error loading properties: {e}")
-        return []
+            room_name = inv_lookup[key]
+            if room_name in room_bookings and room_bookings[room_name] != booking_id:
+                is_overbooking = True
+                break
+            assigned_rooms.append(room_name)
 
-def get_room_options(property_name):
-    """Return room number and room type options based on property."""
-    if property_name == "Millionaire":
-        room_numbers = ["Day Use 1", "Day Use 2", "Day Use 3", "Day Use 4", "Day Use 5", "No Show"]
-    else:
-        room_numbers = ["Day Use 1", "Day Use 2", "No Show"]
-    
-    def get_room_type(room_no):
-        return "No Show" if room_no == "No Show" else "Day Use"
-    
-    room_types = ["Day Use", "No Show", "Others"]
-    return room_numbers, room_types, get_room_type
+        if is_overbooking or not assigned_rooms:
+            over.append(b)
+            continue
 
-def show_edit_online_reservations(selected_booking_id=None):
-    """Display edit online reservations page."""
-    st.title("✏️ Edit Online Reservations")
-    
-    # Add refresh button to clear cache and reload data
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        if st.button("🔄 Refresh All", use_container_width=True):
-            if 'online_reservations' in st.session_state:
-                del st.session_state.online_reservations
-            st.success("Refreshing all reservations...")
-            st.rerun()
-    
-    # Search by Booking ID section
-    st.subheader("🔍 Search Reservation to Edit")
-    
-    col_search1, col_search2 = st.columns([3, 1])
-    with col_search1:
-        search_booking_id = st.text_input("Enter Booking ID to Search", placeholder="e.g., BK123456", key="search_input")
-    with col_search2:
-        st.write("")  # Spacer
-        st.write("")  # Spacer
-        search_button = st.button("🔎 Search", use_container_width=True)
-    
-    # Handle search
-    if search_button and search_booking_id:
-        with st.spinner(f"Searching for booking {search_booking_id}..."):
-            found_booking = search_booking_by_id(search_booking_id)
-            if found_booking:
-                # Store the found booking in session state for editing
-                st.session_state.current_edit_reservation = found_booking
-                st.success(f"✅ Found booking: {found_booking['booking_id']}")
-                st.rerun()
-            else:
-                st.error(f"❌ Booking ID '{search_booking_id}' not found in database.")
+        for room in assigned_rooms:
+            room_bookings[room] = booking_id
 
-    # If no reservation is currently loaded for editing, stop here
-    if 'current_edit_reservation' not in st.session_state:
-        st.info("👆 Please search for a Booking ID above to load and edit a reservation.")
+        days = max(b.get("days", 1), 1)
+        receivable = b.get("receivable", 0.0)
+        num_rooms = len(assigned_rooms)
+        total_nights = days * num_rooms
+        per_night = receivable / total_nights if total_nights > 0 else 0.0
+        base_pax = b["total_pax"] // num_rooms if num_rooms else 0
+        rem = b["total_pax"] % num_rooms if num_rooms else 0
+
+        for idx, room in enumerate(assigned_rooms):
+            nb = b.copy()
+            nb["assigned_room"] = room
+            nb["room_no"] = room
+            nb["total_pax"] = base_pax + (1 if idx < rem else 0)
+            nb["per_night"] = per_night
+            nb["is_primary"] = (idx == 0)
+            assigned.append(nb)
+
+    return assigned, over
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Build Table
+# ═══════════════════════════════════════════════════════════════════════════
+def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, target_date: date):
+    visible_cols = ["Inventory No","Room No","Booking ID","OTA Booking ID","Guest Name","Mobile No","Total Pax",
+                    "Check In","Check Out","Days","MOB","Room Charges","GST","TAX","Total","Commission",
+                    "Hotel Receivable","Per Night","Advance","Advance Mop","Balance","Balance Mop",
+                    "Plan","Booking Status","Payment Status","Submitted by","Modified by","Remarks",
+                    "Advance Remarks","Balance Remarks","Accounts Status"]
+    hidden_cols = ["type", "db_id"]
+
+    all_inventory = PROPERTY_INVENTORY.get(prop, {}).get("all", [])
+    rows = []
+
+    for inventory_no in all_inventory:
+        row = {c: "" for c in visible_cols + hidden_cols}
+        row["Inventory No"] = inventory_no
+
+        match = next((a for a in assigned if str(a.get("assigned_room", "")).strip() == inventory_no.strip()), None)
+
+        if match:
+            check_in_date = date.fromisoformat(match["check_in"])
+            is_check_in_day = (target_date == check_in_date)
+            is_primary = match.get("is_primary", False)
+
+            row["type"] = match["type"]
+            row["db_id"] = str(match["db_id"]) if match["db_id"] else ""
+            row["Room No"] = match["room_no"]
+            row["Booking ID"] = match["booking_id"]
+            row["OTA Booking ID"] = match.get("ota_booking_id", "")
+            row["Guest Name"] = match["guest_name"]
+            row["Mobile No"] = match["mobile_no"]
+            row["Total Pax"] = match["total_pax"]
+            row["Check In"] = match["check_in"]
+            row["Check Out"] = match["check_out"]
+            row["Days"] = match["days"]
+            row["MOB"] = match["mob"]
+            row["Per Night"] = f"{match.get('per_night', 0):.2f}"
+
+            if is_check_in_day and is_primary:
+                row["Room Charges"] = f"{match.get('room_charges', 0):.2f}"
+                row["GST"] = f"{match.get('gst', 0):.2f}"
+                row["TAX"] = f"{match.get('tax', 0):.2f}"
+                row["Total"] = f"{match.get('total_amount', 0):.2f}"
+                row["Commission"] = f"{match.get('commission', 0):.2f}"
+                row["Hotel Receivable"] = f"{match.get('receivable', 0):.2f}"
+                row["Advance"] = f"{match.get('advance', 0):.2f}"
+                row["Advance Mop"] = match.get("advance_mop", "")
+                row["Balance"] = f"{match.get('balance', 0):.2f}"
+                row["Balance Mop"] = match.get("balance_mop", "")
+                row["Plan"] = match["plan"]
+                row["Booking Status"] = match["booking_status"]
+                row["Payment Status"] = match["payment_status"]
+                row["Submitted by"] = match["submitted_by"]
+                row["Modified by"] = match["modified_by"]
+                row["Remarks"] = match.get("remarks", "")
+
+            row["Advance Remarks"] = match.get("advance_remarks", "")
+            row["Balance Remarks"] = match.get("balance_remarks", "")
+            row["Accounts Status"] = match.get("accounts_status", "Pending")
+
+        rows.append(row)
+
+    if over:
+        over_row = {c: "" for c in visible_cols + hidden_cols}
+        over_row["Inventory No"] = "Overbookings"
+        over_row["Room No"] = ", ".join(f"{b.get('room_no','')} ({b.get('booking_id','')})" for b in over)
+        rows.append(over_row)
+
+    df = pd.DataFrame(rows, columns=visible_cols + hidden_cols)
+    display_df = df[visible_cols].copy()
+    full_df = df
+    return display_df, full_df
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Extract Stats
+# ═══════════════════════════════════════════════════════════════════════════
+def extract_stats_from_table(df: pd.DataFrame, mob_types: List[str]) -> Dict:
+    occupied = df[df["Booking ID"].fillna("").str.strip() != ""].copy()
+
+    def to_float(col):
+        return pd.to_numeric(occupied[col].replace('', '0').str.replace(',', ''), errors='coerce').fillna(0.0)
+
+    def to_int(col):
+        return pd.to_numeric(occupied[col], errors='coerce').fillna(0).astype(int)
+
+    occupied["Per Night"] = to_float("Per Night")
+    occupied["Hotel Receivable"] = to_float("Hotel Receivable")
+    occupied["GST"] = to_float("GST")
+    occupied["TAX"] = to_float("TAX")
+    occupied["Commission"] = to_float("Commission")
+    occupied["Advance"] = to_float("Advance")
+    occupied["Balance"] = to_float("Balance")
+    occupied["Total Pax"] = to_int("Total Pax")
+
+    mop_data = {m: 0.0 for m in ["UPI","Cash","Go-MMT","Agoda","NOT PAID","Airbnb","Expenses","Bank Transfer","Stayflexi","Card Payment","Expedia","Cleartrip","Website"]}
+    total_cash = total = 0.0
+
+    for _, row in occupied.iterrows():
+        for mop_col, amount_col in [("Advance Mop", "Advance"), ("Balance Mop", "Balance")]:
+            mop = sanitize_string(row[mop_col])
+            amount = row[amount_col]
+            if not mop or amount == 0: continue
+            for std, variants in mop_mapping.items():
+                if mop in variants:
+                    mop_data[std] += amount
+                    total += amount
+                    if std == "Cash": total_cash += amount
+
+    mop_data["Expenses"] = 0.0
+    mop_data["Total Cash"] = total_cash
+    mop_data["Total"] = total
+
+    dtd = {m: {"rooms":0,"value":0.0,"comm":0.0,"gst":0.0,"tax":0.0,"pax":0} for m in mob_types}
+    dtd_rooms = len(occupied)
+    dtd_value = occupied["Per Night"].sum()
+    dtd_comm = occupied["Commission"].sum()
+    dtd_gst = occupied["GST"].sum()
+    dtd_tax = occupied["TAX"].sum()
+    dtd_pax = occupied["Total Pax"].sum()
+
+    for _, row in occupied.iterrows():
+        mob_raw = sanitize_string(row["MOB"])
+        mob = next((m for m, vs in mob_mapping.items() if mob_raw.upper() in [v.upper() for v in vs]), "Booking")
+        dtd[mob]["rooms"] += 1
+        dtd[mob]["value"] += row["Per Night"]
+        dtd[mob]["comm"] += row["Commission"]
+        dtd[mob]["gst"] += row["GST"]
+        dtd[mob]["tax"] += row["TAX"]
+        dtd[mob]["pax"] += row["Total Pax"]
+
+    for m in mob_types:
+        r = dtd[m]["rooms"]
+        dtd[m]["arr"] = dtd[m]["value"] / r if r > 0 else 0.0
+
+    dtd["Total"] = {
+        "rooms": dtd_rooms,
+        "value": dtd_value,
+        "arr": dtd_value / dtd_rooms if dtd_rooms > 0 else 0.0,
+        "comm": dtd_comm,
+        "gst": dtd_gst,
+        "tax": dtd_tax,
+        "pax": dtd_pax
+    }
+
+    return {"mop": mop_data, "dtd": dtd}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Monthly Report Excel Generator — ONE single sheet
+# ═══════════════════════════════════════════════════════════════════════════
+def generate_monthly_report(props_list: List[str], year: int, month: int, bookings_by_prop: Dict[str, List[Dict]]) -> bytes:
+    """
+    All properties × all dates in a single sheet.
+    Columns: Property, Date, + all 30 booking columns.
+    Rows are color-coded by property for easy scanning.
+    """
+    month_dates = [date(year, month, d) for d in range(1, calendar.monthrange(year, month)[1] + 1)]
+    month_label = calendar.month_name[month]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"{month_label} {year}"
+
+    # ── Styles ──
+    HEADER_FILL = PatternFill("solid", fgColor="1F4E79")
+    SUBHDR_FILL = PatternFill("solid", fgColor="2E75B6")
+    GRAY_FILL   = PatternFill("solid", fgColor="D3D3D3")
+    WHITE_FILL  = PatternFill("solid", fgColor="FFFFFF")
+    PROP_FILLS  = [
+        PatternFill("solid", fgColor="DAEEF3"),
+        PatternFill("solid", fgColor="EBF1DE"),
+        PatternFill("solid", fgColor="FDE9D9"),
+        PatternFill("solid", fgColor="E6E0EC"),
+        PatternFill("solid", fgColor="FDEBD0"),
+        PatternFill("solid", fgColor="D5E8D4"),
+    ]
+
+    HEADER_FONT = Font(bold=True, color="FFFFFF", name="Arial", size=10)
+    BOLD_FONT   = Font(bold=True, name="Arial", size=9)
+    NORMAL_FONT = Font(name="Arial", size=9)
+    BIG_TITLE   = Font(bold=True, name="Arial", size=15, color="1F4E79")
+
+    CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    LEFT   = Alignment(horizontal="left",   vertical="center", wrap_text=True)
+    thin   = Side(style="thin", color="BFBFBF")
+    BORDER = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    visible_cols = [
+        "Inventory No", "Room No", "Booking ID", "OTA Booking ID", "Guest Name", "Mobile No", "Total Pax",
+        "Check In", "Check Out", "Days", "MOB", "Room Charges", "GST", "TAX", "Total",
+        "Commission", "Hotel Receivable", "Per Night", "Advance", "Advance Mop",
+        "Balance", "Balance Mop", "Plan", "Booking Status", "Payment Status",
+        "Submitted by", "Modified by", "Remarks", "Advance Remarks", "Balance Remarks",
+        "Accounts Status"
+    ]
+    highlight_cols = {"Total", "Advance", "Balance Mop"}
+    all_cols = ["Property", "Date"] + visible_cols
+
+    col_widths = {
+        "Property": 26, "Date": 13,
+        "Inventory No": 12, "Room No": 10, "Booking ID": 14, "OTA Booking ID": 16, "Guest Name": 20,
+        "Mobile No": 14, "Total Pax": 9, "Check In": 11, "Check Out": 11,
+        "Days": 6, "MOB": 14, "Room Charges": 13, "GST": 10, "TAX": 10,
+        "Total": 12, "Commission": 12, "Hotel Receivable": 16, "Per Night": 11,
+        "Advance": 12, "Advance Mop": 14, "Balance": 12, "Balance Mop": 14,
+        "Plan": 14, "Booking Status": 15, "Payment Status": 15,
+        "Submitted by": 15, "Modified by": 15, "Remarks": 22,
+        "Advance Remarks": 22, "Balance Remarks": 22, "Accounts Status": 15,
+    }
+
+    # ── Row 1: Title ──
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(all_cols))
+    title_cell = ws.cell(row=1, column=1,
+                         value=f"All Properties — {month_label} {year} — Complete Booking Data")
+    title_cell.font      = BIG_TITLE
+    title_cell.alignment = CENTER
+    ws.row_dimensions[1].height = 30
+
+    # ── Row 2: Headers ──
+    for ci, col_name in enumerate(all_cols, start=1):
+        c = ws.cell(row=2, column=ci, value=col_name)
+        c.font      = HEADER_FONT
+        c.fill      = SUBHDR_FILL if col_name in highlight_cols else HEADER_FILL
+        c.alignment = CENTER
+        c.border    = BORDER
+        ws.column_dimensions[get_column_letter(ci)].width = col_widths.get(col_name, 14)
+    ws.row_dimensions[2].height = 28
+    ws.freeze_panes = "E3"   # freeze Property, Date, Inventory No, Room No
+
+    # ── Data rows ──
+    prop_fill_map = {p: PROP_FILLS[i % len(PROP_FILLS)] for i, p in enumerate(props_list)}
+    write_row = 3
+
+    for prop in props_list:
+        bookings  = bookings_by_prop.get(prop, [])
+        prop_fill = prop_fill_map[prop]
+
+        for day in month_dates:
+            daily = filter_bookings_for_day(bookings, day)
+            assigned, over = assign_inventory_numbers(daily, prop)
+            display_df, _ = create_inventory_table(assigned, over, prop, day)
+            day_label = day.strftime("%d-%b-%Y")
+
+            for df_row in display_df.itertuples(index=False):
+                row_data = list(df_row)
+                has_bk   = str(row_data[2]).strip() != ""  # Booking ID at index 2
+                full_row = [prop, day_label] + row_data
+
+                for ci, (col_name, value) in enumerate(zip(all_cols, full_row), start=1):
+                    cell           = ws.cell(row=write_row, column=ci, value=value)
+                    cell.font      = BOLD_FONT if has_bk else NORMAL_FONT
+                    cell.alignment = LEFT
+                    cell.border    = BORDER
+                    if col_name in highlight_cols:
+                        cell.fill = GRAY_FILL
+                    elif has_bk:
+                        cell.fill = prop_fill
+                    else:
+                        cell.fill = WHITE_FILL
+
+                write_row += 1
+
+    # ── Save ──
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# UI – Dashboard with single table (editable for Accounts Team)
+# ═══════════════════════════════════════════════════════════════════════════
+def show_daily_status():
+    st.title("Daily Status Dashboard")
+
+    if st.button("🔄 Refresh Data"):
+        st.cache_data.clear()
+        st.rerun()
+
+    today = date.today()
+    props = load_properties()
+    if not props:
+        st.info("No properties found.")
         return
 
-    # Load the reservation to edit
-    reservation = st.session_state.current_edit_reservation
+    mob_types = list(mob_mapping.keys())
+    month_names = {i: calendar.month_name[i] for i in range(1, 13)}
 
-    st.subheader(f"Editing Reservation: {reservation['booking_id']}")
+    # ═══════════════════════════════════════════════════════
+    # SECTION 1 – Download Monthly Report
+    # ═══════════════════════════════════════════════════════
+    with st.expander("📥 Download Monthly Report", expanded=False):
+        st.markdown("#### Generate & Download Excel Reports")
+        st.caption("Select one or more properties and months. All data is combined into a single Excel file with two sheets: All Data + Summary.")
 
-    # Row 1: Property Name, Booking ID, Booking Made On
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        property_name = st.text_input("Property Name", value=reservation.get("property", ""), disabled=True)
-    with col2:
-        booking_id = st.text_input("Booking ID", value=reservation.get("booking_id", ""), disabled=True)
-    with col3:
-        booking_made_on = st.date_input("Booking Made On", value=date.fromisoformat(reservation.get("booking_made_on")) if reservation.get("booking_made_on") else None)
+        dl_col1, dl_col2, dl_col3 = st.columns([3, 2, 2])
 
-    # Add Transfer to Property dropdown (optional)
-    properties = load_properties()
-    transfer_property = st.selectbox("Transfer to Property (Optional)", ["None"] + properties)
+        with dl_col1:
+            select_all_props = st.checkbox("Select All Properties", key="dl_select_all_props")
+            if select_all_props:
+                dl_props_selected = props
+                st.multiselect(
+                    "Properties",
+                    options=props,
+                    default=props,
+                    key="dl_props_multi",
+                    disabled=True,
+                    help="All properties selected"
+                )
+            else:
+                dl_props_selected = st.multiselect(
+                    "Properties",
+                    options=props,
+                    default=[],
+                    key="dl_props_multi",
+                    placeholder="Choose one or more properties…"
+                )
 
-    # If transfer_property is selected, override property_name
-    if transfer_property != "None":
-        property_name = transfer_property
+        with dl_col2:
+            dl_year = st.selectbox(
+                "Year",
+                options=list(range(today.year - 5, today.year + 6)),
+                index=5,
+                key="dl_year"
+            )
 
-    # Row 2: Guest Name, Mobile No, Check In, Check Out
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        guest_name = st.text_input("Guest Name", value=reservation.get("guest_name", ""))
-    with col2:
-        guest_phone = st.text_input("Mobile No", value=reservation.get("guest_phone", ""))
-    with col3:
-        check_in = st.date_input("Check In", value=date.fromisoformat(reservation.get("check_in")) if reservation.get("check_in") else None)
-    with col4:
-        check_out = st.date_input("Check Out", value=date.fromisoformat(reservation.get("check_out")) if reservation.get("check_out") else None)
+        with dl_col3:
+            dl_month_mode = st.radio(
+                "Month Selection",
+                options=["Single Month", "Multiple Months"],
+                key="dl_month_mode",
+                horizontal=True
+            )
 
-    # Row 3: No of Adults, No of Children, No of Infant, Total Pax
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        no_of_adults = st.number_input("No of Adults", value=safe_int(reservation.get("no_of_adults", 0)), min_value=0)
-    with col2:
-        no_of_children = st.number_input("No of Children", value=safe_int(reservation.get("no_of_children", 0)), min_value=0)
-    with col3:
-        no_of_infant = st.number_input("No of Infant", value=safe_int(reservation.get("no_of_infant", 0)), min_value=0)
-    with col4:
-        total_pax = no_of_adults + no_of_children + no_of_infant
-        st.text_input("Total Pax", value=total_pax, disabled=True)
-
-    # Row 4: Room Type, Room No, Breakfast (rate_plans), Booking Source
-    col1, col2, col3, col4 = st.columns(4)
-    
-    room_numbers, room_types, get_room_type = get_room_options(property_name)
-    
-    with col1:
-        current_room_type = reservation.get("room_type", "")
-        if current_room_type and current_room_type not in room_types:
-            room_types.insert(0, current_room_type)
-        
-        current_room_no = reservation.get("room_no", "")
-        default_room_type = get_room_type(current_room_no) if current_room_no in room_numbers else current_room_type
-        room_type_index = room_types.index(current_room_type if current_room_type in room_types else default_room_type)
-        room_type = st.selectbox("Room Type", room_types, index=room_type_index)
-    
-    with col2:
-        if room_type == "Others":
-            room_no = st.text_input("Room No", value=current_room_no)
+        if dl_month_mode == "Single Month":
+            dl_month = st.selectbox(
+                "Month",
+                options=list(range(1, 13)),
+                format_func=lambda m: month_names[m],
+                index=today.month - 1,
+                key="dl_month_single"
+            )
+            months_to_download = [dl_month]
         else:
-            if current_room_no and current_room_no not in room_numbers:
-                room_numbers.insert(0, current_room_no)
-            room_no_index = room_numbers.index(current_room_no) if current_room_no in room_numbers else 0
-            room_no = st.selectbox("Room No", room_numbers, index=room_no_index)
-    
-    with col3:
-        rate_plans = st.text_input("Breakfast", value=reservation.get("rate_plans", ""))
-    with col4:
-        booking_source = st.text_input("Booking Source", value=reservation.get("booking_source", ""))
+            select_all_months = st.checkbox("Select All Months", key="dl_select_all_months")
+            if select_all_months:
+                months_to_download = list(range(1, 13))
+                st.multiselect(
+                    "Months",
+                    options=list(range(1, 13)),
+                    default=list(range(1, 13)),
+                    format_func=lambda m: month_names[m],
+                    key="dl_months_multi",
+                    disabled=True,
+                    help="All months selected"
+                )
+            else:
+                dl_months_selected = st.multiselect(
+                    "Months",
+                    options=list(range(1, 13)),
+                    format_func=lambda m: month_names[m],
+                    default=[today.month],
+                    key="dl_months_multi",
+                    placeholder="Choose one or more months…"
+                )
+                months_to_download = dl_months_selected if dl_months_selected else []
 
-    # Row 5: Segment, Staflexi Status, Booking Confirmed on
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        segment = st.text_input("Segment", value=reservation.get("segment", ""))
-    with col2:
-        staflexi_status = st.text_input("Staflexi Status", value=reservation.get("staflexi_status", ""))
-    with col3:
-        booking_confirmed_on = st.date_input("Booking Confirmed on", value=date.fromisoformat(reservation.get("booking_confirmed_on")) if reservation.get("booking_confirmed_on") else None)
+        # ── Summary of what will be generated ──
+        if dl_props_selected and months_to_download:
+            if len(months_to_download) == 1:
+                m = months_to_download[0]
+                month_label_dl = month_names[m]
+                prop_count = len(dl_props_selected)
+                st.info(
+                    f"**1 combined report** will be generated for **{prop_count}** "
+                    f"propert{'y' if prop_count == 1 else 'ies'} — **{month_label_dl} {dl_year}**. "
+                    f"2 sheets: All Data + Summary."
+                )
+                if st.button(f"📥 Generate {month_label_dl} {dl_year} Report", key="dl_generate_btn", type="primary"):
+                    with st.spinner(f"Generating report for {prop_count} {'property' if prop_count == 1 else 'properties'}…"):
+                        try:
+                            start_d = date(dl_year, m, 1)
+                            end_d   = date(dl_year, m, calendar.monthrange(dl_year, m)[1])
+                            bookings_by_prop = {}
+                            for dl_prop in dl_props_selected:
+                                bookings_by_prop[dl_prop] = load_combined_bookings(dl_prop, start_d, end_d)
+                            report_bytes = generate_monthly_report(dl_props_selected, dl_year, m, bookings_by_prop)
+                            prop_tag  = "All_Properties" if prop_count > 1 else dl_props_selected[0].replace(' ', '_')
+                            filename  = f"{prop_tag}_{month_label_dl}_{dl_year}_Report.xlsx"
+                            st.download_button(
+                                label=f"⬇️ Download {month_label_dl} {dl_year} — {prop_count} {'Property' if prop_count == 1 else 'Properties'}",
+                                data=report_bytes,
+                                file_name=filename,
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                key="dl_single_save"
+                            )
+                            st.success(f"✅ Report ready! {prop_count} {'property' if prop_count == 1 else 'properties'} × {calendar.monthrange(dl_year, m)[1]} days.")
+                        except Exception as e:
+                            st.error(f"Failed: {e}")
+                            logging.error(f"Report error {dl_year}/{m}: {e}")
+            else:
+                # Multiple months → one file per month, each with all selected properties
+                prop_count = len(dl_props_selected)
+                st.info(
+                    f"**{len(months_to_download)} combined reports** will be generated "
+                    f"(one per month, each containing **{prop_count}** {'property' if prop_count == 1 else 'properties'}, "
+                    f"2 sheets each: All Data + Summary)."
+                )
+                if st.button(f"📥 Generate {len(months_to_download)} Monthly Reports", key="dl_generate_btn", type="primary"):
+                    for m in months_to_download:
+                        month_label_dl = month_names[m]
+                        start_d = date(dl_year, m, 1)
+                        end_d   = date(dl_year, m, calendar.monthrange(dl_year, m)[1])
+                        with st.spinner(f"Generating {month_label_dl} {dl_year}…"):
+                            try:
+                                bookings_by_prop = {}
+                                for dl_prop in dl_props_selected:
+                                    bookings_by_prop[dl_prop] = load_combined_bookings(dl_prop, start_d, end_d)
+                                report_bytes = generate_monthly_report(dl_props_selected, dl_year, m, bookings_by_prop)
+                                prop_tag  = "All_Properties" if prop_count > 1 else dl_props_selected[0].replace(' ', '_')
+                                filename  = f"{prop_tag}_{month_label_dl}_{dl_year}_Report.xlsx"
+                                st.download_button(
+                                    label=f"⬇️ {month_label_dl} {dl_year} — {prop_count} {'Property' if prop_count == 1 else 'Properties'}",
+                                    data=report_bytes,
+                                    file_name=filename,
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    key=f"dl_multi_save_{m}"
+                                )
+                            except Exception as e:
+                                st.error(f"❌ Failed for {month_label_dl}: {e}")
+                                logging.error(f"Report error {m}/{dl_year}: {e}")
+        else:
+            st.warning("Please select at least one property and one month to enable downloads.")
 
-    # Row 6: Total Tariff, Advance Amount, Advance Mop, Balance Due, Balance Mop
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        booking_amount = st.number_input("Total Tariff", value=safe_float(reservation.get("booking_amount", 0.0)))
-    with col2:
-        total_payment_made = st.number_input("Advance Amount", value=safe_float(reservation.get("total_payment_made", 0.0)))
-    with col3:
-        mop_options = ["","Not Paid", "Cash", "Card", "UPI", "Bank Transfer", "Other", "MMT","Cleartrip","Agoda","Goibibo","Expedia","Booking","STAYFLEXI_GHA","Stayflexi Booking Engine"]
-        current_advance_mop = reservation.get("advance_mop", "")
-        advance_mop_index = mop_options.index(current_advance_mop) if current_advance_mop in mop_options else 0
-        advance_mop = st.selectbox("Advance Mop", mop_options, index=advance_mop_index)
-    with col4:
-        balance_due = booking_amount - total_payment_made
-        st.text_input("Balance Due", value=balance_due, disabled=True)
-    with col5:
-        current_balance_mop = reservation.get("balance_mop", "")
-        balance_mop_index = mop_options.index(current_balance_mop) if current_balance_mop in mop_options else 0
-        balance_mop = st.selectbox("Balance Mop", mop_options, index=balance_mop_index)
+    st.markdown("---")
 
-    # Row 7: MOB, Booking Status, Payment Status
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        current_mob = reservation.get("mode_of_booking", "") or reservation.get("booking_source", "")
-        mob_options = [booking_source, "Booking-Dir"] if booking_source else ["Booking-Dir"]
-        if current_mob and current_mob not in mob_options:
-            mob_options.insert(0, current_mob)
-        mob_options = list(dict.fromkeys(mob_options))
-        try:
-            mob_index = mob_options.index(current_mob) if current_mob in mob_options else 0
-        except ValueError:
-            mob_index = 0
-        mode_of_booking = st.selectbox("MOB", mob_options, index=mob_index)
-    with col2:
-        booking_status_options = ["Pending", "Follow-Up", "Confirmed", "Cancelled", "Completed", "No Show"]
-        current_status = reservation.get("booking_status", "Pending")
-        if current_status and current_status not in booking_status_options:
-            booking_status_options.insert(0, current_status)
-        try:
-            status_index = booking_status_options.index(current_status)
-        except ValueError:
-            status_index = 0
-        booking_status = st.selectbox("Booking Status", booking_status_options, index=status_index)
-    with col3:
-        payment_status = st.selectbox("Payment Status", ["Not Paid", "Fully Paid", "Partially Paid"], index=["Not Paid", "Fully Paid", "Partially Paid"].index(reservation.get("payment_status", "Not Paid")))
+    # ═══════════════════════════════════════════════════════
+    # SECTION 2 – Daily Status View
+    # ═══════════════════════════════════════════════════════
+    st.markdown("#### 📋 Daily Status View")
 
-    # Row 8: Remarks
-    remarks = st.text_area("Remarks", value=reservation.get("remarks", ""))
+    view_col1, view_col2, view_col3 = st.columns([3, 2, 2])
+    with view_col1:
+        selected_prop = st.selectbox(
+            "Property",
+            options=["— Select Property —"] + props,
+            key="view_prop"
+        )
+    with view_col2:
+        year = st.selectbox(
+            "Year",
+            options=list(range(today.year - 5, today.year + 6)),
+            index=5,
+            key="view_year"
+        )
+    with view_col3:
+        month = st.selectbox(
+            "Month",
+            options=list(range(1, 13)),
+            format_func=lambda m: month_names[m],
+            index=today.month - 1,
+            key="view_month"
+        )
 
-    # Row 9: Submitted by, Modified by
-    col1, col2 = st.columns(2)
-    with col1:
-        submitted_by = st.text_input("Submitted by", value=reservation.get("submitted_by", ""), disabled=True)
-    with col2:
-        modified_by = st.text_input("Modified by", value=st.session_state.username, disabled=True)
+    if not selected_prop or selected_prop == "— Select Property —":
+        st.info("👆 Select a property above to view daily status.")
+        return
 
-    # Hidden/Other fields
-    total_amount_with_services = safe_float(reservation.get("total_amount_with_services", 0.0))
-    ota_gross_amount = safe_float(reservation.get("ota_gross_amount", 0.0))
-    ota_commission = safe_float(reservation.get("ota_commission", 0.0))
-    ota_tax = safe_float(reservation.get("ota_tax", 0.0))
-    ota_net_amount = safe_float(reservation.get("ota_net_amount", 0.0))
-    room_revenue = safe_float(reservation.get("room_revenue", 0.0))
+    prop = selected_prop
+    month_dates = [date(year, month, d) for d in range(1, calendar.monthrange(year, month)[1] + 1)]
+    start, end = month_dates[0], month_dates[-1]
+    bookings = load_combined_bookings(prop, start, end)
 
-    col_btn1, col_btn2, col_btn3 = st.columns([2, 2, 3])
-    with col_btn1:
-        if st.button("💾 Update Reservation", use_container_width=True):
-            updated_reservation = {
-                "property": property_name,
-                "booking_made_on": str(booking_made_on) if booking_made_on else None,
-                "guest_name": guest_name,
-                "guest_phone": guest_phone,
-                "check_in": str(check_in) if check_in else None,
-                "check_out": str(check_out) if check_out else None,
-                "no_of_adults": no_of_adults,
-                "no_of_children": no_of_children,
-                "no_of_infant": no_of_infant,
-                "total_pax": total_pax,
-                "room_no": room_no,
-                "room_type": room_type,
-                "rate_plans": rate_plans,
-                "booking_source": booking_source,
-                "segment": segment,
-                "staflexi_status": staflexi_status,
-                "booking_confirmed_on": str(booking_confirmed_on) if booking_confirmed_on else None,
-                "booking_amount": booking_amount,
-                "total_payment_made": total_payment_made,
-                "balance_due": balance_due,
-                "advance_mop": advance_mop,
-                "balance_mop": balance_mop,
-                "mode_of_booking": mode_of_booking,
-                "booking_status": booking_status,
-                "payment_status": payment_status,
-                "remarks": remarks,
-                "submitted_by": reservation.get("submitted_by", ""),
-                "modified_by": st.session_state.username,
-                "total_amount_with_services": total_amount_with_services,
-                "ota_gross_amount": ota_gross_amount,
-                "ota_commission": ota_commission,
-                "ota_tax": ota_tax,
-                "ota_net_amount": ota_net_amount,
-                "room_revenue": room_revenue
+    # MTD aggregation
+    mtd = {m: {"rooms": 0, "value": 0.0, "comm": 0.0} for m in mob_types}
+    mtd_rooms = mtd_value = mtd_comm = 0
+
+    for day in month_dates:
+        daily = filter_bookings_for_day(bookings, day)
+        st.markdown(f"### {prop} — {day.strftime('%d %B %Y')}")
+
+        assigned, over = assign_inventory_numbers(daily, prop)
+        display_df, full_df = create_inventory_table(assigned, over, prop, day)
+
+        if daily:
+            is_accounts_team = st.session_state.get('role', '') == "Accounts Team"
+            st.subheader("📊 Booking Overview")
+
+            if is_accounts_team:
+                col_config = {
+                    "Inventory No": st.column_config.TextColumn(disabled=True, pinned=True),
+                    "Room No": st.column_config.TextColumn(disabled=True, pinned=True),
+                    "Booking ID": st.column_config.TextColumn(disabled=True, pinned=True),
+                    "Guest Name": st.column_config.TextColumn(disabled=True, pinned=True),
+                    "Mobile No": st.column_config.TextColumn(disabled=True),
+                    "Total Pax": st.column_config.NumberColumn(disabled=True),
+                    "Check In": st.column_config.TextColumn(disabled=True),
+                    "Check Out": st.column_config.TextColumn(disabled=True),
+                    "Days": st.column_config.NumberColumn(disabled=True),
+                    "MOB": st.column_config.TextColumn(disabled=True),
+                    "Room Charges": st.column_config.TextColumn(disabled=True),
+                    "GST": st.column_config.TextColumn(disabled=True),
+                    "TAX": st.column_config.TextColumn(disabled=True),
+                    "Total": st.column_config.TextColumn("💰 Total", disabled=True),
+                    "Commission": st.column_config.TextColumn(disabled=True),
+                    "Hotel Receivable": st.column_config.TextColumn(disabled=True),
+                    "Per Night": st.column_config.TextColumn(disabled=True),
+                    "Advance": st.column_config.TextColumn("💳 Advance", disabled=True),
+                    "Advance Mop": st.column_config.TextColumn(disabled=True),
+                    "Balance": st.column_config.TextColumn(disabled=True),
+                    "Balance Mop": st.column_config.TextColumn("💵 Balance Mop", disabled=True),
+                    "Plan": st.column_config.TextColumn(disabled=True),
+                    "Booking Status": st.column_config.TextColumn(disabled=True),
+                    "Payment Status": st.column_config.TextColumn(disabled=True),
+                    "Submitted by": st.column_config.TextColumn(disabled=True),
+                    "Modified by": st.column_config.TextColumn(disabled=True),
+                    "Remarks": st.column_config.TextColumn(disabled=True),
+                    "Advance Remarks": st.column_config.TextColumn("✏️ Advance Remarks", disabled=False, max_chars=500),
+                    "Balance Remarks": st.column_config.TextColumn("✏️ Balance Remarks", disabled=False, max_chars=500),
+                    "Accounts Status": st.column_config.SelectboxColumn("✏️ Accounts Status", options=["Pending", "Completed"], disabled=False),
+                }
+
+                unique_key = f"{prop.replace(' ', '_')}_{day.strftime('%Y%m%d')}"
+
+                def apply_highlight_to_df(df):
+                    def highlight_row(row):
+                        styles = [''] * len(row)
+                        col_names = df.columns.tolist()
+                        if 'Total' in col_names:
+                            styles[col_names.index('Total')] = 'background-color: #D3D3D3'
+                        if 'Advance' in col_names:
+                            styles[col_names.index('Advance')] = 'background-color: #D3D3D3'
+                        if 'Balance Mop' in col_names:
+                            styles[col_names.index('Balance Mop')] = 'background-color: #D3D3D3'
+                        return styles
+                    return df.style.apply(highlight_row, axis=1)
+
+                styled_df = apply_highlight_to_df(display_df)
+
+                with st.form(key=f"form_{unique_key}"):
+                    edited = st.data_editor(
+                        styled_df,
+                        column_config=col_config,
+                        hide_index=True,
+                        use_container_width=True,
+                        num_rows="fixed",
+                        key=f"editor_{unique_key}",
+                        height=400
+                    )
+                    submitted = st.form_submit_button("💾 Save Changes", use_container_width=False)
+
+                    if submitted:
+                        updates = {}
+                        for i in range(len(edited)):
+                            er = edited.iloc[i]
+                            fr = full_df.iloc[i]
+                            bid = str(er.get("Booking ID", "")).strip()
+                            if not bid: continue
+                            db_id = str(fr.get("db_id", "")).strip()
+                            btype = str(fr.get("type", "")).strip()
+                            if not db_id or not btype: continue
+                            update_key = f"{bid}_{i}"
+                            advance_remarks = str(er.get("Advance Remarks", "") or "").strip()
+                            balance_remarks = str(er.get("Balance Remarks", "") or "").strip()
+                            accounts_status = str(er.get("Accounts Status", "Pending")).strip()
+                            updates[update_key] = {
+                                "advance_remarks": advance_remarks if advance_remarks else None,
+                                "balance_remarks": balance_remarks if balance_remarks else None,
+                                "accounts_status": accounts_status,
+                                "type": btype,
+                                "db_id": db_id,
+                                "booking_id": bid
+                            }
+
+                        success = error = 0
+                        error_details = []
+                        processed_bookings = set()
+
+                        for update_key, data in updates.items():
+                            bid = data["booking_id"]
+                            if bid in processed_bookings: continue
+                            processed_bookings.add(bid)
+                            update_data = {
+                                "advance_remarks": data["advance_remarks"],
+                                "balance_remarks": data["balance_remarks"],
+                                "accounts_status": data["accounts_status"],
+                            }
+                            update_data = {k: v for k, v in update_data.items() if v is not None}
+                            logging.info(f"Saving {data['type']} booking {bid} | Data: {update_data}")
+                            try:
+                                if data["type"] == "online":
+                                    res = supabase.table("online_reservations").update(update_data).eq("id", data["db_id"]).execute()
+                                else:
+                                    res = supabase.table("reservations").update(update_data).eq("booking_id", bid).execute()
+                                if res.data:
+                                    success += 1
+                                else:
+                                    error += 1
+                                    error_details.append(f"{bid}: No rows updated")
+                            except Exception as e:
+                                error += 1
+                                error_details.append(f"{bid}: {str(e)}")
+                                logging.error(f"Save failed {bid}: {e}")
+
+                        if success:
+                            st.success(f"✅ Saved {success} booking(s)!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        if error:
+                            st.error(f"⚠️ {error} failed")
+                            with st.expander("Error Details"):
+                                for msg in error_details:
+                                    st.code(msg)
+            else:
+                col_config_readonly = {
+                    "Inventory No": st.column_config.TextColumn(disabled=True, pinned=True),
+                    "Room No": st.column_config.TextColumn(disabled=True, pinned=True),
+                    "Booking ID": st.column_config.TextColumn(disabled=True, pinned=True),
+                    "Guest Name": st.column_config.TextColumn(disabled=True, pinned=True),
+                }
+                styled_display = display_df.style.apply(highlight_columns, axis=None)
+                st.dataframe(styled_display, column_config=col_config_readonly, use_container_width=True, height=400, hide_index=True)
+
+            st.markdown("---")
+
+            stats = extract_stats_from_table(display_df, mob_types)
+            dtd = stats["dtd"]
+            mop_data = stats["mop"]
+
+            for m in mob_types:
+                mtd[m]["rooms"] += dtd[m]["rooms"]
+                mtd[m]["value"] += dtd[m]["value"]
+                mtd[m]["comm"] += dtd[m]["comm"]
+
+            mtd_rooms += dtd["Total"]["rooms"]
+            mtd_value += dtd["Total"]["value"]
+            mtd_comm += dtd["Total"]["comm"]
+
+            dtd_df = pd.DataFrame([
+                {"MOB": m, "D.T.D Rooms": d["rooms"], "D.T.D Value": f"₹{d['value']:,.2f}",
+                 "D.T.D ARR": f"₹{d['arr']:,.2f}", "D.T.D Comm": f"₹{d['comm']:,.2f}"}
+                for m, d in dtd.items() if m != "Total"
+            ] + [{"MOB": "Total", "D.T.D Rooms": dtd["Total"]["rooms"],
+                  "D.T.D Value": f"₹{dtd['Total']['value']:,.2f}",
+                  "D.T.D ARR": f"₹{dtd['Total']['arr']:,.2f}",
+                  "D.T.D Comm": f"₹{dtd['Total']['comm']:,.2f}"}],
+                columns=["MOB", "D.T.D Rooms", "D.T.D Value", "D.T.D ARR", "D.T.D Comm"])
+
+            mop_df = pd.DataFrame([{"MOP": m, "Amount": f"₹{v:,.2f}"} for m, v in mop_data.items()],
+                                  columns=["MOP", "Amount"])
+
+            mtd_df = pd.DataFrame([
+                {"MOB": m, "M.T.D Rooms": mtd[m]["rooms"], "M.T.D Value": f"₹{mtd[m]['value']:,.2f}",
+                 "M.T.D ARR": f"₹{mtd[m]['value'] / mtd[m]['rooms']:,.2f}" if mtd[m]["rooms"] > 0 else "₹0.00",
+                 "M.T.D Comm": f"₹{mtd[m]['comm']:,.2f}"} for m in mob_types
+            ] + [{"MOB": "Total", "M.T.D Rooms": mtd_rooms, "M.T.D Value": f"₹{mtd_value:,.2f}",
+                  "M.T.D ARR": f"₹{mtd_value / mtd_rooms:,.2f}" if mtd_rooms > 0 else "₹0.00",
+                  "M.T.D Comm": f"₹{mtd_comm:,.2f}"}],
+                columns=["MOB", "M.T.D Rooms", "M.T.D Value", "M.T.D ARR", "M.T.D Comm"])
+
+            total_inventory = len([i for i in PROPERTY_INVENTORY.get(prop, {}).get("all", [])
+                                   if not i.startswith(("Day Use", "No Show"))])
+            occ_pct = (dtd["Total"]["rooms"] / total_inventory * 100) if total_inventory else 0.0
+            mtd_occ_pct = (mtd_rooms / (total_inventory * day.day) * 100) if total_inventory and day.day > 0 else 0.0
+
+            summary = {
+                "Rooms Sold": dtd["Total"]["rooms"],
+                "Hotel Revenue": f"₹{dtd['Total']['value']:,.2f}",
+                "ARR": f"₹{dtd['Total']['arr']:,.2f}",
+                "Occupancy": f"{occ_pct:.1f}%",
+                "Total Pax": dtd["Total"]["pax"],
+                "Total Rooms": total_inventory,
+                "GST Paid": f"₹{dtd['Total']['gst']:,.2f}",
+                "TAX Paid": f"₹{dtd['Total']['tax']:,.2f}",
+                "Commission Paid": f"₹{dtd['Total']['comm']:,.2f}",
+                "MTD Occupancy": f"{mtd_occ_pct:.1f}%",
+                "MTD Revenue": f"₹{mtd_value:,.2f}",
             }
-            if update_online_reservation_in_supabase(reservation["booking_id"], updated_reservation):
-                # Update the in-session copy
-                st.session_state.current_edit_reservation = {**reservation, **updated_reservation}
-                st.success(f"✅ Reservation {reservation['booking_id']} updated successfully!")
-                st.rerun()
-    with col_btn2:
-        if st.session_state.get('role') == "Management":
-            if st.button("🗑️ Delete Reservation", use_container_width=True):
-                if delete_online_reservation_in_supabase(reservation["booking_id"]):
-                    st.success(f"🗑️ Reservation {reservation['booking_id']} deleted successfully!")
-                    # Clear the current edit reservation
-                    if 'current_edit_reservation' in st.session_state:
-                        del st.session_state.current_edit_reservation
-                    st.rerun()
-    with col_btn3:
-        if st.button("🔄 Load Another Reservation", use_container_width=True):
-            if 'current_edit_reservation' in st.session_state:
-                del st.session_state.current_edit_reservation
-            st.rerun()
+
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                st.subheader("MOP")
+                st.dataframe(mop_df, use_container_width=True, hide_index=True)
+            with c2:
+                st.subheader("Day Revenue")
+                st.dataframe(dtd_df, use_container_width=True, hide_index=True)
+            with c3:
+                st.subheader("Month Revenue")
+                st.dataframe(mtd_df, use_container_width=True, hide_index=True)
+            with c4:
+                st.subheader("Summary")
+                st.dataframe(pd.DataFrame([{"Metric": k, "Value": v} for k, v in summary.items()]),
+                             use_container_width=True, hide_index=True)
+        else:
+            st.info("No active bookings.")
+
+if __name__ == "__main__":
+    show_daily_status()
