@@ -116,6 +116,24 @@ MONTHLY_TARGETS = {
         "Le Pondy Beachside": 130000,
         "Le Royce Villa": 120000,
     },
+     "April 2026": {
+        "La Millionaire Resort": 1000000,
+        "Le Poshe Beach view": 495495,
+        "Le Park Resort": 600000,
+        "La Tamara Luxury": 974420,
+        "Le Poshe Luxury": 731312,
+        "Le Poshe Suite": 303960,
+        "Eden Beach Resort": 306041,
+        "La Antilia Luxury": 650413,
+        "La Coromandel Luxury": 550000,
+        "La Tamara Suite": 362165,
+        "Villa Shakti": 449434,
+        "La Paradise Luxury": 321315,
+        "La Villa Heritage": 295873,
+        "La Paradise Residency": 358496,
+        "Le Pondy Beachside": 97507,
+        "Le Royce Villa": 75845,
+    },
 }
 # -------------------------- Property Inventory --------------------------
 PROPERTY_INVENTORY = {
