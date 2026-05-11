@@ -29,8 +29,7 @@ property_mapping = {
     "Le Poshe Beach VIEW": "Le Poshe Beach view",
     "Le Poshe Beachview": "Le Poshe Beach view",
     "Millionaire": "La Millionaire Resort",
-    "Le Pondy Beach Side": "Le Pondy Beachside",
-    "Le Teera": "Le Terra"
+    "Le Pondy Beach Side": "Le Pondy Beachside"
 }
 reverse_mapping = {c: [] for c in set(property_mapping.values())}
 for v, c in property_mapping.items():
@@ -83,9 +82,7 @@ PROPERTY_INVENTORY = {
     "Le Park Resort": {"all": ["111","222","333","444","555","666","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
     "Villa Shakti": {"all": ["101","102","201","201A","202","203","301","301A","302","303","401","Day Use 1","Day Use 2","No Show"],"three_bedroom":["203"]},
     "Eden Beach Resort": {"all": ["101","102","103","201","202","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "Le Terra": {"all": ["101","102","103","104","105","106","107","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "La Coromandel Luxury": {"all": ["101","102","103","201","202","203","204","205","206","301","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]},
-    "Happymates Forest Retreat": {"all": ["101","102","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]}
+    "La Coromandel Luxury": {"all": ["101","102","103","201","202","203","204","205","206","301","Day Use 1","Day Use 2","No Show"],"three_bedroom":[]}
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
