@@ -135,7 +135,7 @@ MONTHLY_TARGETS = {
         "Le Royce Villa": 75845,
     },
     "May 2026": {
-        "La Millionaire Resort": 120000,
+        "La Millionaire Resort": 1200000,
         "Le Park Resort": 700000,
         "La Tamara Luxury": 1042000,
         "Le Poshe Luxury": 816000,
