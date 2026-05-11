@@ -169,8 +169,6 @@ def load_combined_bookings(property: str, start_date: date, end_date: date) -> L
             .in_("property", query_props)\
             .lte("check_in", str(end_date))\
             .gte("check_out", str(start_date))\
-            .in_("booking_status", ["Confirmed", "Completed"])\
-            .in_("payment_status", ["Partially Paid", "Fully Paid"])\
             .execute()
         for r in q.data or []:
             norm = normalize_booking(r, is_online=True)
@@ -188,9 +186,18 @@ def normalize_booking(row: Dict, is_online: bool) -> Optional[Dict]:
         bid = sanitize_string(row.get("booking_id") or row.get("id"))
         status_field = "booking_status" if is_online else "plan_status"
         status = sanitize_string(row.get(status_field, "")).title()
-        if status not in ["Confirmed", "Completed"]: return None
+
+        if is_online:
+            # Only rule: skip if Cancelled; skip if total_payment_made is zero/empty
+            if status == "Cancelled": return None
+            if safe_float(row.get("total_payment_made")) == 0: return None
+        else:
+            # Direct bookings: keep existing status + payment checks
+            if status not in ["Confirmed", "Completed"]: return None
+            pay = sanitize_string(row.get("payment_status")).title()
+            if pay not in ["Fully Paid", "Partially Paid"]: return None
+
         pay = sanitize_string(row.get("payment_status")).title()
-        if pay not in ["Fully Paid", "Partially Paid"]: return None
         ci = date.fromisoformat(row["check_in"])
         co = date.fromisoformat(row["check_out"])
         if co <= ci: return None
