@@ -269,7 +269,7 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
     inv = PROPERTY_INVENTORY.get(property, {"all": []})["all"]
     inv_lookup = {i.strip().lower(): i for i in inv}
 
-    room_bookings = {}
+    room_bookings = {}  # room_name -> booking_id that claimed it first
     sorted_bookings = sorted(daily_bookings, key=lambda x: (x.get("check_in", ""), x.get("booking_id", "")))
 
     for b in sorted_bookings:
@@ -281,36 +281,39 @@ def assign_inventory_numbers(daily_bookings: List[Dict], property: str):
             continue
 
         requested = [r.strip() for r in raw_room.split(",") if r.strip()]
-        assigned_rooms = []
+        resolved_rooms = []
         is_overbooking = False
 
         for r in requested:
             key = r.lower()
             if key not in inv_lookup:
+                # Room not in inventory for this property
                 is_overbooking = True
                 break
             room_name = inv_lookup[key]
             if room_name in room_bookings and room_bookings[room_name] != booking_id:
+                # Room already claimed by a different booking → overbooking
                 is_overbooking = True
                 break
-            assigned_rooms.append(room_name)
+            resolved_rooms.append(room_name)
 
-        if is_overbooking or not assigned_rooms:
+        if is_overbooking or not resolved_rooms:
             over.append(b)
             continue
 
-        for room in assigned_rooms:
+        # Claim all rooms for this booking
+        for room in resolved_rooms:
             room_bookings[room] = booking_id
 
         days = max(b.get("days", 1), 1)
         receivable = b.get("receivable", 0.0)
-        num_rooms = len(assigned_rooms)
+        num_rooms = len(resolved_rooms)
         total_nights = days * num_rooms
         per_night = receivable / total_nights if total_nights > 0 else 0.0
         base_pax = b["total_pax"] // num_rooms if num_rooms else 0
         rem = b["total_pax"] % num_rooms if num_rooms else 0
 
-        for idx, room in enumerate(assigned_rooms):
+        for idx, room in enumerate(resolved_rooms):
             nb = b.copy()
             nb["assigned_room"] = room
             nb["room_no"] = room
@@ -394,10 +397,42 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
         rows.append(row)
 
     if over:
-        over_row = {c: "" for c in visible_cols + hidden_cols}
-        over_row["Inventory No"] = "Overbookings"
-        over_row["Room No"] = ", ".join(f"{b.get('room_no','')} ({b.get('booking_id','')})" for b in over)
-        rows.append(over_row)
+        for b in over:
+            over_row = {c: "" for c in visible_cols + hidden_cols}
+            over_row["Inventory No"] = "Overbooking"
+            over_row["type"] = b.get("type", "")
+            over_row["db_id"] = str(b.get("db_id", ""))
+            over_row["Room No"] = b.get("room_no", "")
+            over_row["Booking ID"] = b.get("booking_id", "")
+            over_row["OTA Booking ID"] = b.get("ota_booking_id", "")
+            over_row["Guest Name"] = b.get("guest_name", "")
+            over_row["Mobile No"] = b.get("mobile_no", "")
+            over_row["Total Pax"] = b.get("total_pax", "")
+            over_row["Check In"] = b.get("check_in", "")
+            over_row["Check Out"] = b.get("check_out", "")
+            over_row["Days"] = b.get("days", "")
+            over_row["MOB"] = b.get("mob", "")
+            over_row["Room Charges"] = f"{b.get('room_charges', 0):.2f}"
+            over_row["GST"] = f"{b.get('gst', 0):.2f}"
+            over_row["TAX"] = f"{b.get('tax', 0):.2f}"
+            over_row["Total"] = f"{b.get('total_amount', 0):.2f}"
+            over_row["Commission"] = f"{b.get('commission', 0):.2f}"
+            over_row["Hotel Receivable"] = f"{b.get('receivable', 0):.2f}"
+            over_row["Per Night"] = f"{b.get('per_night', 0):.2f}"
+            over_row["Advance"] = f"{b.get('advance', 0):.2f}"
+            over_row["Advance Mop"] = b.get("advance_mop", "")
+            over_row["Balance"] = f"{b.get('balance', 0):.2f}"
+            over_row["Balance Mop"] = b.get("balance_mop", "")
+            over_row["Plan"] = b.get("plan", "")
+            over_row["Booking Status"] = b.get("booking_status", "")
+            over_row["Payment Status"] = b.get("payment_status", "")
+            over_row["Submitted by"] = b.get("submitted_by", "")
+            over_row["Modified by"] = b.get("modified_by", "")
+            over_row["Remarks"] = b.get("remarks", "")
+            over_row["Advance Remarks"] = b.get("advance_remarks", "")
+            over_row["Balance Remarks"] = b.get("balance_remarks", "")
+            over_row["Accounts Status"] = b.get("accounts_status", "Pending")
+            rows.append(over_row)
 
     df = pd.DataFrame(rows, columns=visible_cols + hidden_cols)
     display_df = df[visible_cols].copy()
