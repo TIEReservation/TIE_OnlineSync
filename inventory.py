@@ -373,6 +373,15 @@ def create_inventory_table(assigned: List[Dict], over: List[Dict], prop: str, ta
                 row["Submitted by"] = match["submitted_by"]
                 row["Modified by"] = match["modified_by"]
                 row["Remarks"] = match.get("remarks", "")
+            elif match.get("type") == "online" and is_primary:
+                # For online bookings on non-check-in days, still show Advance
+                # (total_payment_made) and Advance Mop so it reflects in Daily Status,
+                # but only if booking is not cancelled and advance is non-zero.
+                booking_status = sanitize_string(match.get("booking_status", "")).title()
+                advance_val = match.get("advance", 0)
+                if advance_val and booking_status != "Cancelled":
+                    row["Advance"] = f"{advance_val:.2f}"
+                    row["Advance Mop"] = match.get("advance_mop", "")
 
             row["Advance Remarks"] = match.get("advance_remarks", "")
             row["Balance Remarks"] = match.get("balance_remarks", "")
