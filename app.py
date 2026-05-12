@@ -48,7 +48,7 @@ def get_supabase_client():
     """Create a single Supabase client for the entire session."""
     try:
         os.environ["SUPABASE_URL"] = "https://oxbrezracnmazucnnqox.supabase.co"
-        os.environ["SUPABASE_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94YnJlenJhY25tYXp1Y25ucW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjUxMTgsImV4cCI6MjA2OTM0MTExOH0.nqBK2ZxntesLY9qYClpoFPVnXOW10KrzF-UI_DKjbKo"
+        os.environ["SUPABASE_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94YnJlenJhY25tYXp1Y25ucW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjUxMTgsImV4cCI6MjA2OTM0MzExMTh9.nqBK2ZxntesLY9qYClpoFPVnXOW10KrzF-UI_DKjbKo"
         return create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
     except Exception as e:
         st.error(f"Failed to initialize Supabase client: {e}")
@@ -135,7 +135,7 @@ def check_authentication():
             # Admin from database
             valid_screens = st.session_state.user_data.get("screens", ["User Management", "Log Report"])
         else:
-            valid_screens = ["Inventory Dashboard",  "Booking Date Report", "Direct Reservations", "Night Report Dashboard", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement"]
+            valid_screens = ["Inventory Dashboard",  "Booking Date Report", "Direct Reservations", "Night Report Dashboard", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement", "Accounts Report", "User Management", "Log Report", "Date-wise Booking Report", "Date-wise Check-in Report", "Expense Tracker"]
        
         # Apply screen filtering for users with configured screens
         if st.session_state.user_data:
@@ -200,8 +200,7 @@ def show_user_management():
             "Le Poshe Beachview", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite",
             "La Paradise Residency", "La Paradise Luxury", "La Villa Heritage", "Le Pondy Beach Side",
             "Le Royce Villa", "La Tamara Luxury", "La Antilia Luxury", "Date-wise Check-in Report", "La Tamara Suite",
-            "Le Park Resort", "Villa Shakti", "Eden Beach Resort", "La Coromandel Luxury",
-            "Le Terra", "Happymates Forest Retreat"
+            "Le Park Resort", "Villa Shakti", "Eden Beach Resort", "La Coromandel Luxury"
         ]
         new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties, key="create_properties")
        
@@ -222,11 +221,11 @@ def show_user_management():
         elif new_role == "Management":
             default_screens = [s for s in all_screens if s not in ["User Management", "Log Report"]]
         elif new_role == "ReservationHead":
-            default_screens = ["Direct Reservations", "Night Report Dashboard", "View Reservations", "Date-wise Booking Report", "Date-wise Check-in Report", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Monthly Consolidation", "Summary Report", "Target Achievement"]
+            default_screens = ["Direct Reservations", "Night Report Dashboard", "View Reservations", "Date-wise Booking Report", "Date-wise Check-in Report", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Analytics"]
         elif new_role == "Accounts Team":
             default_screens = ["Daily Status", "Night Report Dashboard", "Monthly Consolidation", "Accounts Report"]
         else:
-            default_screens = [s for s in all_screens if s not in ["Daily Management Status", "Night Report Dashboard", "Date-wise Booking Report","Date-wise Check-in Report", "Analytics", "Inventory Dashboard", "Summary Report", "Target Achievement", "User Management", "Log Report"]]
+            default_screens = [s for s in all_screens if s not in ["Daily Management Status", "Night Report Dashboard", "Date-wise Booking Report","Date-wise Check-in Report", "Analytics", "Inventory Dashboard", "User Management", "Log Report", "Target Achievement", "Monthly Consolidation"]]
        
         new_screens = st.multiselect("Visible Screens", all_screens, default=default_screens, key="create_screens")
        
@@ -318,8 +317,7 @@ def show_user_management():
                             "Le Poshe Beachview", "La Millionaire Resort", "Le Poshe Luxury", "Le Poshe Suite",
                             "La Paradise Residency", "La Paradise Luxury", "La Villa Heritage", "Le Pondy Beach Side",
                             "Le Royce Villa", "La Tamara Luxury", "La Antilia Luxury", "La Tamara Suite",
-                            "Le Park Resort", "Villa Shakti", "Eden Beach Resort", "La Coromandel Luxury",
-                            "Le Terra", "Happymates Forest Retreat"
+                            "Le Park Resort", "Villa Shakti", "Eden Beach Resort", "La Coromandel Luxury"
                         ]
                         default_properties = [prop for prop in current_properties if prop in all_properties]
                         if not default_properties:
