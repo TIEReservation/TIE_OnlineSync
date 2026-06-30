@@ -143,6 +143,21 @@ def load_properties():
         st.error(f"Error loading properties: {e}")
         return []
 
+from datetime import date as _date
+
+# Properties that stopped operating from July 1, 2026 onward. Existing/historical
+# bookings at these properties remain fully editable; they're just excluded from
+# the "Transfer to Property" target list going forward.
+CLOSED_PROPERTIES = {
+    "La Millionaire Resort",
+    "Le Pondy Beachside",
+    "Le Poshe Beach view",
+    "Le Poshe Beachview",
+    "Le Terra",
+    "Happymates Forest Retreat",
+}
+PROPERTY_CLOSURE_DATE = _date(2026, 7, 1)
+
 def get_room_options(property_name):
     """Return room number and room type options based on property."""
     if property_name == "Millionaire":
@@ -213,6 +228,8 @@ def show_edit_online_reservations(selected_booking_id=None):
 
     # Add Transfer to Property dropdown (optional)
     properties = load_properties()
+    if _date.today() >= PROPERTY_CLOSURE_DATE:
+        properties = [p for p in properties if p not in CLOSED_PROPERTIES]
     transfer_property = st.selectbox("Transfer to Property (Optional)", ["None"] + properties)
 
     # If transfer_property is selected, override property_name
