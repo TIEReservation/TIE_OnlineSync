@@ -179,22 +179,19 @@ MONTHLY_TARGETS = {
         "Le Royce Villa": 100000,
     },
     "July 2026": {
-        # La Millionaire Resort, Le Pondy Beachside, and Le Poshe Beach view
-        # are closed from July 2026 and intentionally excluded here.
-        # TODO: replace the 0 placeholders below with actual July 2026 targets.
-        "Le Park Resort": 0,
-        "La Tamara Luxury": 0,
-        "Le Poshe Luxury": 0,
-        "Le Poshe Suite": 0,
-        "Eden Beach Resort": 0,
-        "La Antilia Luxury": 0,
-        "La Coromandel Luxury": 0,
-        "La Tamara Suite": 0,
-        "Villa Shakti": 0,
-        "La Paradise Luxury": 0,
-        "La Villa Heritage": 0,
-        "La Paradise Residency": 0,
-        "Le Royce Villa": 0,
+        "Le Park Resort": 625000,
+        "La Tamara Luxury": 1030000,
+        "Le Poshe Luxury": 685000,
+        "Le Poshe Suite": 325000,
+        "Eden Beach Resort": 350000,
+        "La Antilia Luxury": 550000,
+        "La Coromandel Luxury": 500000,
+        "La Tamara Suite": 435000,
+        "Villa Shakti": 575000,
+        "La Paradise Luxury": 280000,
+        "La Villa Heritage": 270000,
+        "La Paradise Residency": 315000,
+        "Le Royce Villa": 90000,
     },
 }
 # -------------------------- Property Inventory --------------------------
