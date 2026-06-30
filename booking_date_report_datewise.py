@@ -25,6 +25,17 @@ property_mapping = {
     "Le Teera": "Le Terra"
 }
 
+# Properties permanently closed from July 2026 onward.
+# History (June 2026 and earlier) must still be shown; from July 2026 they are excluded.
+CLOSED_PROPERTIES = {
+    "La Millionaire Resort",
+    "Le Pondy Beachside",
+    "Le Poshe Beach view",
+    "Le Terra",
+    "Happymates Forest Retreat",
+}
+CLOSURE_CUTOFF = date(2026, 7, 1)  # first month from which closed properties are hidden
+
 # Table CSS with frozen columns till Guest Name and DataTables integration
 TABLE_CSS = """
 <style>
@@ -437,6 +448,11 @@ def show_datewise_booking_report():
     if not online_bookings and not direct_bookings:
         st.info("No reservations available.")
         return
+
+    # Remove permanently closed properties from July 2026 onward (history is preserved for June 2026 and earlier)
+    if date(year, month, 1) >= CLOSURE_CUTOFF:
+        online_bookings = [b for b in online_bookings if b.get("property") not in CLOSED_PROPERTIES]
+        direct_bookings = [b for b in direct_bookings if b.get("property_name") not in CLOSED_PROPERTIES]
 
     # Combine all bookings
     all_bookings = online_bookings + direct_bookings
