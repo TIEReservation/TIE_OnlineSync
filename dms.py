@@ -12,6 +12,25 @@ except KeyError as e:
     st.error(f"Missing Supabase secret: {e}. Please check Streamlit Cloud secrets configuration.")
     st.stop()
 
+# Properties that stopped operating from July 1, 2026 onward.
+# They must still show full history for any month before July 2026, but should
+# no longer appear at all for July 2026 and onward.
+CLOSED_PROPERTIES = {
+    "La Millionaire Resort",
+    "Le Pondy Beachside",
+    "Le Poshe Beach view",
+    "Le Poshe Beachview",
+    "Le Terra",
+    "Happymates Forest Retreat",
+}
+PROPERTY_CLOSURE_YEAR_MONTH = (2026, 7)
+
+def filter_active_properties(properties, year, month):
+    """Remove closed properties when viewing July 2026 or any later month."""
+    if (year, month) >= PROPERTY_CLOSURE_YEAR_MONTH:
+        return [p for p in properties if p not in CLOSED_PROPERTIES]
+    return properties
+
 # Property synonym mapping
 property_mapping = {
   "La Millionaire Luxury Resort": "La Millionaire Resort",
@@ -234,6 +253,7 @@ def show_dms():
     online_props = sorted(online_df["property"].dropna().unique().tolist()) if "property" in online_df.columns else []
     direct_props = sorted(direct_df["property_name"].dropna().unique().tolist()) if "property_name" in direct_df.columns else []
     all_properties = sorted(list(set(online_props + direct_props)))
+    all_properties = filter_active_properties(all_properties, year, month)
 
     if not all_properties:
         st.info("No properties found in reservations.")
