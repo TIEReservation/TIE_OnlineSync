@@ -68,9 +68,26 @@ def normalize_property_name(prop_name: str) -> str:
 def get_short_name(prop_name: str) -> str:
     return PROPERTY_SHORT_NAMES.get(prop_name, prop_name)
 
+# -------------------------- Closed Properties --------------------------
+# Happymates Forest Retreat (HFR), La Millionaire Resort (LMR),
+# Le Poshe Beach view (LPBv), Le Pondy Beachside (LPBs), and Le Terra (LT)
+# stopped operating from July 2026 onwards. Their history (through June 2026)
+# is preserved; they are excluded from the report for July 2026 and later.
+CLOSED_PROPERTIES = {
+    "Happymates Forest Retreat",
+    "La Millionaire Resort",
+    "Le Poshe Beach view",
+    "Le Pondy Beachside",
+    "Le Terra",
+}
+CLOSURE_YEAR_MONTH = (2026, 7)  # (year, month) from which closed properties are excluded
+
 # -------------------------- Helpers --------------------------
-def load_properties() -> List[str]:
-    """Return all 18 properties from PROPERTY_INVENTORY"""
+def load_properties(report_year: int = None, report_month: int = None) -> List[str]:
+    """Return all properties from PROPERTY_INVENTORY.
+    Closed properties (CLOSED_PROPERTIES) are excluded once the report
+    period reaches CLOSURE_YEAR_MONTH (July 2026 onwards), while still
+    being included for earlier months so history is preserved."""
     PROPERTY_INVENTORY = {
         "Le Poshe Beach view": {},
         "La Millionaire Resort": {},
@@ -91,7 +108,12 @@ def load_properties() -> List[str]:
         "La Coromandel Luxury": {},
         "Happymates Forest Retreat": {}
     }
-    return sorted(list(PROPERTY_INVENTORY.keys()))
+    all_props = sorted(list(PROPERTY_INVENTORY.keys()))
+    if report_year is None or report_month is None:
+        return all_props
+    if (report_year, report_month) >= CLOSURE_YEAR_MONTH:
+        return [p for p in all_props if p not in CLOSED_PROPERTIES]
+    return all_props
 
 @st.cache_data(ttl=1800)
 def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
@@ -349,7 +371,7 @@ def show_summary_report():
     year = st.selectbox("Year", options=list(range(today.year-5, today.year+6)), index=5)
     month = st.selectbox("Month", options=list(range(1,13)), index=today.month-1)
 
-    properties = load_properties()
+    properties = load_properties(year, month)
     if not properties:
         st.info("No properties found in database.")
         return
