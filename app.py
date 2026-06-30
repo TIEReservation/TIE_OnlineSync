@@ -24,6 +24,25 @@ from log import show_log_report, log_activity
 from users import validate_user, create_user, update_user, delete_user, load_users
 from accounts_report import show_accounts_report
 from nrd_report import show_nrd_report
+
+# Properties that stopped operating from July 1, 2026 onward.
+# Existing user assignments / historical data are untouched - this only
+# controls which properties can be newly assigned from the closure date on.
+CLOSED_PROPERTIES = {
+    "La Millionaire Resort",
+    "Le Pondy Beachside",
+    "Le Poshe Beach view",
+    "Le Poshe Beachview",
+    "Le Terra",
+    "Happymates Forest Retreat",
+}
+from datetime import date as _date
+PROPERTY_CLOSURE_DATE = _date(2026, 7, 1)
+
+def get_active_properties(full_list):
+    if _date.today() >= PROPERTY_CLOSURE_DATE:
+        return [p for p in full_list if p not in CLOSED_PROPERTIES]
+    return full_list
 # Try to import target achievement module
 try:
     from target_achievement_report import show_target_achievement_report
@@ -202,6 +221,7 @@ def show_user_management():
             "Le Park Resort", "Villa Shakti", "Eden Beach Resort", "La Coromandel Luxury",
             "Le Terra", "Happymates Forest Retreat"
         ]
+        all_properties = get_active_properties(all_properties)
         new_properties = st.multiselect("Visible Properties", all_properties, default=all_properties, key="create_properties")
        
         all_screens = ["Inventory Dashboard", "Night Report Dashboard", "Accounts Report", "Date-wise Booking Report", "Date-wise Check-in Report", "Booking Date Report","Direct Reservations", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement", "User Management", "Log Report"]
@@ -310,6 +330,12 @@ def show_user_management():
                             "Le Royce Villa", "La Tamara Luxury", "La Antilia Luxury", "La Tamara Suite",
                             "Le Park Resort", "Villa Shakti", "Eden Beach Resort", "La Coromandel Luxury",
                             "Le Terra", "Happymates Forest Retreat"
+                        ]
+                        # Keep any already-assigned closed property selectable for this existing
+                        # user (so it doesn't silently vanish from their record), but don't offer
+                        # it for newly assigning to other users.
+                        all_properties = get_active_properties(all_properties) + [
+                            p for p in current_properties if p in CLOSED_PROPERTIES and p not in all_properties
                         ]
                         default_properties = [prop for prop in current_properties if prop in all_properties]
                         if not default_properties:
