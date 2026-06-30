@@ -42,6 +42,17 @@ def normalize_property_name(prop_name: str) -> str:
     if not prop_name:
         return ""
     return PROPERTY_MAPPING.get(prop_name.strip(), prop_name.strip())
+
+# -------------------------- Closed Properties --------------------------
+# These properties stopped operating from July 2026 onwards.
+# Their history (Dec 2025 - June 2026) is preserved; they are excluded
+# from the report for July 2026 and any later month.
+CLOSED_PROPERTIES = {
+    "La Millionaire Resort",
+    "Le Pondy Beachside",
+    "Le Poshe Beach view",
+}
+CLOSURE_YEAR_MONTH = (2026, 7)  # (year, month) from which closed properties are excluded
 # -------------------------- Monthly Targets --------------------------
 MONTHLY_TARGETS = {
     "December 2025": {
@@ -167,6 +178,24 @@ MONTHLY_TARGETS = {
         "Le Pondy Beachside": 110000,
         "Le Royce Villa": 100000,
     },
+    "July 2026": {
+        # La Millionaire Resort, Le Pondy Beachside, and Le Poshe Beach view
+        # are closed from July 2026 and intentionally excluded here.
+        # TODO: replace the 0 placeholders below with actual July 2026 targets.
+        "Le Park Resort": 0,
+        "La Tamara Luxury": 0,
+        "Le Poshe Luxury": 0,
+        "Le Poshe Suite": 0,
+        "Eden Beach Resort": 0,
+        "La Antilia Luxury": 0,
+        "La Coromandel Luxury": 0,
+        "La Tamara Suite": 0,
+        "Villa Shakti": 0,
+        "La Paradise Luxury": 0,
+        "La Villa Heritage": 0,
+        "La Paradise Residency": 0,
+        "Le Royce Villa": 0,
+    },
 }
 # -------------------------- Property Inventory --------------------------
 PROPERTY_INVENTORY = {
@@ -193,9 +222,17 @@ def get_total_rooms(prop: str) -> int:
     return len([r for r in inv if not r.startswith(("Day Use", "No Show"))])
 
 # -------------------------- Safe Property Loading --------------------------
-def load_properties() -> List[str]:
-    """Return all 18 properties from PROPERTY_INVENTORY"""
-    return sorted(list(PROPERTY_INVENTORY.keys()))
+def load_properties(report_year: int = None, report_month: int = None) -> List[str]:
+    """Return properties from PROPERTY_INVENTORY.
+    Closed properties (CLOSED_PROPERTIES) are excluded once the report
+    period reaches CLOSURE_YEAR_MONTH (July 2026 onwards), while still
+    being included for earlier months so history is preserved."""
+    all_props = sorted(list(PROPERTY_INVENTORY.keys()))
+    if report_year is None or report_month is None:
+        return all_props
+    if (report_year, report_month) >= CLOSURE_YEAR_MONTH:
+        return [p for p in all_props if p not in CLOSED_PROPERTIES]
+    return all_props
 
 # -------------------------- Booking Functions --------------------------
 @st.cache_data(ttl=1800)
@@ -468,8 +505,8 @@ def show_target_achievement_report():
     # Month Selector
     selected_month = st.selectbox(
         "Select Month",
-        options=["December 2025", "January 2026", "February 2026", "March 2026", "April 2026", "May 2026", "June 2026"],
-        index=6  # Default to June 2026
+        options=["December 2025", "January 2026", "February 2026", "March 2026", "April 2026", "May 2026", "June 2026", "July 2026"],
+        index=7  # Default to July 2026
     )
 
     current_date = date.today()
@@ -487,8 +524,10 @@ def show_target_achievement_report():
         report_year, report_month = 2026, 4
     elif selected_month == "May 2026":
         report_year, report_month = 2026, 5
-    else:  # June 2026
+    elif selected_month == "June 2026":
         report_year, report_month = 2026, 6
+    else:  # July 2026
+        report_year, report_month = 2026, 7
     
     # Calculate balance days
     if current_date.year == report_year and current_date.month == report_month:
@@ -508,7 +547,7 @@ def show_target_achievement_report():
     
     st.info(f"📅 Current Date: {current_date.strftime('%B %d, %Y')} | ⏳ Balance Days in {selected_month}: {balance_days}")
 
-    properties = load_properties()
+    properties = load_properties(report_year, report_month)
 
     with st.spinner("Generating report..."):
         bookings = {}
