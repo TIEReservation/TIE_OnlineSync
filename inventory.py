@@ -36,6 +36,24 @@ reverse_mapping = {c: [] for c in set(property_mapping.values())}
 for v, c in property_mapping.items():
     reverse_mapping[c].append(v)
 
+# ────── Closed properties (stopped operating from July 1, 2026) ──────
+# History before July 2026 must remain fully visible; from July 2026 onward
+# these properties should no longer appear in property selectors.
+CLOSED_PROPERTIES = {
+    "La Millionaire Resort",
+    "Le Pondy Beachside",
+    "Le Poshe Beach view",
+    "Le Terra",
+    "Happymates Forest Retreat",
+}
+PROPERTY_CLOSURE_YEAR_MONTH = (2026, 7)
+
+def filter_active_properties(properties, year, month):
+    """Remove closed properties when the selected period is July 2026 or later."""
+    if (year, month) >= PROPERTY_CLOSURE_YEAR_MONTH:
+        return [p for p in properties if p not in CLOSED_PROPERTIES]
+    return list(properties)
+
 # ────── MOP / MOB mappings ──────
 mop_mapping = {
     "UPI": ["UPI"],
@@ -615,14 +633,20 @@ def show_daily_status():
 
         dl_col1, dl_col2, dl_col3 = st.columns([3, 2, 2])
 
+        # Closed properties should drop out of the picker once the selected
+        # download period reaches July 2026; before that, show everything.
+        _dl_year_state = st.session_state.get("dl_year", today.year)
+        _dl_month_state = st.session_state.get("dl_month_single", today.month)
+        dl_props_options = filter_active_properties(props, _dl_year_state, _dl_month_state)
+
         with dl_col1:
             select_all_props = st.checkbox("Select All Properties", key="dl_select_all_props")
             if select_all_props:
-                dl_props_selected = props
+                dl_props_selected = dl_props_options
                 st.multiselect(
                     "Properties",
-                    options=props,
-                    default=props,
+                    options=dl_props_options,
+                    default=dl_props_options,
                     key="dl_props_multi",
                     disabled=True,
                     help="All properties selected"
@@ -630,7 +654,7 @@ def show_daily_status():
             else:
                 dl_props_selected = st.multiselect(
                     "Properties",
-                    options=props,
+                    options=dl_props_options,
                     default=[],
                     key="dl_props_multi",
                     placeholder="Choose one or more properties…"
@@ -760,10 +784,17 @@ def show_daily_status():
     st.markdown("#### 📋 Daily Status View")
 
     view_col1, view_col2, view_col3 = st.columns([3, 2, 2])
+
+    # Closed properties drop out of the daily-view picker once the selected
+    # year/month reaches July 2026; earlier months keep full history.
+    _view_year_state = st.session_state.get("view_year", today.year)
+    _view_month_state = st.session_state.get("view_month", today.month)
+    view_props_options = filter_active_properties(props, _view_year_state, _view_month_state)
+
     with view_col1:
         selected_prop = st.selectbox(
             "Property",
-            options=["— Select Property —"] + props,
+            options=["— Select Property —"] + view_props_options,
             key="view_prop"
         )
     with view_col2:
