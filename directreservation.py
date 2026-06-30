@@ -165,6 +165,32 @@ def load_property_room_map():
         }
     }
 
+# Properties that stopped operating from July 1, 2026 onward.
+# Historical bookings (existing data before this date) must remain fully visible
+# everywhere; these properties should simply disappear from the NEW reservation
+# property dropdown from the closure date onward.
+CLOSED_PROPERTIES = {
+    "La Millionaire Resort",
+    "Le Pondy Beachside",
+    "Le Poshe Beach view",
+    "Le Poshe Beachview",
+    "Le Terra",
+    "Happymates Forest Retreat",
+}
+PROPERTY_CLOSURE_DATE = date(2026, 7, 1)
+
+def load_active_property_room_map():
+    """
+    Same as load_property_room_map(), but excludes properties that have been
+    closed/stopped operating (from PROPERTY_CLOSURE_DATE onward). This should be
+    used ONLY for the "New Reservation" property dropdown, never for editing
+    existing/historical bookings or for reports.
+    """
+    full_map = load_property_room_map()
+    if date.today() >= PROPERTY_CLOSURE_DATE:
+        return {k: v for k, v in full_map.items() if k not in CLOSED_PROPERTIES}
+    return full_map
+
 def generate_booking_id():
     """Generate a unique booking ID by checking existing IDs in Supabase."""
     try:
@@ -451,7 +477,7 @@ def show_new_reservation_form():
     try:
         st.header("📝 Direct Reservations")
         form_key = "new_reservation"
-        property_room_map = load_property_room_map()
+        property_room_map = load_active_property_room_map()
         
         if f"{form_key}_property" not in st.session_state:
             st.session_state[f"{form_key}_property"] = sorted(property_room_map.keys())[0]
