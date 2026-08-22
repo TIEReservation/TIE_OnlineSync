@@ -75,7 +75,7 @@ def get_supabase_client():
     """Create a single Supabase client for the entire session."""
     try:
         os.environ["SUPABASE_URL"] = "https://oxbrezracnmazucnnqox.supabase.co"
-        os.environ["SUPABASE_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94YnJlenJhY25tYXp1Y25ucW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjUxMTgsImV4cCI6MjA2OTM0MTExOH0.nqBK2ZxntesLY9qYClpoFPVnXOW10KrzF-UI_DKjbKo"
+        os.environ["SUPABASE_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94YnJlenJhY25tYXp1Y25ucW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjUxMTgsImV4cCI6MjA2OTM0MTExO[...]
         return create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
     except Exception as e:
         st.error(f"Failed to initialize Supabase client: {e}")
@@ -167,7 +167,7 @@ def check_authentication():
             # Admin from database
             valid_screens = st.session_state.user_data.get("screens", ["User Management", "Log Report"])
         else:
-            valid_screens = ["Inventory Dashboard",  "Booking Date Report", "Direct Reservations", "Night Report Dashboard", "View Reservations", "Edit Direct Reservation", "Online Reservations",[...]]
+            valid_screens = ["Inventory Dashboard",  "Booking Date Report", "Direct Reservations", "Night Report Dashboard", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Target Achievement",[...][...]
        
         # Apply screen filtering for users with configured screens
         if st.session_state.user_data:
@@ -246,11 +246,11 @@ def show_user_management():
         elif new_role == "Management":
             default_screens = [s for s in all_screens if s not in ["User Management", "Log Report"]]
         elif new_role == "ReservationHead":
-            default_screens = ["Direct Reservations", "Night Report Dashboard", "View Reservations", "Date-wise Booking Report", "Date-wise Check-in Report", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations"]
+            default_screens = ["Direct Reservations", "Night Report Dashboard", "View Reservations", "Date-wise Booking Report", "Date-wise Check-in Report", "Edit Direct Reservation", "Online Reservations"]
         elif new_role == "Accounts Team":
-            default_screens = ["Daily Status", "Night Report Dashboard", "Monthly Consolidation", "Accounts Report"]
+            default_screens = ["Daily Status", "Night Report Dashboard", "Monthly Consolidation", "Accounts Report", "Target Achievement"]
         else:
-            default_screens = [s for s in all_screens if s not in ["Daily Management Status", "Night Report Dashboard", "Date-wise Booking Report","Date-wise Check-in Report", "Analytics", "Inventory Dashboard", "User Management", "Log Report"]]
+            default_screens = [s for s in all_screens if s not in ["Daily Management Status", "Night Report Dashboard", "Date-wise Booking Report","Date-wise Check-in Report", "Analytics", "Inventory Dashboard"]]
        
         new_screens = st.multiselect("Visible Screens", all_screens, default=default_screens, key="create_screens")
        
@@ -356,7 +356,7 @@ def show_user_management():
                             default_properties = all_properties
                         mod_properties = st.multiselect("Visible Properties", all_properties, default=default_properties, key="modify_properties")
                        
-                        all_screens = ["Inventory Dashboard", "Booking Date Report", "Date-wise Booking Report", "Date-wise Check-in Report", "Accounts Report", "Direct Reservations", "Night Report Dashboard", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement", "Monthly Target Management", "User Management", "Log Report"]
+                        all_screens = ["Inventory Dashboard", "Booking Date Report", "Date-wise Booking Report", "Date-wise Check-in Report", "Accounts Report", "Direct Reservations", "Night Report Dashboard", "View Reservations", "Edit Direct Reservation", "Online Reservations", "Edit Online Reservations", "Daily Status", "Daily Management Status", "Analytics", "Monthly Consolidation", "Summary Report", "Target Achievement", "Monthly Target Management"]
                         # Filter out any screens that don't exist in all_screens to avoid the error
                         valid_current_screens = [screen for screen in current_screens if screen in all_screens]
                         mod_screens = st.multiselect("Visible Screens", all_screens, default=valid_current_screens, key="modify_screens")
