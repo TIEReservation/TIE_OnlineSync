@@ -360,7 +360,7 @@ def show_user_management():
                        
                         current_role = user_to_modify.get("role", "ReservationTeam")
                         mod_role = st.selectbox("Role", ["Management", "ReservationTeam", "ReservationHead", "Accounts Team", "Admin"],
-                                                index=["Management", "ReservationTeam", "ReservationHead", "Accounts Team", "Admin"].index(current_role) if current_role in ["Management", "ReservationT[...]
+                                                index=["Management", "ReservationTeam", "ReservationHead", "Accounts Team", "Admin"].index(current_role) if current_role in ["Management", "ReservationTeam", "ReservationHead", "Accounts Team", "Admin"] else 1,
                                                 key="modify_role")
                        
                         all_properties = [
