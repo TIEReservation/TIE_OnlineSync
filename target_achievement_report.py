@@ -1,4 +1,4 @@
-# target_achievement_report.py - Multi-Month Support (Dec 2025 & Jan 2026)
+# target_achievement_report.py - Multi-Month Support (Dec 2025 → Jul 2026)
 
 import streamlit as st
 from datetime import date, datetime
@@ -11,9 +11,9 @@ import os
 # -------------------------- Supabase --------------------------
 try:
     supabase: Client = create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
-except:
+except Exception:
     try:
-        supabase: Client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
+        supabase: Client = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
     except Exception as e:
         st.error(f"Supabase config error: {e}")
         st.stop()
@@ -38,6 +38,8 @@ PROPERTY_MAPPING = {
 reverse_mapping = {c: [] for c in set(PROPERTY_MAPPING.values())}
 for v, c in PROPERTY_MAPPING.items():
     reverse_mapping[c].append(v)
+
+
 def normalize_property_name(prop_name: str) -> str:
     if not prop_name:
         return ""
@@ -53,7 +55,10 @@ CLOSED_PROPERTIES = {
     "Le Poshe Beach view",
 }
 CLOSURE_YEAR_MONTH = (2026, 7)  # (year, month) from which closed properties are excluded
+
 # -------------------------- Monthly Targets --------------------------
+# This dictionary is used as a fallback if DB targets are not available.
+# Primary source should be the DB table `monthly_targets`.
 MONTHLY_TARGETS = {
     "December 2025": {
         "La Millionaire Resort": 2009899,
@@ -194,6 +199,7 @@ MONTHLY_TARGETS = {
         "Le Royce Villa": 90000,
     },
 }
+
 # -------------------------- Property Inventory --------------------------
 PROPERTY_INVENTORY = {
     "Le Poshe Beach view": {"all": ["101","102","201","202","203","204","301","302","303","304","Day Use 1","Day Use 2","No Show"]},
@@ -214,11 +220,14 @@ PROPERTY_INVENTORY = {
     "La Coromandel Luxury": {"all": ["101","102","103","201","202","203","204","205","206","301","Day Use 1","Day Use 2","No Show"]},
 }
 
+
 def get_total_rooms(prop: str) -> int:
     inv = PROPERTY_INVENTORY.get(prop, {"all": []})["all"]
     return len([r for r in inv if not r.startswith(("Day Use", "No Show"))])
 
 # -------------------------- Safe Property Loading --------------------------
+from typing import List, Dict
+
 def load_properties(report_year: int = None, report_month: int = None) -> List[str]:
     """Return properties from PROPERTY_INVENTORY.
     Closed properties (CLOSED_PROPERTIES) are excluded once the report
@@ -275,8 +284,10 @@ def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
         st.warning(f"Failed to load bookings for {prop}: {e}")
         return []
 
+
 def filter_bookings_for_day(bookings: List[Dict], day: date):
-    return [b for b in bookings if date.fromisoformat(b["check_in"]) <= day < date.fromisoformat(b["check_out"])]
+    return [b for b in bookings if date.fromisoformat(b["check_in"]) <= day < date.fromisoformat(b["check_out"]) ]
+
 
 def assign_inventory_numbers(daily: List[Dict], prop: str):
     inv = PROPERTY_INVENTORY.get(prop, {"all": []})["all"]
@@ -298,9 +309,11 @@ def assign_inventory_numbers(daily: List[Dict], prop: str):
             assigned.append(new_b)
     return assigned, []
 
+
 def safe_float(v, default=0.0):
     try: return float(v) if v not in [None, "", " "] else default
     except: return default
+
 
 def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     daily = filter_bookings_for_day(bookings, day)
@@ -332,6 +345,7 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     }
 
 # -------------------------- MAIN REPORT --------------------------
+
 def build_target_achievement_report(props: List[str], dates: List[date], bookings_dict: Dict[str, List[Dict]], current_date: date, targets: Dict) -> pd.DataFrame:
     rows = []
     balance_days = len([d for d in dates if d > current_date])
@@ -393,6 +407,7 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
     return df
 
 # -------------------------- TILL TODAY REPORT --------------------------
+
 def build_till_today_report(props: List[str], dates: List[date], bookings_dict: Dict[str, List[Dict]], current_date: date, targets: Dict) -> pd.DataFrame:
     """Calculate metrics only till current system date - ARR based on total room inventory"""
     rows = []
@@ -450,6 +465,7 @@ def build_till_today_report(props: List[str], dates: List[date], bookings_dict: 
     return df
 
 # -------------------------- Styling --------------------------
+
 def style_dataframe(df):
     if df is None or df.empty:
         return df
@@ -491,10 +507,11 @@ def style_dataframe(df):
         
         styled = styled.set_table_styles([{"selector": "th", "props": "background-color: #4CAF50; color: white; font-weight: bold;"}])
         return styled
-    except:
+    except Exception:
         return df.style
 
 # -------------------------- UI --------------------------
+
 def show_target_achievement_report():
     st.set_page_config(page_title="Target vs Achievement Report", layout="wide")
     st.title("📊 Target vs Achievement Report")
@@ -540,8 +557,24 @@ def show_target_achievement_report():
     _, days_in_month = calendar.monthrange(report_year, report_month)
     dates = [date(report_year, report_month, d) for d in range(1, days_in_month + 1)]
     
-    targets = MONTHLY_TARGETS[selected_month]
-    
+    # Primary target source: DB. Fallback to MONTHLY_TARGETS dict if DB not available or missing rows.
+    targets = {}
+    try:
+        # fetch targets for the report month from DB
+        resp = supabase.table("monthly_targets").select("property_name, year, month, target").eq("year", report_year).eq("month", report_month).execute()
+        db_rows = resp.data if resp and hasattr(resp, "data") else []
+        for r in db_rows:
+            key = r.get("property_name")
+            targets[key] = float(r.get("target") or 0)
+    except Exception as e:
+        st.warning(f"Could not load targets from DB: {e}")
+
+    # merge with hardcoded MONTHLY_TARGETS to ensure coverage
+    fallback = MONTHLY_TARGETS.get(selected_month, {})
+    for k, v in fallback.items():
+        if k not in targets:
+            targets[k] = float(v)
+
     st.info(f"📅 Current Date: {current_date.strftime('%B %d, %Y')} | ⏳ Balance Days in {selected_month}: {balance_days}")
 
     properties = load_properties(report_year, report_month)
@@ -553,7 +586,8 @@ def show_target_achievement_report():
             try:
                 bookings[p] = load_combined_bookings(p, dates[0], dates[-1])
                 total_bookings_count += len(bookings[p])
-            except:
+            except Exception as e:
+                st.warning(f"Failed loading bookings for {p}: {e}")
                 bookings[p] = []
         
         st.info(f"📊 Loaded {total_bookings_count} total bookings across all properties for {selected_month}")
