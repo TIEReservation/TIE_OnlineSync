@@ -1,4 +1,4 @@
-# target_achievement_report.py - Multi-Month Support (Dec 2025 → Jul 2026)
+# target_achievement_report.py - Multi-Month Support (Dec 2025 → Sep 2026)
 
 import streamlit as st
 from datetime import date, datetime
@@ -198,6 +198,36 @@ MONTHLY_TARGETS = {
         "La Paradise Residency": 315000,
         "Le Royce Villa": 90000,
     },
+    "August 2026": {
+        "Le Park Resort": 700000,
+        "La Tamara Luxury": 1130000,
+        "Le Poshe Luxury": 750000,
+        "Le Poshe Suite": 360000,
+        "Eden Beach Resort": 390000,
+        "La Antilia Luxury": 595000,
+        "La Coromandel Luxury": 500000,
+        "La Tamara Suite": 460000,
+        "Villa Shakti": 590000,
+        "La Paradise Luxury": 310000,
+        "La Villa Heritage": 290000,
+        "La Paradise Residency": 380000,
+        "Le Royce Villa": 90000,
+    },
+    "September 2026": {
+        "Le Park Resort": 650000,
+        "La Tamara Luxury": 1090000,
+        "Le Poshe Luxury": 730000,
+        "Le Poshe Suite": 350000,
+        "Eden Beach Resort": 370000,
+        "La Antilia Luxury": 580000,
+        "La Coromandel Luxury": 490000,
+        "La Tamara Suite": 450000,
+        "Villa Shakti": 550000,
+        "La Paradise Luxury": 300000,
+        "La Villa Heritage": 280000,
+        "La Paradise Residency": 365000,
+        "Le Royce Villa": 90000,
+    },
 }
 
 # -------------------------- Property Inventory --------------------------
@@ -226,7 +256,6 @@ def get_total_rooms(prop: str) -> int:
     return len([r for r in inv if not r.startswith(("Day Use", "No Show"))])
 
 # -------------------------- Safe Property Loading --------------------------
-from typing import List, Dict
 
 def load_properties(report_year: int = None, report_month: int = None) -> List[str]:
     """Return properties from PROPERTY_INVENTORY.
@@ -264,21 +293,21 @@ def load_combined_bookings(prop: str, start: date, end: date) -> List[Dict]:
             .execute().data or []
 
         all_bookings = []
-        
+
         for b in direct:
             name = b.get("property_name")
             if normalize_property_name(name) == prop:
                 b["property_name"] = prop
                 b["type"] = "direct"
                 all_bookings.append(b)
-        
+
         for b in online:
             name = b.get("property")
             if normalize_property_name(name) == prop:
                 b["property_name"] = prop
                 b["type"] = "online"
                 all_bookings.append(b)
-                
+
         return all_bookings
     except Exception as e:
         st.warning(f"Failed to load bookings for {prop}: {e}")
@@ -319,9 +348,9 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
     daily = filter_bookings_for_day(bookings, day)
     assigned, _ = assign_inventory_numbers(daily, prop)
     rooms_sold = len({b.get("assigned_room") for b in assigned if b.get("assigned_room")})
-    
+
     check_in_primaries = [b for b in assigned if b.get("is_primary", True) and date.fromisoformat(b["check_in"]) == day]
-    
+
     room_charges = gst = commission = 0.0
     for b in check_in_primaries:
         booking_type = b.get("type", "")
@@ -332,12 +361,12 @@ def compute_daily_metrics(bookings: List[Dict], prop: str, day: date) -> Dict:
             room_charges += total_amount - safe_float(b.get("ota_tax"))
         else:
             room_charges += safe_float(b.get("total_tariff"))
-    
+
     total = room_charges + gst
     receivable = total - commission
-    
+
     return {
-        "rooms_sold": rooms_sold, 
+        "rooms_sold": rooms_sold,
         "total": total,
         "receivable": receivable,
         "commission": commission,
@@ -358,7 +387,7 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
 
             achieved = rooms_sold = future_booked = 0.0
             commission_total = receivable_total = gst_total = 0.0
-            
+
             for d in dates:
                 m = compute_daily_metrics(bookings_dict.get(prop, []), prop, d)
                 achieved += m["total"]
@@ -366,7 +395,7 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
                 gst_total += m["gst"]
                 receivable_total += m["receivable"]
                 rooms_sold += m["rooms_sold"]
-                
+
                 if d > current_date:
                     future_booked += m["rooms_sold"]
 
@@ -377,13 +406,13 @@ def build_target_achievement_report(props: List[str], dates: List[date], booking
             per_day_needed = max(balance, 0) / balance_days if balance_days > 0 else 0
 
             rows.append({
-                "Property Name": prop, 
-                "Target": int(target), 
+                "Property Name": prop,
+                "Target": int(target),
                 "Achieved": int(achieved),
                 "Balance": int(balance),
-                "Achieved %": round(achieved_pct, 1), 
+                "Achieved %": round(achieved_pct, 1),
                 "Total Rooms": int(total_room_nights),
-                "Rooms Sold": int(rooms_sold), 
+                "Rooms Sold": int(rooms_sold),
                 "Occupancy %": round(occupancy, 1),
                 "Balance Rooms": int(balance_rooms),
                 "Per Day Needed": int(per_day_needed),
@@ -412,7 +441,7 @@ def build_till_today_report(props: List[str], dates: List[date], bookings_dict: 
     """Calculate metrics only till current system date - ARR based on total room inventory"""
     rows = []
     dates_till_today = [d for d in dates if d <= current_date]
-    
+
     if not dates_till_today:
         return pd.DataFrame([{"Property Name": "No Data"}])
 
@@ -424,7 +453,7 @@ def build_till_today_report(props: List[str], dates: List[date], bookings_dict: 
 
             achieved_till_today = 0.0
             rooms_sold_till_today = 0.0
-            
+
             for d in dates_till_today:
                 m = compute_daily_metrics(bookings_dict.get(prop, []), prop, d)
                 achieved_till_today += m["total"]
@@ -453,7 +482,7 @@ def build_till_today_report(props: List[str], dates: List[date], bookings_dict: 
         totals = {k: sum(r[k] for r in rows if k != "Property Name") for k in rows[0].keys() if k != "Property Name"}
         totals["Property Name"] = "TOTAL"
         totals["Percent"] = round((totals["Achieved"] / totals["Target"] * 100) if totals["Target"] else 0, 1)
-        
+
         total_room_nights = sum(get_total_rooms(p) * len(dates_till_today) for p in props)
         total_sold = sum(r["Sold Rooms"] for r in rows)
         totals["Occupancy %"] = round((total_sold / total_room_nights * 100) if total_room_nights else 0, 1)
@@ -484,33 +513,54 @@ def style_dataframe(df):
 
     try:
         styled = df.style.set_properties(**{"text-align": "center"})
-        
+
         if "Balance" in df.columns and "Achieved %" in df.columns:
             styled = styled.apply(color_balance, axis=1)
-        
+
         pct_cols = [col for col in df.columns if "%" in col or "Percent" in col]
         if pct_cols:
             styled = styled.applymap(color_pct, subset=pct_cols)
-        
+
         currency_cols = ["Target", "Achieved", "Balance", "GST", "Commission", "Receivable", "Current ARR", "Per Day Needed"]
         for col in currency_cols:
             if col in df.columns:
                 styled = styled.format({col: "₹{:,.0f}"})
-        
+
         for col in pct_cols:
             styled = styled.format({col: "{:.1f}%"})
-        
+
         num_cols = ["Total Rooms", "Rooms Sold", "Balance Rooms", "Sold Rooms", "Unsold Rooms"]
         for col in num_cols:
             if col in df.columns:
                 styled = styled.format({col: "{:,.0f}"})
-        
+
         styled = styled.set_table_styles([{"selector": "th", "props": "background-color: #4CAF50; color: white; font-weight: bold;"}])
         return styled
     except Exception:
         return df.style
 
 # -------------------------- UI --------------------------
+
+def get_report_year_month(selected_month: str):
+    try:
+        dt = datetime.strptime(selected_month, "%B %Y")
+        return dt.year, dt.month
+    except ValueError:
+        # Fallback for existing labels if parsing fails.
+        mapping = {
+            "December 2025": (2025, 12),
+            "January 2026": (2026, 1),
+            "February 2026": (2026, 2),
+            "March 2026": (2026, 3),
+            "April 2026": (2026, 4),
+            "May 2026": (2026, 5),
+            "June 2026": (2026, 6),
+            "July 2026": (2026, 7),
+            "August 2026": (2026, 8),
+            "September 2026": (2026, 9),
+        }
+        return mapping.get(selected_month, (2026, 7))
+
 
 def show_target_achievement_report():
     st.set_page_config(page_title="Target vs Achievement Report", layout="wide")
@@ -519,30 +569,24 @@ def show_target_achievement_report():
     # Month Selector
     selected_month = st.selectbox(
         "Select Month",
-        options=["December 2025", "January 2026", "February 2026", "March 2026", "April 2026", "May 2026", "June 2026", "July 2026"],
+        options=[
+            "December 2025",
+            "January 2026",
+            "February 2026",
+            "March 2026",
+            "April 2026",
+            "May 2026",
+            "June 2026",
+            "July 2026",
+            "August 2026",
+            "September 2026",
+        ],
         index=7  # Default to July 2026
     )
 
     current_date = date.today()
-    
-    # Parse selected month
-    if selected_month == "December 2025":
-        report_year, report_month = 2025, 12
-    elif selected_month == "January 2026":
-        report_year, report_month = 2026, 1
-    elif selected_month == "February 2026":
-        report_year, report_month = 2026, 2
-    elif selected_month == "March 2026":
-        report_year, report_month = 2026, 3
-    elif selected_month == "April 2026":
-        report_year, report_month = 2026, 4
-    elif selected_month == "May 2026":
-        report_year, report_month = 2026, 5
-    elif selected_month == "June 2026":
-        report_year, report_month = 2026, 6
-    else:  # July 2026
-        report_year, report_month = 2026, 7
-    
+    report_year, report_month = get_report_year_month(selected_month)
+
     # Calculate balance days
     if current_date.year == report_year and current_date.month == report_month:
         _, days_in_month = calendar.monthrange(report_year, report_month)
@@ -553,10 +597,10 @@ def show_target_achievement_report():
             balance_days = days_in_month  # Future month
         else:
             balance_days = 0  # Past month
-    
+
     _, days_in_month = calendar.monthrange(report_year, report_month)
     dates = [date(report_year, report_month, d) for d in range(1, days_in_month + 1)]
-    
+
     # Primary target source: DB. Fallback to MONTHLY_TARGETS dict if DB not available or missing rows.
     targets = {}
     try:
@@ -589,7 +633,7 @@ def show_target_achievement_report():
             except Exception as e:
                 st.warning(f"Failed loading bookings for {p}: {e}")
                 bookings[p] = []
-        
+
         st.info(f"📊 Loaded {total_bookings_count} total bookings across all properties for {selected_month}")
 
         # Main Report
@@ -611,13 +655,13 @@ def show_target_achievement_report():
     # Till Today Report
     st.markdown("---")
     st.subheader(f"📊 Values Till Today - {selected_month}")
-    
+
     if current_date >= dates[0]:
         st.caption(f"Performance metrics calculated from {dates[0].strftime('%B %d, %Y')} to {min(current_date, dates[-1]).strftime('%B %d, %Y')} | ARR = Revenue ÷ Total Room Inventory")
-        
+
         df_today = build_till_today_report(properties, dates, bookings, current_date, targets)
         styled_today = style_dataframe(df_today)
-        
+
         st.dataframe(styled_today, use_container_width=True, hide_index=True)
 
         if not df_today.empty and "TOTAL" in df_today["Property Name"].values:
@@ -637,17 +681,17 @@ def show_target_achievement_report():
     col1, col2 = st.columns(2)
     with col1:
         st.download_button(
-            "📥 Download Full Report (CSV)", 
-            df.to_csv(index=False), 
-            f"Target_Achievement_{selected_month.replace(' ', '_')}.csv", 
+            "📥 Download Full Report (CSV)",
+            df.to_csv(index=False),
+            f"Target_Achievement_{selected_month.replace(' ', '_')}.csv",
             "text/csv"
         )
     with col2:
         if current_date >= dates[0]:
             st.download_button(
-                "📥 Download Till Today Report (CSV)", 
-                df_today.to_csv(index=False), 
-                f"Target_Achievement_TillToday_{selected_month.replace(' ', '_')}.csv", 
+                "📥 Download Till Today Report (CSV)",
+                df_today.to_csv(index=False),
+                f"Target_Achievement_TillToday_{selected_month.replace(' ', '_')}.csv",
                 "text/csv"
             )
 
