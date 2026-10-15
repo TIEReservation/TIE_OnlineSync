@@ -75,7 +75,7 @@ def get_supabase_client():
     """Create a single Supabase client for the entire session."""
     try:
         os.environ["SUPABASE_URL"] = "https://oxbrezracnmazucnnqox.supabase.co"
-        os.environ["SUPABASE_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94YnJlenJhY25tYXp1Y25ucW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjUxMTgsImV4cCI6MjA2OTM0M[...]
+        os.environ["SUPABASE_KEY"] = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJnYXlhdGhyaS50aWVAZ21haWwuY29tIiwiaXNzIjoibWF5YW5rU0YiLCJpYXQiOjE3NTQ0ODE4MjQsImV4cCI6MTc4NTU4NTgyNH0.9UmdbaCu7P5_Mfm8nIAaT2MDLR_RyTx3RdouMC0dP0o"
         return create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
     except Exception as e:
         st.error(f"Failed to initialize Supabase client: {e}")
